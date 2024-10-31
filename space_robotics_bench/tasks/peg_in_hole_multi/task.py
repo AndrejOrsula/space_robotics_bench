@@ -1,5 +1,5 @@
 from dataclasses import MISSING as DELAYED_CFG
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List, Sequence, Tuple
 
 import torch
 from omni.isaac.core.prims.xform_prim_view import XFormPrimView

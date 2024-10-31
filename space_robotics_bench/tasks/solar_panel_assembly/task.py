@@ -1,4 +1,3 @@
-import os
 import sys
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
@@ -11,18 +10,12 @@ import space_robotics_bench.core.envs as env_utils
 import space_robotics_bench.core.sim as sim_utils
 import space_robotics_bench.utils.math as math_utils
 from space_robotics_bench import assets
-from space_robotics_bench.core.assets import (
-    AssetBaseCfg,
-    AssetCfg,
-    RigidObject,
-    RigidObjectCfg,
-)
+from space_robotics_bench.core.assets import AssetCfg, RigidObject, RigidObjectCfg
 from space_robotics_bench.core.managers import EventTermCfg, SceneEntityCfg
 from space_robotics_bench.core.markers import (
     VisualizationMarkers,
     VisualizationMarkersCfg,
 )
-from space_robotics_bench.core.sim.schemas import RigidBodyPropertiesCfg
 from space_robotics_bench.envs import (
     BaseManipulationEnv,
     BaseManipulationEnvCfg,

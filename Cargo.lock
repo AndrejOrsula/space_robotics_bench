@@ -2781,9 +2781,9 @@ dependencies = [
 
 [[package]]
 name = "r2r"
-version = "0.9.2"
+version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "71a6ecd5ceee58172c691c22ecfc013ef4621d38eb6804eb5bea0271f6f53daa"
+checksum = "66bfc605774d80ae985a1d81575356149c7f7648f0a10aa9059ba772646ad936"
 dependencies = [
  "force-send-sync",
  "futures",
@@ -2809,9 +2809,9 @@ dependencies = [
 
 [[package]]
 name = "r2r_actions"
-version = "0.9.2"
+version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57386bf86b3db4e77bd91d6faa33bce0dba4389cefd4ba808a5b3dc5f870dc96"
+checksum = "618cf2f73fbb5c484ec26149751176dae6f9267fe6678f361c308a85a2ff96bf"
 dependencies = [
  "bindgen",
  "r2r_common",
@@ -2821,9 +2821,9 @@ dependencies = [
 
 [[package]]
 name = "r2r_common"
-version = "0.9.2"
+version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f663cf4827e641a11b670844ce1cfa67d7ecf625ada3b91246515ee26c896b18"
+checksum = "945f605986e35045e196b4c0613c165573a888908b48ec45741224ed60118dcb"
 dependencies = [
  "bindgen",
  "os_str_bytes",
@@ -2833,9 +2833,9 @@ dependencies = [
 
 [[package]]
 name = "r2r_macros"
-version = "0.9.2"
+version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7092302580ef2a6febeda5db5fd6af4eb28400eb5e0da6c729dcc8b41990d137"
+checksum = "1a5866fdab908f2f3698870a56c516c92adc56487ba10bbf38c4a207ac27f7b3"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2844,9 +2844,9 @@ dependencies = [
 
 [[package]]
 name = "r2r_msg_gen"
-version = "0.9.2"
+version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c538acb9f8150028d1a8163eda1c48008551374f6a317cf52c30a3f06d4bef5b"
+checksum = "23a84a28922cdc45fdb4dd351ea837e72387d781e31d619d1396b092c0d5409b"
 dependencies = [
  "bindgen",
  "force-send-sync",
@@ -2862,9 +2862,9 @@ dependencies = [
 
 [[package]]
 name = "r2r_rcl"
-version = "0.9.2"
+version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e6a333ef3afc5cda5ddbf2c0d0b0c0ff01e5f8dae542b109112dad0142b47531"
+checksum = "a7500e303ac5a9e4d312737034ecca7bb70bf64a582b2fbf96743651ab1cc66d"
 dependencies = [
  "bindgen",
  "paste",

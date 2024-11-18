@@ -108,7 +108,7 @@ jobs:
       ## [stable] Upload coverage to codecov.io
       - name: stable | Upload coverage
         if: ${{ matrix.toolchain == 'stable' }}
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: lcov.info

@@ -59,12 +59,17 @@ impl TaskConfig {
         // Arguments
         if self.enable_ui {
             exec = exec.args(&[
+                "--gui_integration",
+                "--ros2_integration",
                 "--task",
                 &format!("{}_visual", self.task.to_string().trim_matches('"')),
-                "--with_ros2",
             ]);
         } else {
-            exec = exec.args(&["--task", self.task.to_string().trim_matches('"')]);
+            exec = exec.args(&[
+                "--gui_integration",
+                "--task",
+                self.task.to_string().trim_matches('"'),
+            ]);
         }
         self.num_envs = self.num_envs.max(1);
         exec = exec.args(&["--num_envs", self.num_envs.to_string().as_str()]);

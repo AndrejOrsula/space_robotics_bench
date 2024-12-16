@@ -117,7 +117,8 @@ class Se3Touch(DeviceBase):
         self.force_feedback_sensitivity = msg.data
 
     def __del__(self):
-        self._thread.join()
+        if hasattr(self, "_thread"):
+            self._thread.join()
 
     def __str__(self) -> str:
         msg = f'Haptic "Touch" Interface ({self.__class__.__name__})\n'

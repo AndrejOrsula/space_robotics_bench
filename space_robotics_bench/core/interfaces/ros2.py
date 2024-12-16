@@ -108,7 +108,8 @@ class ROS2:
             self._thread.start()
 
     def __del__(self):
-        self._thread.join()
+        if hasattr(self, "_thread"):
+            self._thread.join()
 
     @property
     def actions(self) -> torch.Tensor:

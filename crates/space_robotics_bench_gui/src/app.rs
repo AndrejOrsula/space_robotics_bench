@@ -61,8 +61,8 @@ pub struct App {
     node: r2r::Node,
     #[serde(skip)]
     pub_gripper_toggle: r2r::Publisher<BoolMsg>,
-    #[serde(skip)]
-    pub_reset_save_dataset: r2r::Publisher<EmptyMsg>,
+    // #[serde(skip)]
+    // pub_reset_save_dataset: r2r::Publisher<EmptyMsg>,
     #[serde(skip)]
     pub_reset_discard_dataset: r2r::Publisher<EmptyMsg>,
     #[serde(skip)]
@@ -99,9 +99,9 @@ impl Default for App {
         let pub_gripper_toggle = node
             .create_publisher::<BoolMsg>("touch/event", QosProfile::default())
             .unwrap();
-        let pub_reset_save_dataset = node
-            .create_publisher::<EmptyMsg>("gui/reset_save_dataset", QosProfile::default())
-            .unwrap();
+        // let pub_reset_save_dataset = node
+        //     .create_publisher::<EmptyMsg>("gui/reset_save_dataset", QosProfile::default())
+        //     .unwrap();
         let pub_reset_discard_dataset = node
             .create_publisher::<EmptyMsg>("gui/reset_discard_dataset", QosProfile::default())
             .unwrap();
@@ -185,7 +185,7 @@ impl Default for App {
 
             node,
             pub_gripper_toggle,
-            pub_reset_save_dataset,
+            // pub_reset_save_dataset,
             pub_reset_discard_dataset,
             pub_gracefully_shutdown_process,
             pub_gravity,
@@ -1023,27 +1023,27 @@ impl App {
     fn restart_episode(&mut self) {
         if self.subprocess.is_some() {
             info!("Restarting episode");
-            if self.collect_trajectory {
-                info!("Saving trajectory");
-                self.pub_reset_save_dataset.publish(&EmptyMsg {}).unwrap();
-                self.n_collected_trajectories += 1;
+            // if self.collect_trajectory {
+            //     info!("Saving trajectory");
+            //     self.pub_reset_save_dataset.publish(&EmptyMsg {}).unwrap();
+            //     self.n_collected_trajectories += 1;
 
-                writeln!(
-                    self.logfile,
-                    "DATA, {}, {}, {}",
-                    std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap()
-                        .as_secs(),
-                    chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
-                    self.task_config
-                )
+            writeln!(
+                self.logfile,
+                "DATA, {}, {}, {}",
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs(),
+                chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
+                self.task_config
+            )
+            .unwrap();
+            // } else {
+            self.pub_reset_discard_dataset
+                .publish(&EmptyMsg {})
                 .unwrap();
-            } else {
-                self.pub_reset_discard_dataset
-                    .publish(&EmptyMsg {})
-                    .unwrap();
-            }
+            // }
         } else {
             error!("Cannot restart episode: subprocess is not running");
         }

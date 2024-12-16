@@ -257,9 +257,7 @@ class Sb3VecEnvWrapper(VecEnv):
     def set_attr(self, attr_name, value, indices=None):  # noqa: D102
         raise NotImplementedError("Setting attributes is not supported.")
 
-    def env_method(
-        self, method_name: str, *method_args, indices=None, **method_kwargs
-    ):  # noqa: D102
+    def env_method(self, method_name: str, *method_args, indices=None, **method_kwargs):  # noqa: D102
         if method_name == "render":
             # gymnasium does not support changing render mode at runtime
             return self.env.render()

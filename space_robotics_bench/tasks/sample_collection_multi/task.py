@@ -170,9 +170,7 @@ class Task(BaseManipulationEnv):
             self.cfg.target_pos, dtype=torch.float32, device=self.device
         ).repeat(
             self.num_envs, self.cfg.num_problems_per_env, 1
-        ) + self.scene.env_origins.unsqueeze(
-            1
-        )
+        ) + self.scene.env_origins.unsqueeze(1)
         self._target_quat_w = torch.tensor(
             self.cfg.target_quat, dtype=torch.float32, device=self.device
         ).repeat(self.num_envs, self.cfg.num_problems_per_env, 1)

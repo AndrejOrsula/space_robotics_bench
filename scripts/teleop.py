@@ -13,6 +13,7 @@ from omni.isaac.lab.app import AppLauncher
 
 def main(launcher: AppLauncher, args: argparse.Namespace):
     ## Note: Importing modules here due to delayed Omniverse Kit extension loading
+    import threading
     from os import path
 
     import gymnasium
@@ -20,6 +21,7 @@ def main(launcher: AppLauncher, args: argparse.Namespace):
     import torch
     from omni.isaac.kit import SimulationApp
     from omni.isaac.lab.utils.dict import print_dict
+    from rclpy.executors import MultiThreadedExecutor
 
     import space_robotics_bench  # Noqa: F401
     from space_robotics_bench.core import mdp
@@ -28,9 +30,15 @@ def main(launcher: AppLauncher, args: argparse.Namespace):
         MultiCopterActionGroupCfg,
         WheeledRoverActionGroupCfg,
     )
+    from space_robotics_bench.core.interfaces import ROS2, GuiInterface
     from space_robotics_bench.core.managers import SceneEntityCfg
     from space_robotics_bench.core.teleop_devices import CombinedInterface
     from space_robotics_bench.utils.parsing import create_logdir_path, parse_task_cfg
+    from space_robotics_bench.utils.ros import enable_ros2_bridge
+
+    enable_ros2_bridge()
+    import rclpy
+    from rclpy.node import Node
 
     if args.headless and "keyboard" in args.teleop_device:
         raise ValueError("Native teleoperation is only supported in GUI mode.")
@@ -54,16 +62,40 @@ def main(launcher: AppLauncher, args: argparse.Namespace):
         id=args.task, cfg=task_cfg, render_mode="rgb_array" if args.video else None
     )
 
-    ## Create controller
+    # ROS 2 node
+    try:
+        rclpy.init(args=None)
+    except Exception as _:
+        pass
+    ros_node = Node("srb")
+
+    ## Teleop interface
     teleop_interface = CombinedInterface(
         devices=args.teleop_device,
         pos_sensitivity=args.pos_sensitivity,
         rot_sensitivity=args.rot_sensitivity,
         action_cfg=env.unwrapped.cfg.actions,
+        node=ros_node,
     )
+
+    def cb_reset():
+        global should_reset
+        should_reset = True
+
+    global should_reset
+    should_reset = False
+    teleop_interface.add_callback("L", cb_reset)
+
     teleop_interface.reset()
-    teleop_interface.add_callback("L", env.reset)
     print(teleop_interface)
+
+    ## ROS 2 interface
+    if args.ros2_integration:
+        ros2_interface = ROS2(env, node=ros_node)
+
+    ## GUI interface
+    if args.gui_integration:
+        gui_interface = GuiInterface(env, node=ros_node)
 
     ## Initialize the environment
     observation, info = env.reset()
@@ -103,6 +135,13 @@ def main(launcher: AppLauncher, args: argparse.Namespace):
         elif isinstance(env.unwrapped.cfg.actions, WheeledRoverActionGroupCfg):
             return twist[:, :2]
 
+    # ROS 2 executor
+    executor = MultiThreadedExecutor(num_threads=2)
+    executor.add_node(ros_node)
+    thread = threading.Thread(target=executor.spin)
+    thread.daemon = True
+    thread.start()
+
     ## Run the environment
     with torch.inference_mode():
         while sim_app.is_running():
@@ -130,6 +169,20 @@ def main(launcher: AppLauncher, args: argparse.Namespace):
                     )[0, ...].cpu()
                 )
                 teleop_interface.set_ft_feedback(ft_feedback)
+
+            ## ROS 2 interface
+            if args.ros2_integration:
+                ros2_interface.publish(observation, reward, terminated, truncated, info)
+                ros2_interface.update()
+
+            ## GUI interface
+            if args.gui_integration:
+                gui_interface.update()
+
+            if should_reset:
+                should_reset = False
+                teleop_interface.reset()
+                observation, info = env.unwrapped.reset()
 
     ## Close the environment
     env.close()
@@ -166,6 +219,18 @@ def parse_cli_args() -> argparse.Namespace:
         action="store_true",
         default=False,
         help="Flag to disable inverting the control scheme due to view for manipulation-based tasks.",
+    )
+    algorithm_group.add_argument(
+        "--ros2_integration",
+        action="store_true",
+        default=False,
+        help="Flag to enable ROS 2 interface for subscribing to per-env actions and publishing per-env observations",
+    )
+    algorithm_group.add_argument(
+        "--gui_integration",
+        action="store_true",
+        default=False,
+        help="Flag to enable GUI integration",
     )
     add_default_cli_args(parser)
     return parser.parse_args()

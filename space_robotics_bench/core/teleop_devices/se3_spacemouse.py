@@ -52,7 +52,8 @@ class Se3SpaceMouse(DeviceBase):
             )
 
     def __del__(self):
-        self._thread.join()
+        if hasattr(self, "_thread"):
+            self._thread.join()
 
     def __str__(self) -> str:
         msg = f"Spacemouse Controller ({self.__class__.__name__})\n"

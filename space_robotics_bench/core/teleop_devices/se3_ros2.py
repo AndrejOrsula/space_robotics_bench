@@ -80,7 +80,8 @@ class Se3ROS2(DeviceBase, Node):
             self.last_feedback = None
 
     def __del__(self):
-        self._thread.join()
+        if hasattr(self, "_thread"):
+            self._thread.join()
 
     def __str__(self) -> str:
         msg = f"ROS 2 Interface ({self.__class__.__name__})\n"

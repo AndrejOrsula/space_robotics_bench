@@ -35,11 +35,6 @@ repos:
     hooks:
       - id: beautysh
 
-  - repo: https://github.com/psf/black
-    rev: 24.10.0
-    hooks:
-      - id: black
-
   - repo: https://github.com/codespell-project/codespell
     rev: v2.3.0
     hooks:
@@ -78,3 +73,10 @@ repos:
       - id: cargo-doc
         args: ["--workspace", "--no-deps", "--document-private-items"]
       - id: cargo-deny-check
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.3
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format

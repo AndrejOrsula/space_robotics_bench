@@ -54,9 +54,9 @@ class TaskCfg(BaseManipulationEnvCfg):
         self.scene.contacts_robot = None
 
         ## Events
-        self.events.reset_rand_robot_state.params["asset_cfg"].joint_names = (
-            self.robot_cfg.regex_joints_arm
-        )
+        self.events.reset_rand_robot_state.params[
+            "asset_cfg"
+        ].joint_names = self.robot_cfg.regex_joints_arm
 
 
 ############

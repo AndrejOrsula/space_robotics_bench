@@ -196,9 +196,9 @@ class BaseManipulationEnvCfg(BaseEnvCfg):
         )
 
         ## Events
-        self.events.reset_rand_robot_state.params["asset_cfg"].joint_names = (
-            self.robot_cfg.regex_joints_arm
-        )
+        self.events.reset_rand_robot_state.params[
+            "asset_cfg"
+        ].joint_names = self.robot_cfg.regex_joints_arm
         if self.env_cfg.scenario == env_utils.Scenario.ORBIT:
             # Fix the orientation of the light such that it fits with the orbital HDR
             self.events.reset_rand_light_rot.params[

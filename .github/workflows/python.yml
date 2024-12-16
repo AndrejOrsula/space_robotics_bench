@@ -30,7 +30,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-
       - name: pip install
         run: pip install .[tests]
       - name: pytest
@@ -42,7 +41,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Build sdist
         uses: PyO3/maturin-action@v1
         with:
@@ -51,29 +49,77 @@ jobs:
       - name: Upload sdist
         uses: actions/upload-artifact@v4
         with:
-          name: wheels
+          name: wheels-sdist
           path: dist
 
   wheels_linux:
     if: ${{ github.event_name == 'release' }}
     needs: pytest
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.platform.runner }}
+    strategy:
+      matrix:
+        platform:
+          - runner: ubuntu-latest
+            target: x86_64
+          - runner: ubuntu-latest
+            target: x86
+          - runner: ubuntu-latest
+            target: aarch64
+          - runner: ubuntu-latest
+            target: armv7
+          - runner: ubuntu-latest
+            target: s390x
+          - runner: ubuntu-latest
+            target: ppc64le
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
-          args: --release --out dist --find-interpreter
+          target: ${{ matrix.platform.target }}
+          args: --release --out dist
           sccache: "true"
           manylinux: auto
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
-          name: wheels
+          name: wheels-linux-${{ matrix.platform.target }}
+          path: dist
+
+  wheels_musllinux:
+    if: ${{ github.event_name == 'release' }}
+    needs: pytest
+    runs-on: ${{ matrix.platform.runner }}
+    strategy:
+      matrix:
+        platform:
+          - runner: ubuntu-latest
+            target: x86_64
+          - runner: ubuntu-latest
+            target: x86
+          - runner: ubuntu-latest
+            target: aarch64
+          - runner: ubuntu-latest
+            target: armv7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.platform.target }}
+          args: --release --out dist
+          sccache: "true"
+          manylinux: musllinux_1_2
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-musllinux-${{ matrix.platform.target }}
           path: dist
 
   pypi_release:
@@ -83,18 +129,15 @@ jobs:
     needs:
       - wheels_sdist
       - wheels_linux
+      - wheels_musllinux
     runs-on: ubuntu-latest
     env:
       MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
     steps:
-      - name: Download wheels
-        if: ${{ env.MATURIN_PYPI_TOKEN != '' }}
-        uses: actions/download-artifact@v4
-        with:
-          name: wheels
+      - uses: actions/download-artifact@v4
       - name: Publish to PyPI
         if: ${{ env.MATURIN_PYPI_TOKEN != '' }}
         uses: PyO3/maturin-action@v1
         with:
           command: upload
-          args: --skip-existing *
+          args: --non-interactive --skip-existing wheels-*/*

@@ -1,7 +1,7 @@
 import importlib
 import pkgutil
 import sys
-from typing import List, Optional
+from typing import Iterable, List
 
 
 def import_modules_recursively(module_name: str, ignorelist: List[str] = []):
@@ -13,7 +13,7 @@ def import_modules_recursively(module_name: str, ignorelist: List[str] = []):
 
 
 def _walk_modules(
-    path: Optional[str] = None,
+    path: Iterable[str],
     prefix: str = "",
     ignorelist: List[str] = [],
 ):
@@ -34,6 +34,6 @@ def _walk_modules(
             except Exception:
                 raise
             else:
-                path = getattr(sys.modules[info.name], "__path__", None) or []
-                path = [p for p in path if not seen(p)]
-                yield from _walk_modules(path, f"{info.name}.", ignorelist)
+                paths = getattr(sys.modules[info.name], "__path__", None) or []
+                paths = [path for path in paths if not seen(path)]
+                yield from _walk_modules(paths, f"{info.name}.", ignorelist)

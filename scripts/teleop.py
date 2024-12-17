@@ -28,6 +28,7 @@ def main(launcher: AppLauncher, args: argparse.Namespace):
     from space_robotics_bench.core.actions import (
         ManipulatorTaskSpaceActionCfg,
         MultiCopterActionGroupCfg,
+        SpacecraftActionGroupCfg,
         WheeledRoverActionGroupCfg,
     )
     from space_robotics_bench.core.interfaces import ROS2, GuiInterface
@@ -134,6 +135,9 @@ def main(launcher: AppLauncher, args: argparse.Namespace):
 
         elif isinstance(env.unwrapped.cfg.actions, WheeledRoverActionGroupCfg):
             return twist[:, :2]
+
+        elif isinstance(env.unwrapped.cfg.actions, SpacecraftActionGroupCfg):
+            return twist[:, :6]
 
     # ROS 2 executor
     executor = MultiThreadedExecutor(num_threads=2)

@@ -7,6 +7,7 @@ from omni.isaac.lab.devices import DeviceBase
 from space_robotics_bench.core.actions import (
     ManipulatorTaskSpaceActionCfg,
     MultiCopterActionGroupCfg,
+    SpacecraftActionGroupCfg,
     WheeledRoverActionGroupCfg,
 )
 from space_robotics_bench.core.teleop_devices import (
@@ -230,6 +231,32 @@ class CombinedInterface(DeviceBase):
 |                       |                        |
 |                       ↓                        |
 |                     [ S ] (-X)                 |
++------------------------------------------------+
+        """
+        elif isinstance(action_cfg, SpacecraftActionGroupCfg):
+            return """
++------------------------------------------------+
+|  Keyboard Scheme (focus the Isaac Sim window)  |
++------------------------------------------------+
++------------------------------------------------+
+| Decrease Gain [ O ]   | Increase Gain: [ P ]   |
+| Reset: [ L ]                                   |
++------------------------------------------------+
+| Translation                                    |
+|             [ W ] (+X)            [ Q ] (+Z)   |
+|               ↑                     ↑          |
+|               |                     |          |
+|  (-Y) [ A ] ← + → [ D ] (+Y)        +          |
+|               |                     |          |
+|               ↓                     ↓          |
+|             [ S ] (-X)            [ E ] (-Z)   |
+|------------------------------------------------|
+| Rotation                                       |
+|       [ Z ] ←--------(±X)--------→ [ X ]       |
+|                                                |
+|       [ T ] ↻--------(±Y)--------↺ [ G ]       |
+|                                                |
+|       [ C ] ↺--------(±Z)--------↻ [ V ]       |
 +------------------------------------------------+
         """
         else:

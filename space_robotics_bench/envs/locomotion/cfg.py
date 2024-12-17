@@ -94,16 +94,16 @@ class BaseLocomotionEnvCfg(BaseEnvCfg):
             friction_correlation_distance=0.005,
             min_velocity_iteration_count=2,
             # GPU settings
-            gpu_temp_buffer_capacity=2 ** (24 - 2),
-            gpu_max_rigid_contact_count=2 ** (22 - 1),
-            gpu_max_rigid_patch_count=2 ** (13 - 0),
-            gpu_heap_capacity=2 ** (26 - 3),
-            gpu_found_lost_pairs_capacity=2 ** (18 - 1),
-            gpu_found_lost_aggregate_pairs_capacity=2 ** (10 - 0 + 1),
-            gpu_total_aggregate_pairs_capacity=2 ** (10 - 0 + 1),
-            gpu_max_soft_body_contacts=2 ** (20 - 1),
-            gpu_max_particle_contacts=2 ** (20 - 1),
-            gpu_collision_stack_size=2 ** (26 - 3),
+            gpu_temp_buffer_capacity=2 ** (24 - 1),
+            gpu_max_rigid_contact_count=2 ** (22 + 0),
+            gpu_max_rigid_patch_count=2 ** (13 + 3),
+            gpu_heap_capacity=2 ** (26 - 2),
+            gpu_found_lost_pairs_capacity=2 ** (18 + 2),
+            gpu_found_lost_aggregate_pairs_capacity=2 ** (10 + 16),
+            gpu_total_aggregate_pairs_capacity=2 ** (10 + 12),
+            gpu_max_soft_body_contacts=2 ** (20 + 0),
+            gpu_max_particle_contacts=2 ** (20 + 0),
+            gpu_collision_stack_size=2 ** (26 - 2),
             gpu_max_num_partitions=8,
         ),
         render=sim_utils.RenderCfg(
@@ -140,8 +140,9 @@ class BaseLocomotionEnvCfg(BaseEnvCfg):
         self.sim.dt = self.env_rate
         self.sim.render_interval = self.decimation
         self.sim.gravity = (0.0, 0.0, -self.env_cfg.scenario.gravity_magnitude)
+        # TODO: Fix because self.scene.num_envs is not updated at this moment (everywhere)
         # Increase GPU settings based on the number of environments
-        gpu_capacity_factor = math.pow(self.scene.num_envs, 0.25)
+        gpu_capacity_factor = math.pow(self.scene.num_envs, 0.5)
         self.sim.physx.gpu_heap_capacity *= gpu_capacity_factor
         self.sim.physx.gpu_collision_stack_size *= gpu_capacity_factor
         self.sim.physx.gpu_temp_buffer_capacity *= gpu_capacity_factor

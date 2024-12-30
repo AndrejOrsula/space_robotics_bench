@@ -33,7 +33,7 @@ const_format = { version = "0.2", features = ["more_str_macros"] }
 display_json = { version = "0.2" }
 fast_poisson = { version = "1.0", features = ["single_precision"] }
 figment = { version = "0.10", features = ["env", "test"] }
-home = { version = "0.5.9" }
+home = { version = "0.5.11" }
 image = { version = "0.25", default-features = false, features = [
     "jpeg",
     "png",

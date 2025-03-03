@@ -26,7 +26,7 @@ eframe = { version = "0.30", default-features = false, features = [
     "persistence",
 ] }
 egui = { version = "0.30", default-features = false }
-egui_extras = { version = "0.30", default-features = false, features = [
+egui_extras = { version = "0.31", default-features = false, features = [
     "all_loaders",
     "syntect",
 ] }

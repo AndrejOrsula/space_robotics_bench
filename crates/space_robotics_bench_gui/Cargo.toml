@@ -30,7 +30,7 @@ egui_extras = { version = "0.30", default-features = false, features = [
     "all_loaders",
     "syntect",
 ] }
-egui_commonmark = { version = "0.19", default-features = false, features = [
+egui_commonmark = { version = "0.20", default-features = false, features = [
     "better_syntax_highlighting",
     "macros",
     "pulldown_cmark",

@@ -41,6 +41,8 @@ jobs:
           remove-large-packages: "true"
 
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       ## Login to Docker Hub and/or GitHub container registry
       - name: Login to GitHub container registry

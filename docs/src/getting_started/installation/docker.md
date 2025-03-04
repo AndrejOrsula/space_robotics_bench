@@ -49,3 +49,16 @@ To ensure that the image was built successfully, run the following command. You 
 ```bash
 docker images
 ```
+
+
+
+
+```bash
+# [ALTERNATIVE] Raw content via wget
+WITH_DEV_VOLUME=false bash -c "$(wget -qO - https://raw.githubusercontent.com/AndrejOrsula/space_robotics_bench/refs/heads/main/.docker/run.bash)" -- $TAG $CMD
+```
+
+```bash
+# [ALTERNATIVE] Raw content via curl
+WITH_DEV_VOLUME=false bash -c "$(curl -fsSL https://raw.githubusercontent.com/AndrejOrsula/space_robotics_bench/refs/heads/main/.docker/run.bash)" -- $TAG $CMD
+```

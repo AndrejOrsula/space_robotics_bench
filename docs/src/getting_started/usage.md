@@ -35,7 +35,7 @@ Once Isaac Sim is confirmed to be working, you can begin exploring the demos and
 # Option 1: Using the script directly
 .docker/run.bash scripts/teleop.py --env perseverance
 # Option 2: Using ROS 2 package installation
-.docker/run.bash ros2 run space_robotics_bench teleop.py --env perseverance
+.docker/run.bash ros2 run srb teleop.py --env perseverance
 ```
 
 After a few moments, Isaac Sim should appear. The window will briefly remain inactive as the assets are procedurally generated in the background. The generation time depends on the complexity of the assets and your hardware, particularly the GPU, which will be used to bake PBR textures. However, future runs will use cached assets, as long as the configuration remains unchanged and the cache is not cleared, see [Clean the Assets Cache](../instructions/utils/clean_cache.md).

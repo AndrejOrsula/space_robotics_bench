@@ -28,7 +28,7 @@ sudo systemctl restart docker
 
 ## 3. Clone the Repository
 
-Next, clone the `space_robotics_bench` repository locally. Make sure to include the `--recurse-submodules` flag to clone also the submodule containing simulation assets.
+Next, clone the `srb` repository locally. Make sure to include the `--recurse-submodules` flag to clone also the submodule containing simulation assets.
 
 ```bash
 git clone --recurse-submodules https://github.com/AndrejOrsula/space_robotics_bench.git
@@ -38,13 +38,13 @@ git clone --recurse-submodules https://github.com/AndrejOrsula/space_robotics_be
 
 > This step is now optional and can be skipped by continuing directly to the instructions about the [Basic Usage](../usage.md). The Docker image is available on [Docker Hub](https://hub.docker.com/r/andrejorsula/space_robotics_bench), and it will be automatically pulled when you run the benchmark via Docker for the first time (usually faster than building it locally).
 
-You can build the Docker image for `space_robotics_bench` by running the provided [`.docker/build.bash`](https://github.com/AndrejOrsula/space_robotics_bench/blob/main/.docker/build.bash) script. Note that the first build process may take up to 30 minutes (depending on your network speed and system configuration).
+You can build the Docker image for `srb` by running the provided [`.docker/build.bash`](https://github.com/AndrejOrsula/space_robotics_bench/blob/main/.docker/build.bash) script. Note that the first build process may take up to 30 minutes (depending on your network speed and system configuration).
 
 ```bash
-space_robotics_bench/.docker/build.bash
+srb/.docker/build.bash
 ```
 
-To ensure that the image was built successfully, run the following command. You should see the `space_robotics_bench` image listed among recently created Docker images.
+To ensure that the image was built successfully, run the following command. You should see the `srb` image listed among recently created Docker images.
 
 ```bash
 docker images

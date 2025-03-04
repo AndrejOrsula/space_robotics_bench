@@ -6,7 +6,7 @@ The Space Robotics Bench comes with a simple GUI application that can serve as a
 
 ## Usage
 
-To run the GUI application, you can use the included [`gui.bash`](https://github.com/AndrejOrsula/space_robotics_bench/blob/main/scripts/gui.bash) script, which internally calls a variant of `cargo run -p space_robotics_bench_gui` command.
+To run the GUI application, you can use the included [`gui.bash`](https://github.com/AndrejOrsula/space_robotics_bench/blob/main/scripts/gui.bash) script, which internally calls a variant of `cargo run -p srb_gui` command.
 
 ```bash
 .docker/run.bash scripts/gui.bash

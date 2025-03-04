@@ -9,7 +9,7 @@ Environments of the Space Robotics Bench can be integrated with ROS 2 to enable 
 The [`ros2.py`](https://github.com/AndrejOrsula/space_robotics_bench/blob/main/scripts/ros2.py) script is the primary entry point for interfacing with the environments through ROS 2. This script spawns a single ROS node that maps inputs and outputs for the environment and provides miscellaneous functionalities such as resetting the simulation. Here is an example using the Ingenuity demo:
 
 ```bash
-.docker/run.bash ros2 run space_robotics_bench ros2.py --env ingenuity
+.docker/run.bash ros2 run srb ros2.py --env ingenuity
 ```
 
 Once the environment is initialized, open a new terminal to inspect the available ROS topics. You can either use your ROS setup or join the running Docker container with the [`.docker/join.bash`](https://github.com/AndrejOrsula/space_robotics_bench/blob/main/.docker/join.bash) script:
@@ -51,7 +51,7 @@ ros2 service call /sim/reset std_srvs/srv/Empty
 You can run multiple environments in parallel by using the `--num_envs` argument. Each environment will map to its own ROS namespace. For example, try running the Ingenuity demo with 4 environments:
 
 ```bash
-.docker/run.bash ros2 run space_robotics_bench ros2.py --env ingenuity --num_envs 4
+.docker/run.bash ros2 run srb ros2.py --env ingenuity --num_envs 4
 ```
 
 List the available ROS topics again:
@@ -97,5 +97,5 @@ ros2 topic pub --once /env3/robot/cmd_vel geometry_msgs/msg/Twist '{linear: {y: 
 For convenience, you can launch `rviz2` alongside `ros2.py` and `teleop_twist_keyboard` for visualization and control via keyboard:
 
 ```bash
-.docker/run.bash ros2 launch space_robotics_bench demo.launch.py task:=ingenuity_visual num_envs:=4
+.docker/run.bash ros2 launch srb demo.launch.py task:=ingenuity_visual num_envs:=4
 ```

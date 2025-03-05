@@ -1,31 +1,41 @@
 ![](./_images/srb_multi_env.jpg)
 
-The **Space Robotics Bench** aims to be a comprehensive collection of environments and tasks for robotics research in the challenging domain of space. The benchmark covers a wide range of applications and scenarios while providing a unified framework for experimenting with new tasks. Although the primary focus is on the application of robot learning techniques, the benchmark is designed to be flexible and extensible to accommodate a variety of research directions.
-
-<div class="warning">
-This documentation is currently incomplete. Inactive pages found in the navigation panel indicate what topics will be covered prior to the first release. Please let us know by opening an issue if something is missing or about a specific topic that you are interested in having documented first. Thank you! :)
-</div>
+The **Space Robotics Bench** is a comprehensive collection of environments and tasks for robotics research in space. It provides a unified framework for experimenting with new tasks across various applications and scenarios, with a primary focus on robot learning techniques while remaining flexible for diverse research directions.
 
 ## Key Features
 
 ### On-Demand Procedural Generation with [Blender](https://blender.org)
 
-Blender is used to generate procedural assets across a wide range of scenarios to provide environments that are representative of the diversity in space. By doing so, this benchmark emphasizes the need for generalization and adapatibility of robots in space due to their safety-critical nature.
+Blender generates procedural assets across diverse scenarios, emphasizing the need for robotic generalization and adaptability in safety-critical space applications.
 
 ### Highly-Parallelized Simulation with [NVIDIA Isaac Sim](https://developer.nvidia.com/isaac-sim)
 
-By leveraging the hardware-acceleration capabilities of NVIDIA Isaac Sim, all environments support parallel simulation instances, significantly accelerating workflows such as parameter tuning, verification, synthetic data generation, and online learning. The uniqueness of each procedurally generated instance also contributes towards the diversity that robots experience alongside the included domain randomization. Furthermore, compliance with [Isaac Lab](https://isaac-sim.github.io/IsaacLab) enhances compatibility with a wide array of pre-configured robots and sensors.
+NVIDIA Isaac Sim enables hardware-accelerated parallel simulation instances, accelerating parameter tuning, verification, data generation, and online learning workflows. Compliance with [Isaac Lab](https://isaac-sim.github.io/IsaacLab) enhances compatibility with pre-configured robots and sensors.
 
 ### Compatibility with [Gymnasium API](https://gymnasium.farama.org)
 
-All tasks are registered with the standardized Gymnasium API, ensuring seamless integration with a broad ecosystem of libraries and tools. This enables developers to leverage popular reinforcement learning and imitation learning algorithms while also simplifying the evaluation and comparison of various solutions across diverse scenarios, giving rise to potential collaboration efforts.
+All tasks use the standardized Gymnasium API, ensuring seamless integration with a broad ecosystem of libraries and tools for reinforcement learning and imitation learning algorithms.
 
 ### Integration with [ROS 2](https://ros.org) & [Space ROS](https://space.ros.org)
 
-The benchmark can also be installed as a ROS 2 package to bring interoperability to its wide ecosystem, including aspects of Space ROS. This integration provides access to a rich set of tools and libraries that accelerate the development and deployment of robotic systems. At the same time, ROS developers get access to a set of reproducible space environments for evaluating their systems and algorithms while benefiting from the procedural variety and parallel instances via namespaced middleware communication.
+The benchmark can be installed as a ROS 2 package, providing interoperability with the ROS ecosystem and Space ROS. This gives ROS developers access to reproducible space environments with procedural variety.
 
 ### Agnostic Interfaces
 
-The interfaces of the benchmark are designed with abstraction layers to ensure flexibility for various applications and systems. By adjusting configuration and changing procedural pipelines, a single task definition can be reused across different robots and domains of space. Moreover, all assets are decoupled from the benchmark into a separate [`srb_assets` repository](https://github.com/AndrejOrsula/srb_assets), enabling their straightforward integration with external frameworks and projects.
+The benchmark's interfaces include abstraction layers to ensure flexibility across different robots and space domains. Assets are decoupled in a separate [`srb_assets` repository](https://github.com/AndrejOrsula/srb_assets) for integration with external frameworks.
 
 ## Architecture
+
+The Space Robotics Bench follows a modular architecture:
+
+1. **Core System**: Central API providing environment registration, configuration management, and interface to Isaac Sim.
+
+1. **Environment Framework**: Modular environments built on Gymnasium with procedural generation support.
+
+1. **Agent Interface**: Multiple agent types supported (zero, random, teleoperation, ROS, learning-based), with flexible integration options.
+
+1. **Workflow Management**: Streamlined workflows for training, evaluation, data collection, and teleoperation with standardized logging.
+
+1. **Extension System**: Interfaces for various external systems (ROS 2, teleoperation devices) and learning frameworks.
+
+All components interact through standardized APIs, allowing users to mix and match capabilities while maintaining a consistent experience across different use cases.

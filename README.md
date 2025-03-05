@@ -13,7 +13,16 @@
 
 <!-- [![Codecov](https://codecov.io/gh/AndrejOrsula/space_robotics_bench/graph/badge.svg)](https://codecov.io/gh/AndrejOrsula/space_robotics_bench) -->
 
-**Space Robotics Bench** aims to be a comprehensive collection of environments and tasks for robotics research in the challenging domain of space. The benchmark covers a wide range of applications and scenarios while providing a unified framework for experimenting with new tasks. Although the primary focus is on the application of robot learning techniques, the benchmark is designed to be flexible and extensible to accommodate a variety of research directions and development/validation workflows.
+**Space Robotics Bench** is a comprehensive collection of environments and tasks for robotics research in the challenging domain of space. It provides a unified framework for developing and validating autonomous systems under diverse extraterrestrial scenarios. At the same time, its design is flexible and extensible to accommodate a variety of research directions and development workflows beyond Earth.
+
+## Key Features
+
+- **Parallelized Simulation**: Highly parallelized simulation instances for accelerated workflows
+- **Procedural Generation**: On-demand generation of diverse simulation assets and scenes
+- **Domain Randomization**: Extensive randomization for robustness and generalization
+- **Gymnasium API**: Compatibility with standard API and frameworks for robot learning
+- **ROS 2 Interface**: Scalable interoperability with ROS 2 and Space ROS ecosystems
+- **Agnostic Interfaces**: Flexibility across different robots and space domains
 
 ## Documentation
 

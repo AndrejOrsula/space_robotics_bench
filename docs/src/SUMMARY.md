@@ -78,14 +78,14 @@ ______________________________________________________________________
 
 # Development
 
-- [IDE Configuration](dev/ide.md)
-- [Dev Container](dev/devcontainer.md)
-- [Development Utilities](dev/utilities.md)
-  - [Run Tests](dev/test.md)
-  - [Enter REPL](dev/repl.md)
-  - [Build Docs](dev/docs.md)
-  - [Update Assets](dev/update_assets.md)
-  - [Clean Cache](dev/clean_cache.md)
+- [IDE Configuration](development/ide.md)
+- [Dev Container](development/devcontainer.md)
+- [Development Utilities](development/utilities.md)
+  - [Run Tests](development/test.md)
+  - [Enter REPL](development/repl.md)
+  - [Build Docs](development/docs.md)
+  - [Update Assets](development/update_assets.md)
+  - [Clean Cache](development/clean_cache.md)
 
 # Contributing
 

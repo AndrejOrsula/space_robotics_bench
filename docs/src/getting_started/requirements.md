@@ -1,12 +1,12 @@
 # System Requirements
 
 <div class="warning">
-This project requires a dedicated NVIDIA GPU with RT Cores (RTX series). Isaac Sim does not support GPUs from other vendors.
+This project requires a dedicated NVIDIA GPU with RT Cores (RTX series). Isaac Sim does not support GPUs from other vendors (AMD, Intel) or older NVIDIA GPUs without RT Cores.
 </div>
 
 ## Hardware Requirements
 
-The hardware requirements for running this simulation are inherited from the [Isaac Sim requirements](https://docs.omniverse.nvidia.com/isaacsim/latest/installation/requirements.html). While it is possible to run the simulation on lower-spec systems than those recommended, performance will be significantly reduced.
+The hardware requirements for running Space Robotics Bench are inherited from the [Isaac Sim requirements](https://docs.omniverse.nvidia.com/isaacsim/latest/installation/requirements.html). While it is possible to run the simulation on lower-spec systems, performance will be significantly reduced.
 
 | Component    | Minimum Requirement                   |
 | ------------ | ------------------------------------- |
@@ -20,17 +20,19 @@ The hardware requirements for running this simulation are inherited from the [Is
 
 ## Software Requirements
 
-The following software requirements are essential for running the simulation. Other operating systems may work, but significant adjustments may be required.
+The following software requirements are essential for running the simulation:
 
-| Component     | Requirement                                            |
-| ------------- | ------------------------------------------------------ |
-| OS            | Linux-based distribution (e.g., Ubuntu 22.04/24.04)    |
-| NVIDIA Driver | 535.183.01 (tested; other are likely to work may work) |
+| Component     | Requirement                                               |
+| ------------- | --------------------------------------------------------- |
+| OS            | Linux-based distribution (Ubuntu 22.04/24.04 recommended) |
+| NVIDIA Driver | 535.183.01+ (officially tested version)                   |
 
-### Additional Docker Requirements
+### Docker-specific Requirements
 
-The current setup requires the X11 window manager to enable running GUI from within the Docker container. Other window managers may work, but significant adjustments may be required.
+When using the Docker setup (recommended for most users):
 
-| Component      | Requirement |
-| -------------- | ----------- |
-| Window Manager | X11         |
+| Component                | Requirement                                | Notes                                  |
+| ------------------------ | ------------------------------------------ | -------------------------------------- |
+| Docker Engine            | 20.10.0+ (24.0.0+ recommended)             | Required for container management      |
+| NVIDIA Container Toolkit | Compatible with your Docker and GPU driver | Enables GPU access inside containers   |
+| Display Server           | X11 (Wayland is supported via XWayland)    | Required for GUI application rendering |

@@ -1,50 +1,56 @@
 # Basic Usage
 
-After successful [installation](./installation/index.html), you are ready to use the Space Robotics Bench. This page will guide you through controlling robots in various scenarios using a simple teleoperation.
+After successful [installation](./install.md), you're ready to explore Space Robotics Bench. This guide covers the essential operations to get you started.
 
 <div class="warning">
-When using the Docker setup, it is strongly recommended that you always use the provided <a href="https://github.com/AndrejOrsula/space_robotics_bench/blob/main/.docker/run.bash"><code>.docker/run.bash</code></a> script. It configures the environment automatically and mounts caching volumes. You can optionally provide a command that will be executed immediately inside the container. If no command is specified, you will be dropped into an interactive shell. Throughout this documentation, if you omit the <code>.docker/run.bash</code> prefix, it assumes that you are already inside the Docker container, or you are using a local installation.
+Throughout this documentation:
 
-```bash
-# cd space_robotics_bench
-.docker/run.bash ${OPTIONAL_CMD}
-```
+- Commands prefixed with <code>.docker/run.bash</code> are for Docker users
+- Commands without this prefix assume you're either:
+  1. Already inside the Docker container, or
+  1. Using a native installation
+
+Docker users should always use the provided <a href="https://github.com/AndrejOrsula/space_robotics_bench/blob/main/.docker/run.bash"><code>.docker/run.bash</code></a> script as it configures the environment correctly.
 
 </div>
 
-## Verify the Functionality of Isaac Sim
+## Initial Verification
 
-Let's start by verifying that Isaac Sim is functioning correctly:
-
-<div class="warning">
-The first time Isaac Sim starts, it may take a few minutes to compile shaders. However, subsequent runs will use cached artefacts, which significantly speed up the startup.
-</div>
+First, verify that Isaac Sim works correctly on your system:
 
 ```bash
-# Single quotes are required for the tilde (~) to expand correctly inside the container.
+# For Docker users (single quotes preserve tilde expansion)
 .docker/run.bash '~/isaac-sim/isaac-sim.sh'
+
+# For native installation
+~/isaac-sim/isaac-sim.sh
 ```
 
-If any issues arise, consult the [Troubleshooting](../misc/troubleshooting.md#runtime-errors) section or the [official Isaac Sim documentation](https://docs.omniverse.nvidia.com/isaacsim), as this issue is likely unrelated to this project.
+<div class="warning">
+The first Isaac Sim launch may take several minutes while shaders compile. Subsequent launches will be significantly faster.
+</div>
 
-## Journey into the Unknown
+If Isaac Sim launches successfully, you're ready to continue. If not, check the [Troubleshooting](../misc/troubleshooting.md) section.
 
-Once Isaac Sim is confirmed to be working, you can begin exploring the demos and tasks included with the environments. Let's start with a simple teleoperation example with the [`teleop.py`](https://github.com/AndrejOrsula/space_robotics_bench/blob/main/scripts/teleop.py) script:
+## Controlling a Rover
+
+Let's start with the Perseverance rover on Mars:
 
 ```bash
-# Option 1: Using the script directly
+# For Docker users
 .docker/run.bash scripts/teleop.py --env perseverance
-# Option 2: Using ROS 2 package installation
-.docker/run.bash ros2 run srb teleop.py --env perseverance
+
+# For native installation
+python scripts/teleop.py --env perseverance
 ```
 
-After a few moments, Isaac Sim should appear. The window will briefly remain inactive as the assets are procedurally generated in the background. The generation time depends on the complexity of the assets and your hardware, particularly the GPU, which will be used to bake PBR textures. However, future runs will use cached assets, as long as the configuration remains unchanged and the cache is not cleared, see [Clean the Assets Cache](../instructions/utils/clean_cache.md).
+After initialization (which may take longer on first run), you'll see the rover in a Martian landscape:
 
-Eventually, you will be greeted by the Mars Perseverance Rover on a procedurally generated Martian landscape.
+![Perseverance rover on Mars](../_images/perseverance_ui.jpg)
 
-![](../_images/perseverance_ui.jpg)
+### Control Scheme
 
-At the same time, the terminal will display the following keyboard scheme:
+The terminal displays these controls:
 
 ```
 +------------------------------------------------+
@@ -64,28 +70,65 @@ At the same time, the terminal will display the following keyboard scheme:
 +------------------------------------------------+
 ```
 
-While the Isaac Sim window is in focus, you can control the rover using the `W`, `A`, `S`, and `D` keys for motion. Use your mouse to navigate the camera. If the rover gets stuck, pressing `L` will reset its position.
+To control the rover:
 
-To close the demo, press `Ctrl+C` in the terminal. This will gracefully shut down the demo, close Isaac Sim, and return you to your host environment.
+1. **Make sure the Isaac Sim window is in focus**
+1. Use `W`/`A`/`S`/`D` keys for movement
+1. Use mouse to control the camera view
+1. Press `L` to reset if the rover gets stuck
+1. Press `Ctrl+C` in the terminal to exit
 
-### Blurry Textures?
+## Enhancing Your Experience
 
-By default, the textures in the environment might appear blurry due to the configuration setting the baked texture resolution to 50.0% (`default=0.5`). This setting allows procedural generation to be faster on low-end hardware. If your hardware is capable, you can increase the resolution by adjusting the `detail` parameter, see [Benchmark Configuration](../instructions/benchmark/cfg.md):
+### Improving Visual Quality
+
+The default settings use 50% texture resolution for performance. For better visuals on capable hardware:
 
 ```bash
+# For Docker users
 .docker/run.bash -e SRB_DETAIL=1.0 scripts/teleop.py --env perseverance
+
+# For native installation
+SRB_DETAIL=1.0 python scripts/teleop.py --env perseverance
 ```
 
-## Explore Unknown Domains
+### Performance Optimization
 
-You can explore other environments by using the `--env`, `--task`, or `--demo` arguments interchangeably. A full list of available environments is documented in the [Environment Overview](../overview/envs/index.html), or you can conveniently list them using this command:
+If you experience lag:
 
 ```bash
+# Use lower detail for better performance
+.docker/run.bash -e SRB_DETAIL=0.25 scripts/teleop.py --env perseverance
+```
+
+## Exploring Available Environments
+
+Space Robotics Bench features multiple environments. List them with:
+
+```bash
+# For Docker users
 .docker/run.bash scripts/list_envs.py
+
+# For native installation
+python scripts/list_envs.py
 ```
 
-Use this example as a **gateway** into exploring further on your own:
+### Try Different Environments
 
 ```bash
-.docker/run.bash scripts/teleop.py --env perseverance
+# Ingenuity helicopter on Mars
+.docker/run.bash scripts/teleop.py --env ingenuity
+
+# Curiosity rover
+.docker/run.bash scripts/teleop.py --env curiosity
+
+# Dragonfly on Titan
+.docker/run.bash scripts/teleop.py --env dragonfly
+
+# Europa underwater exploration
+.docker/run.bash scripts/teleop.py --env europa_sub
 ```
+
+Each environment provides different challenges and terrains, showcasing the versatility of the Space Robotics Bench platform.
+
+For a complete overview of available environments and their features, see the [Environment Documentation](../overview/envs/index.html).

@@ -27,3 +27,5 @@ The benchmark can also be installed as a ROS 2 package to bring interoperability
 ### Agnostic Interfaces
 
 The interfaces of the benchmark are designed with abstraction layers to ensure flexibility for various applications and systems. By adjusting configuration and changing procedural pipelines, a single task definition can be reused across different robots and domains of space. Moreover, all assets are decoupled from the benchmark into a separate [`srb_assets` repository](https://github.com/AndrejOrsula/srb_assets), enabling their straightforward integration with external frameworks and projects.
+
+## Architecture

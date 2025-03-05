@@ -462,7 +462,7 @@ def _teleop_agent_via_policy(
     sim_app: "SimulationApp",
     teleop_interface: "CombinedTeleopInterface",
     invert_controls: bool,
-    recognized_cmd_keys: Sequence[str] = ("command", "cmd"),
+    recognized_cmd_keys: Sequence[str] = ("command", "_command", "cmd", "_cmd"),
     **kwargs,
 ):
     import torch
@@ -505,6 +505,11 @@ def _teleop_agent_via_policy(
                 ),
                 None,
             )
+            if not self._obs_cmd_key:
+                raise ValueError(
+                    f"Unable to find the command key in the observation space: {recognized_cmd_keys}"
+                )
+
             self._internal_cmd_attr_name = next(
                 (
                     key
@@ -513,15 +518,16 @@ def _teleop_agent_via_policy(
                 ),
                 None,
             )
-            if self._internal_cmd_attr_name:
-                internal_cmd_attr_shape = getattr(
-                    self.env.unwrapped, self._internal_cmd_attr_name
-                ).shape
-                self._is_internal_cmd_attr_per_env = len(
-                    internal_cmd_attr_shape
-                ) == 2 and (
-                    internal_cmd_attr_shape[0] == self.env.unwrapped.cfg.scene.num_envs  # type: ignore
+            if not self._internal_cmd_attr_name:
+                raise ValueError(
+                    "Unable to find the internal command attribute of the environment"
                 )
+            internal_cmd_attr_shape = getattr(
+                self.env.unwrapped, self._internal_cmd_attr_name
+            ).shape
+            self._is_internal_cmd_attr_per_env = len(internal_cmd_attr_shape) == 2 and (
+                internal_cmd_attr_shape[0] == self.env.unwrapped.cfg.scene.num_envs  # type: ignore
+            )
 
         def observation(self, observation: ObsType) -> WrapperObsType:  # type: ignore
             ## Get actions from the teleoperation interface and process them

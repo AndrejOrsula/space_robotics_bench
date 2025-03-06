@@ -26,8 +26,8 @@ license = { text = "MIT OR Apache-2.0" }
 requires-python = "==3.10.*"
 dependencies = [
   ## Core
-  # "isaaclab@git+https://github.com/isaac-sim/IsaacLab.git@01c8f25f90582acad6cc46c4d86597ebafadee49#subdirectory=source/isaaclab",
   "gymnasium~=0.29",
+  "isaaclab~=2.0",
   "oxidasim~=0.1",
   ## Assets
   "simforge~=0.2",

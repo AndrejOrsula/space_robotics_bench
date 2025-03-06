@@ -221,13 +221,20 @@ RUN curl --proto "=https" --tlsv1.2 -sSfL "https://api.ngc.nvidia.com/v2/resourc
     /tmp/omni_hub/scripts/install.sh && \
     rm -rf /tmp/omni_hub /tmp/omni_hub.zip
 
-## Install Isaac Lab
+###################
+### Development ###
+###################
+ARG DEV=true
+
+## Simulation
+ARG ISAACLAB_DEV=true
 ARG ISAACLAB_PATH="/root/isaaclab"
 ARG ISAACLAB_REMOTE="https://github.com/isaac-sim/IsaacLab.git"
 ARG ISAACLAB_BRANCH="main"
-ARG ISAACLAB_COMMIT_SHA="6a415df23ba73854fdafd5914d5c95f30036300f" # 2025-02-19
+ARG ISAACLAB_COMMIT_SHA="b5fa0eb031a2413c182eeb54fa3a9295e8fd867c" # 2025-03-06
 # hadolint ignore=SC2044
-RUN echo -e "\n# Isaac Lab ${ISAACLAB_COMMIT_SHA}" >> /entrypoint.bash && \
+RUN if [[ "${DEV,,}" = true && "${ISAACLAB_DEV,,}" = true ]]; then \
+    echo -e "\n# Isaac Lab ${ISAACLAB_COMMIT_SHA}" >> /entrypoint.bash && \
     echo "export ISAACLAB_PATH=\"${ISAACLAB_PATH}\"" >> /entrypoint.bash && \
     git clone "${ISAACLAB_REMOTE}" "${ISAACLAB_PATH}" --branch "${ISAACLAB_BRANCH}" && \
     git -C "${ISAACLAB_PATH}" reset --hard "${ISAACLAB_COMMIT_SHA}" && \
@@ -236,14 +243,8 @@ RUN echo -e "\n# Isaac Lab ${ISAACLAB_COMMIT_SHA}" >> /entrypoint.bash && \
     "${ISAAC_SIM_PYTHON}" -m pip install --no-input --no-cache-dir --editable "${extension}" ; \
     fi ; \
     done && \
-    ln -sf "${ISAAC_SIM_PATH}" "${ISAACLAB_PATH}/_isaac_sim"
-
-###################
-### Development ###
-###################
-ARG DEV=true
-
-## Simulation
+    ln -sf "${ISAAC_SIM_PATH}" "${ISAACLAB_PATH}/_isaac_sim" ; \
+    fi
 ARG OXIDASIM_DEV=false
 ARG OXIDASIM_PATH="/root/oxidasim"
 ARG OXIDASIM_REMOTE="https://github.com/AndrejOrsula/oxidasim.git"

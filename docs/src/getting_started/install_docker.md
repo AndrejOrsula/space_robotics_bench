@@ -17,6 +17,16 @@ Ensure your system meets the [system requirements](./requirements.md), specifica
 - Compatible NVIDIA drivers (535.183.01+ recommended)
 - X11 display server (or Wayland with XWayland)
 
+### Docker-specific Requirements
+
+When using the Docker setup (recommended for most users):
+
+| Component                | Requirement                                | Notes                                  |
+| ------------------------ | ------------------------------------------ | -------------------------------------- |
+| Docker Engine            | 20.10.0+ (24.0.0+ recommended)             | Required for container management      |
+| NVIDIA Container Toolkit | Compatible with your Docker and GPU driver | Enables GPU access inside containers   |
+| Display Server           | X11 (Wayland is supported via XWayland)    | Required for GUI application rendering |
+
 ## Installation Steps
 
 ### 1. Install Docker Engine

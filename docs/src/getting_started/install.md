@@ -2,31 +2,36 @@
 
 Before proceeding, ensure your system meets the [system requirements](./requirements.md).
 
-## Installation Methods
+## Methods
 
-Space Robotics Bench offers three installation approaches:
+Space Robotics Bench supports three installation methods that can be used interchangeable.
 
-- **[Docker](./install_docker.md)** (**Recommended**):
+**A. [Native](./install_native.md)**
+- ✅ Full system integration
+- ✅ Best development experience
+- ❗ Complex manual setup
+- ❗ No CLI argument completion
 
-  - ✅ Easiest setup process
-  - ✅ Consistent environment across systems
-  - ✅ No dependency conflicts
-  - ✅ Includes all required components
+**B. [Docker — Recommended](./install_docker.md)**
+- ✅ Simple installation & deployment
+- ✅ Reproducible & faster to debug
+- ✅ User-friendly interface (via custom scripts)
+- ✅ Okay-ish development experience (via Dev Containers)
+- ❗ Requires privileged access (no HPC)
 
-- **[Native Installation](./install_native.md)**:
+**C. [Apptainer/Singularity](./install_apptainer.md)**
+- ✅ Deployable to HPC clusters
+- ❗ Uff...
 
-  - ✅ Maximum performance
-  - ✅ Full system integration
-  - ❗ More complex setup
-  - ❗ Requires manual installation of Isaac Sim
+## Quickstart (Temporary Setup)
 
-- **[Apptainer/Singularity](./install_apptainer.md)**:
+<div class="warning">
+Quickstart requires Debian/Ubuntu
+</div>
 
-  - ✅ Works on HPC clusters
-  - ✅ Compatible with SLURM workflows
-  - ❗ Requires additional setup steps
+If you are unsure about using Space Robotics Bench but you consider giving it a try, you can get started with the *quickstart* approach! This temporary leverages pre-built Docker images and a helper script to automatically configure
 
-## Quick Testing with Docker
+
 
 Try Space Robotics Bench immediately without repository cloning:
 

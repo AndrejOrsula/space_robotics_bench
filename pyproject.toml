@@ -27,7 +27,7 @@ requires-python = "==3.10.*"
 dependencies = [
   ## Core
   "gymnasium~=0.29",
-  "isaaclab~=2.0",
+  # "isaaclab~=2.0",
   "oxidasim~=0.1",
   ## Assets
   "simforge~=0.2",

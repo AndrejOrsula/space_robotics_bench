@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-### Download Isaac Sim
-### Usage: download_isaacsim.bash [destination_directory]
+### Install Isaac Sim
+### Usage: install_isaacsim.bash [destination_directory]
 set -e
 
 ## Config
@@ -19,6 +19,7 @@ if [[ -d "${DEST_DIR}" ]]; then
         echo "[INFO] Exiting"
         exit 0
     fi
+    rm -rf "${DEST_DIR}"
 fi
 
 # Function to clean up the downloaded archive
@@ -53,7 +54,7 @@ else
 fi
 
 # Print environment setup instructions
-echo "[INFO] Isaac Sim has been downloaded to ${DEST_DIR}"
+echo "[INFO] Isaac Sim has been installed to ${DEST_DIR}"
 echo "[INFO] Recommended environment variable setup:"
 echo "[INFO]   echo \"export ISAAC_SIM_PYTHON='${DEST_DIR}/python.sh'\" >> ~/.bashrc # Bash"
 echo "[INFO]   set -Ux ISAAC_SIM_PYTHON '${DEST_DIR}/python.sh' # Fish"

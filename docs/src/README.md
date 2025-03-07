@@ -1,29 +1,67 @@
 ![](./_images/srb_multi_env.jpg)
 
-**Space Robotics Bench** is a comprehensive collection of environments and tasks for robotics research in the challenging domain of space. It provides a unified framework for developing and validating autonomous systems under diverse extraterrestrial scenarios. At the same time, its design is flexible and extensible to accommodate a variety of development workflows and research directions beyond Earth.
+**Space Robotics Bench (SRB)** is a comprehensive collection of environments and tasks for robotics research in the challenging domain of space. It provides a unified framework for developing and validating autonomous systems under diverse extraterrestrial scenarios. At the same time, its design is flexible and extensible to accommodate a variety of development workflows and research directions beyond Earth.
 
 ## Key Features
 
-### Highly Parallelized Simulation via [NVIDIA Isaac Sim](https://developer.nvidia.com/isaac-sim)
+- **Highly Parallelized Simulation via [NVIDIA Isaac Sim](https://developer.nvidia.com/isaac-sim)**: SRB supports thousands of parallel simulation instances to accelerate workflows such as online learning, synthetic dataset generation, parameter tuning, and validation.
 
-NVIDIA Isaac Sim enables hardware-accelerated parallel simulation instances, accelerating parameter tuning, verification, data generation, and online learning workflows. Compliance with [Isaac Lab](https://isaac-sim.github.io/IsaacLab) enhances compatibility with pre-configured robots and sensors.
+- **On-Demand Procedural Generation with [SimForge](https://github.com/AndrejOrsula/simforge)**: Automated procedural generation of simulation assets is leveraged to provide a unique scenario for each simulation instance, with the ultimate goal of developing autonomous systems that are both robust and adaptable to the unpredictable domain of space.
 
-### On-Demand Procedural Generation with [SimForge](https://github.com/AndrejOrsula/simforge)
+- **Extensive Domain Randomization**: All simulation instances can be further randomized to enhance the generalization of autonomous agents towards variable environment dynamics, visual appearance, illumination conditions, as well as sensor and actuation noise.
 
-SimForge leverages Blendet and other generators to create procedural assets across diverse scenarios, emphasizing the need for robotic generalization and adaptability in safety-critical space applications.
+- **Compatibility with [Gymnasium API](https://gymnasium.farama.org)**: All tasks are compatible with a standardized API to ensure seamless integration with a broad ecosystem of libraries and frameworks for robot learning research.
 
-### Extensive Domain Randomization
+- **Seamless Interface with [ROS 2](https://ros.org)**: Simulation states, sensory outputs and actions of autonomous systems are available through ROS 2 middleware interface, enabling a direct interoperability with the vast (Space) ROS ecosystem.
 
-The benchmark supports extensive randomization of simulation parameters, sensor noise, lighting conditions, and other environmental factors to enhance robustness and generalization of learning algorithms.
+- **Abstract Architecture**: The architecture of SRB is designed to be modular and extensible, allowing for an easy integration of new assets, robots, tasks and workflows
 
-### Compatibility with [Gymnasium API](https://gymnasium.farama.org)
+## Table of Contents (available in the left sidebar)
 
-All tasks use the standardized Gymnasium API, ensuring seamless integration with a broad ecosystem of libraries and tools for reinforcement learning and imitation learning algorithms.
+#### Overview
 
-### Seamless Interface with [ROS 2](https://ros.org)
+1. [Environments](envs/index.md)
+1. [Robots](robots/index.md)
 
-The benchmark can be installed as a ROS 2 package, providing interoperability with the ROS ecosystem and Space ROS. This gives ROS developers access to reproducible space environments with procedural variety.
+#### Integrations & Interfaces
 
-### Abstract Architecture
+3. [ROS 2](integrations/ros2.md)
+1. [Reinforcement Learning](integrations/reinforcement_learning.md)
+1. Imitation Learning
+1. Extended Reality
 
-The benchmark's agnostic interfaces include abstraction layers to ensure flexibility across different robots and space domains. Assets are decoupled in a separate [`srb_assets` repository](https://github.com/AndrejOrsula/srb_assets) for integration with external frameworks.
+#### Getting Started
+
+7. [System Requirements](getting_started/requirements.md)
+1. [Installation](getting_started/install.md)
+1. [Basic Usage](getting_started/basic_usage.md)
+
+#### Instructions
+
+10. [Command Line Interface](instructions/cli.md)
+01. [Graphical User Interface](instructions/gui.md)
+01. [Workflows](instructions/workflows.md)
+
+#### Configuration
+
+13. [Environment Configuration](config/env_cfg.md)
+01. [Agent Configuration](config/agent_cfg.md)
+
+#### Development
+
+15. [IDE Configuration](development/ide.md)
+01. [Dev Container](development/devcontainer.md)
+01. [Development Utilities](development/utilities.md)
+
+#### Contributing
+
+18. [New Assets](contributing/new_assets.md)
+01. [New Robots](contributing/new_robots.md)
+01. [New Tasks](contributing/new_tasks.md)
+
+#### Miscellaneous
+
+- [Attributions](misc/attributions.md)
+- [Contributors](misc/contributors.md)
+- [Citation](misc/citation.md)
+- [Troubleshooting](misc/troubleshooting.md)

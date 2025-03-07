@@ -30,7 +30,7 @@ ______________________________________________________________________
   - [Space ROS](integrations/space_ros.md)
 - [Reinforcement Learning](integrations/reinforcement_learning.md)
 - [Imitation Learning](<>)
-- [Extended Reality with OpenXR](<>)
+- [Extended Reality](<>)
 
 ______________________________________________________________________
 

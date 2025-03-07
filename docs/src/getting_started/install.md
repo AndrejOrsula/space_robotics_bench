@@ -4,44 +4,58 @@ Before proceeding, ensure your system meets the [system requirements](./requirem
 
 ## Installation Methods
 
-The Space Robotics Bench supports three installation methods that can be used interchangeably.
+SRB supports three installation methods, each with different trade-offs:
 
-**A. [Native](./install_native.md)**
+#### A. [Native](./install_native.md)
 
 - ✅ Full system integration
 - ✅ Smooth development experience
 - ⚠️ No CLI argument completion
 - ❗ Complex setup
+- ❗ Potential conflicts
 
-**B. [Docker — Recommended](./install_docker.md)**
+#### B. [Docker — Recommended](./install_docker.md)
 
 - ✅ Simple installation & deployment
 - ✅ Reproducible & easy to update
 - ✅ User-friendly interface (via custom scripts)
-- ⚠️ Okay-ish development experience (via Dev Containers)
+- ⚠️ Moderate development experience (via Dev Containers)
 - ❗ Requires privileged access (no HPC)
 
-**C. [Apptainer/Singularity](./install_apptainer.md)**
+#### C. [Apptainer/Singularity](./install_apptainer.md)
 
 - ✅ Deployable to HPC clusters
 - ❗ Uff...
 
-## Temporary Setup (Quick Start)
+## Temporary Setup (Quickstart)
 
-Alternatively, you can quickly experiment with the Space Robotics Bench via a temporary setup using a one-liner command. This command executes a script that pulls a pre-built Docker image and runs it in a pre-configured container. Note that the container is ephemeral and internal data is not persisted between sessions.
+For quick experimentation with SRB, you can use a temporary setup that downloads a pre-built Docker image and runs it in a pre-configured container. Everything is accomplished by a single script that you can directly call via [`curl`](https://curl.se) or [`wget`](https://www.gnu.org/software/wget):
 
 <div class="warning">
-Consider inspecting the <a href="https://github.com/AndrejOrsula/space_robotics_bench/blob/main/.docker/run.bash" target="_blank"><code>.docker/run.bash</code> script</a> before executing it with <code>curl</code> or <code>wget</code>.
+Consider inspecting the <a href="https://github.com/AndrejOrsula/space_robotics_bench/blob/main/.docker/run.bash" target="_blank"><code>.docker/run.bash</code> script</a> first before executing it.
 </div>
 
-**A. Using [curl](https://curl.se)** (same as `wget`)
+#### A. `curl`
 
 ```bash
-WITH_DEV_VOLUME=false WITH_HISTORY=false bash -c "$(curl -fsSL https://raw.githubusercontent.com/AndrejOrsula/space_robotics_bench/refs/heads/main/.docker/run.bash)"
+WITH_DEV_VOLUME=false WITH_HISTORY=false bash -c "$(curl -fsSL https://raw.githubusercontent.com/AndrejOrsula/space_robotics_bench/refs/heads/main/.docker/run.bash)" --
 ```
 
-**B. Using [wget](https://www.gnu.org/software/wget)** (same as `curl`)
+#### B. `wget`
 
 ```bash
-WITH_DEV_VOLUME=false WITH_HISTORY=false bash -c "$(wget -qO - https://raw.githubusercontent.com/AndrejOrsula/space_robotics_bench/refs/heads/main/.docker/run.bash)"
+WITH_DEV_VOLUME=false WITH_HISTORY=false bash -c "$(wget -qO - https://raw.githubusercontent.com/AndrejOrsula/space_robotics_bench/refs/heads/main/.docker/run.bash)" --
+```
+
+<div class="warning">
+The Docker container created by this setup is ephemeral, and data is not persisted between sessions. <strong>Any changes made inside the container will be lost when the container is removed.</strong>
+</div>
+
+## Cleanup of Temporary Setup
+
+If you do not wish to continue using SRB, you can remove the Docker container and its associated image by executing the following commands:
+
+```bash
+docker rm -f space_robotics_bench
+docker rmi andrejorsula/space_robotics_bench:latest
 ```

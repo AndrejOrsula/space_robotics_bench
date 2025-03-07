@@ -1,4 +1,4 @@
-# Installation: Docker
+# Installation: Docker — Recommended
 
 The Docker-based installation is recommended for most users, providing a pre-configured environment with all dependencies included.
 

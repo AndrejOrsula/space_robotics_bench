@@ -6,7 +6,7 @@ The hardware requirements for using the Space Robotics Bench are inherited from 
 
 | Component  | Requirement |
 | ---------- | :---------: |
-| CPU        |  `x86_64`   |
+| CPU        |   x86_64    |
 | GPU        | NVIDIA RTX  |
 | RAM        |    8 GB     |
 | VRAM       |    4 GB     |
@@ -24,4 +24,4 @@ Linux-based OS with an appropriate NVIDIA driver is required to use the Space Ro
 | ------------------------ | :------------: |
 | OS (Native Installation) |  Ubuntu 22.04  |
 | OS (Docker Installation) | Linux with X11 |
-| NVIDIA Driver            |   >=535,\<560   |
+| NVIDIA Driver            |  >=535,\<560   |

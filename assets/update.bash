@@ -13,6 +13,7 @@ GIT_SUBMODULE_UPDATE_CMD=(
     -C "${REPOSITORY_DIR}"
     submodule
     update
+    --init
     --remote
     --recursive
     "${SCRIPT_DIR}"

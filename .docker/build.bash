@@ -27,6 +27,14 @@ if [ "${#}" -gt "0" ]; then
     fi
 fi
 
+## Initialize asset if necessary
+if [ "$(find "${REPOSITORY_DIR}/assets/srb_assets/" -mindepth 1 -maxdepth 1 | wc -l)" -eq 0 ]; then
+    echo "[INFO] Initializing asset submodules"
+    if ! "${REPOSITORY_DIR}/assets/update.bash"; then
+        echo >&2 -e "\033[1;31m[ERROR] Failed to initialize asset submodules.\033[0m"
+    fi
+fi
+
 ## Build the image
 DOCKER_BUILD_CMD=(
     "${WITH_SUDO}" docker build

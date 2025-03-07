@@ -24,4 +24,4 @@ Linux-based OS with an appropriate NVIDIA driver is required to use the Space Ro
 | ------------------------ | :------------: |
 | OS (Native Installation) |  Ubuntu 22.04  |
 | OS (Docker Installation) | Linux with X11 |
-| NVIDIA Driver            |   >=535,<560   |
+| NVIDIA Driver            |   >=535,\<560   |

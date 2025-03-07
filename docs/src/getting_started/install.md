@@ -2,55 +2,46 @@
 
 Before proceeding, ensure your system meets the [system requirements](./requirements.md).
 
-## Methods
+## Installation Methods
 
-Space Robotics Bench supports three installation methods that can be used interchangeable.
+The Space Robotics Bench supports three installation methods that can be used interchangeably.
 
 **A. [Native](./install_native.md)**
+
 - ✅ Full system integration
-- ✅ Best development experience
-- ❗ Complex manual setup
-- ❗ No CLI argument completion
+- ✅ Smooth development experience
+- ⚠️ No CLI argument completion
+- ❗ Complex setup
 
 **B. [Docker — Recommended](./install_docker.md)**
+
 - ✅ Simple installation & deployment
-- ✅ Reproducible & faster to debug
+- ✅ Reproducible & easy to update
 - ✅ User-friendly interface (via custom scripts)
-- ✅ Okay-ish development experience (via Dev Containers)
+- ⚠️ Okay-ish development experience (via Dev Containers)
 - ❗ Requires privileged access (no HPC)
 
 **C. [Apptainer/Singularity](./install_apptainer.md)**
+
 - ✅ Deployable to HPC clusters
 - ❗ Uff...
 
-## Quickstart (Temporary Setup)
+## Temporary Setup (Quick Start)
+
+Alternatively, you can quickly experiment with the Space Robotics Bench via a temporary setup using a one-liner command. This command executes a script that pulls a pre-built Docker image and runs it in a pre-configured container. Note that the container is ephemeral and internal data is not persisted between sessions.
 
 <div class="warning">
-Quickstart requires Debian/Ubuntu
+Consider inspecting the <a href="https://github.com/AndrejOrsula/space_robotics_bench/blob/main/.docker/run.bash" target="_blank"><code>.docker/run.bash</code> script</a> before executing it with <code>curl</code> or <code>wget</code>.
 </div>
 
-If you are unsure about using Space Robotics Bench but you consider giving it a try, you can get started with the *quickstart* approach! This temporary leverages pre-built Docker images and a helper script to automatically configure
-
-
-
-Try Space Robotics Bench immediately without repository cloning:
+**A. Using [curl](https://curl.se)** (same as `wget`)
 
 ```bash
-# Start an interactive shell with the latest version
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/AndrejOrsula/space_robotics_bench/main/.docker/run.bash)"
+WITH_DEV_VOLUME=false WITH_HISTORY=false bash -c "$(curl -fsSL https://raw.githubusercontent.com/AndrejOrsula/space_robotics_bench/refs/heads/main/.docker/run.bash)"
 ```
+
+**B. Using [wget](https://www.gnu.org/software/wget)** (same as `curl`)
 
 ```bash
-# Launch directly into the Perseverance rover demo
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/AndrejOrsula/space_robotics_bench/main/.docker/run.bash)" -- \
-  latest scripts/teleop.py --env perseverance
+WITH_DEV_VOLUME=false WITH_HISTORY=false bash -c "$(wget -qO - https://raw.githubusercontent.com/AndrejOrsula/space_robotics_bench/refs/heads/main/.docker/run.bash)"
 ```
-
-These commands will automatically:
-
-1. Pull the pre-built Docker image
-1. Configure GPU access and display forwarding
-1. Start the container with appropriate environment variables
-1. Run your specified command or launch an interactive shell
-
-For ongoing development, we recommend cloning the repository as described in the [Docker installation](./install_docker.md) guide.

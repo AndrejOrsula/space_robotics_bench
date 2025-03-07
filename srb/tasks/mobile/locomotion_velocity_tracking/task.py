@@ -26,6 +26,8 @@ from srb.utils.math import matrix_from_quat, rotmat_to_rot6d, scale_transform
 
 @configclass
 class SceneCfg(GroundSceneCfg):
+    env_spacing = 32.0
+
     contacts_robot: ContactSensorCfg = ContactSensorCfg(
         prim_path=MISSING,  # type: ignore
         update_period=0.0,
@@ -358,13 +360,13 @@ def _compute_step_return(
     ## Rewards ##
     #############
     # Penalty: Action rate
-    WEIGHT_ACTION_RATE = -0.2
+    WEIGHT_ACTION_RATE = -0.05
     penalty_action_rate = WEIGHT_ACTION_RATE * torch.sum(
         torch.square(act_current - act_previous), dim=1
     )
 
     # Penalty: Undesired robot contacts
-    WEIGHT_UNDESIRED_ROBOT_CONTACTS = -5.0
+    WEIGHT_UNDESIRED_ROBOT_CONTACTS = -2.0
     THRESHOLD_UNDESIRED_ROBOT_CONTACTS = 1.0
     penalty_undesired_robot_contacts = WEIGHT_UNDESIRED_ROBOT_CONTACTS * (
         torch.max(
@@ -378,7 +380,7 @@ def _compute_step_return(
     )
 
     # Reward: Command tracking (linear)
-    WEIGHT_CMD_LIN_VEL_XY = 4.0
+    WEIGHT_CMD_LIN_VEL_XY = 3.0
     EXP_STD_CMD_LIN_VEL_XY = 0.5
     reward_cmd_lin_vel_xy = WEIGHT_CMD_LIN_VEL_XY * torch.exp(
         -torch.sum(torch.square(command[:, :2] - vel_lin_robot[:, :2]), dim=1)
@@ -386,7 +388,7 @@ def _compute_step_return(
     )
 
     # Reward: Command tracking (angular)
-    WEIGHT_CMD_ANG_VEL_Z = 2.0
+    WEIGHT_CMD_ANG_VEL_Z = 1.5
     EXP_STD_CMD_ANG_VEL_Z = 0.25
     reward_cmd_ang_vel_z = WEIGHT_CMD_ANG_VEL_Z * torch.exp(
         -torch.square(command[:, 2] - vel_ang_robot[:, 2]) / EXP_STD_CMD_ANG_VEL_Z
@@ -412,25 +414,25 @@ def _compute_step_return(
     )
 
     # Penalty: Minimize non-command motion (angular)
-    WEIGHT_UNDESIRED_ANG_VEL_XY = -1.0
+    WEIGHT_UNDESIRED_ANG_VEL_XY = -0.1
     penalty_undesired_ang_vel_xy = WEIGHT_UNDESIRED_ANG_VEL_XY * torch.sum(
         torch.square(vel_ang_robot[:, :2]), dim=-1
     )
 
     # Penalty: Joint torque
-    WEIGHT_JOINT_TORQUE = -0.00025
+    WEIGHT_JOINT_TORQUE = -0.000025
     penalty_joint_torque = WEIGHT_JOINT_TORQUE * torch.sum(
         torch.square(joint_applied_torque_robot), dim=1
     )
 
     # Penalty: Joint acceleration
-    WEIGHT_JOINT_ACCELERATION = -0.000025
+    WEIGHT_JOINT_ACCELERATION = -0.00000025
     penalty_joint_acceleration = WEIGHT_JOINT_ACCELERATION * torch.sum(
         torch.square(joint_acc_robot), dim=1
     )
 
     # Penalty: Minimize rotation with the gravity direction
-    WEIGHT_GRAVITY_ROTATION_ALIGNMENT = -2.5
+    WEIGHT_GRAVITY_ROTATION_ALIGNMENT = -2.0
     penalty_gravity_rotation_alignment = WEIGHT_GRAVITY_ROTATION_ALIGNMENT * (
         torch.sum(torch.square(projected_gravity_robot[:, :2]), dim=1)
         + torch.square(projected_gravity_robot[:, 2] + 1.0)

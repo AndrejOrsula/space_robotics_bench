@@ -36,6 +36,14 @@ curl -SL "${SRC_URL}" -o "${ARCHIVE_PATH}"
 echo "[INFO] Extracting archive to ${DEST_DIR}"
 unzip -q "${ARCHIVE_PATH}" -d "${DEST_DIR}"
 
+# Run post_install.sh in the extracted environment
+echo "[INFO] Running post install script in extracted environment"
+if [[ -f "${DEST_DIR}/post_install.sh" ]]; then
+    "${DEST_DIR}/post_install.sh"
+else
+    echo >&2 -e "\033[1;33m[WARNING] post_install.sh not found in ${DEST_DIR}, skipping post-installation\033[0m"
+fi
+
 # Update pip in the extracted environment
 echo "[INFO] Updating pip in extracted environment"
 if [[ -f "${DEST_DIR}/python.sh" ]]; then

@@ -2,13 +2,7 @@
 
 This guide covers installing SRB natively on your system without containerization. Although it simplifies development, it requires more manual setup and decreases reproducibility.
 
-## Prerequisites
-
-Ensure your system meets the [system requirements](./requirements.md).
-
-## Installation Steps
-
-### 1. Clone the Repository
+## 1. Clone the Repository
 
 First, clone the SRB repository with all submodules:
 
@@ -16,17 +10,17 @@ First, clone the SRB repository with all submodules:
 git clone --recurse-submodules https://github.com/AndrejOrsula/space_robotics_bench.git
 ```
 
-### 2. Install NVIDIA Isaac Sim 4.5
+## 2. Install NVIDIA Isaac Sim 4.5
 
 > Official instructions: [Isaac Sim — Workstation Installation](https://docs.isaacsim.omniverse.nvidia.com/4.5.0/installation/install_workstation.html)
 
 Install Isaac Sim either by following the official instructions above or using the provided convenience script:
 
 ```bash
-space_robotics_bench/scripts/install_isaacsim.bash "$HOME/isaac-sim"
+./space_robotics_bench/scripts/install_isaacsim.bash "$HOME/isaac-sim"
 ```
 
-#### `ISAAC_SIM_PYTHON`
+### `ISAAC_SIM_PYTHON`
 
 It is highly recommended to make `ISAAC_SIM_PYTHON` point to the Python entrypoint of Isaac Sim in your shell configuration (script above will prompt you to do so):
 
@@ -43,49 +37,50 @@ source ~/.bashrc
 set -Ux ISAAC_SIM_PYTHON '$HOME/isaac-sim/python.sh'
 ```
 
-### 3. Install NVIDIA Isaac Lab 2.0
+## 3. Install NVIDIA Isaac Lab 2.0
 
 > Official instructions: [Isaac Lab — Installation](https://isaac-sim.github.io/IsaacLab/v2.0.2/source/setup/installation/binaries_installation.html#installing-isaac-lab)
 
 Install Isaac Lab either by following the official instructions above or using the provided convenience script:
 
 ```bash
-# Follow the instructions at:
-# https://docs.omniverse.nvidia.com/isaacsim/latest/isaac_lab/index.html
+./space_robotics_bench/scripts/install_isaaclab.bash "$HOME/isaaclab"
 ```
 
-### 4. Create and Activate a Virtual Environment (Recommended)
+## 4. Install the Space Robotics Bench
+
+Install the `srb` package in editable mode:
 
 ```bash
-# Create a virtual environment
-python -m venv .venv
-
-# Activate it
-source .venv/bin/activate  # On Linux/macOS
+"$ISAAC_SIM_PYTHON" -m pip install --editable ./space_robotics_bench[all]
 ```
 
-### 5. Install Space Robotics Bench
+> **Note**: The `all` extra installs optional dependencies to support all workflows and improve usability. Feel free to check [`pyproject.toml`](https://github.com/AndrejOrsula/space_robotics_bench/blob/main/pyproject.toml) and adjust the extras to your needs.
+
+## 5. Verify Installation
+
+### Isaac Sim
+
+Confirm that you can launch Isaac Sim:
 
 ```bash
-pip install -e .[all]
+"$HOME/isaac-sim/isaac-sim.sh"
 ```
 
-## 6. Verify Installation
+### Isaac Lab
 
-Confirm your installation is working:
+Confirm that Isaac Lab is installed:
 
 ```bash
-# Run a simple demo
-python scripts/teleop.py --env perseverance
+"$ISAAC_SIM_PYTHON" -m pip show isaaclab
 ```
 
-## Troubleshooting Common Issues
+### Space Robotics Bench
 
-If you encounter problems:
+Verify that the `srb` command is available:
 
-- **Isaac Sim doesn't launch**: Ensure NVIDIA drivers are compatible and properly installed
-- **Import errors**: Check Python dependencies with `pip list` and verify paths
-- **Missing assets**: Verify that submodules were cloned with `git submodule status`
-- **GPU not detected**: Run `nvidia-smi` to verify GPU accessibility
+```bash
+"$ISAAC_SIM_PYTHON" -m srb --help
+```
 
-For more detailed troubleshooting, refer to the [Troubleshooting Guide](../misc/troubleshooting.md).
+## ... continue with [Basic Usage](./basic_usage.md)

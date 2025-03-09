@@ -1,124 +1,81 @@
 # Installation: Docker — Recommended
 
-The Docker-based installation is recommended for most users, providing a pre-configured environment with all dependencies included.
+Using SRB inside Docker is recommended for most users, as it provides an isolated, reproducible environment that is fully pre-configured.
 
-## Advantages of Docker Installation
+## 1. Clone the Repository
 
-- **Simplified Setup**: No need to manually install Isaac Sim or resolve dependency conflicts
-- **Consistency**: Works the same across different Linux distributions
-- **Isolation**: Keeps the Space Robotics Bench environment separate from your system
-- **Easy Updates**: Simple commands to pull the latest version
-
-## Prerequisites
-
-Ensure your system meets the [system requirements](./requirements.md), specifically:
-
-- NVIDIA GPU with RT Cores (RTX series)
-- Compatible NVIDIA drivers (535.183.01+ recommended)
-- X11 display server (or Wayland with XWayland)
-
-### Docker-specific Requirements
-
-When using the Docker setup (recommended for most users):
-
-| Component                | Requirement                                | Notes                                  |
-| ------------------------ | ------------------------------------------ | -------------------------------------- |
-| Docker Engine            | 20.10.0+ (24.0.0+ recommended)             | Required for container management      |
-| NVIDIA Container Toolkit | Compatible with your Docker and GPU driver | Enables GPU access inside containers   |
-| Display Server           | X11 (Wayland is supported via XWayland)    | Required for GUI application rendering |
-
-## Installation Steps
-
-### 1. Install Docker Engine
+First, clone the SRB repository with all submodules:
 
 ```bash
-# Install Docker using the convenience script
-curl -fsSL https://get.docker.com | sh
-
-# Start Docker and enable auto-start
-sudo systemctl enable --now docker
-
-# Add your user to the docker group (eliminates need for sudo)
-sudo usermod -aG docker $USER
-newgrp docker
-```
-
-### 2. Install NVIDIA Container Toolkit
-
-```bash
-# Add NVIDIA Container Toolkit repository
-curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
-curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
-    sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
-    sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
-
-# Install the toolkit
-sudo apt-get update
-sudo apt-get install -y nvidia-container-toolkit
-
-# Configure Docker runtime
-sudo nvidia-ctk runtime configure --runtime=docker
-sudo systemctl restart docker
-
-# Verify installation
-docker run --rm --runtime=nvidia --gpus all nvidia/cuda:11.6.2-base-ubuntu20.04 nvidia-smi
-```
-
-### 3. Clone the Repository
-
-```bash
-# Clone with all submodules
 git clone --recurse-submodules https://github.com/AndrejOrsula/space_robotics_bench.git
-cd space_robotics_bench
 ```
 
-### 4. Run Space Robotics Bench
+## 2. Install Docker Engine & NVIDIA Container Toolkit
+
+> 1. Official instructions: [Install Docker Engine](https://docs.docker.com/engine/install)
+> 1. Official instructions: [Linux post-installation steps for Docker Engine](https://docs.docker.com/engine/install/linux-postinstall)
+> 1. Official instructions: [Installing the NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)
+
+Install Docker Engine and NVIDIA Container Toolkit either by following the official instructions above or using the provided convenience [script](https://github.com/AndrejOrsula/space_robotics_bench/blob/main/.docker/host/install_docker.bash):
 
 ```bash
-# Launch an interactive shell in the container
-.docker/run.bash
+./space_robotics_bench/.docker/host/install_docker.bash
 ```
 
-The first run will automatically download the Docker image from Docker Hub.
+## 3. Run
 
-## Working with Docker
-
-### Running Specific Commands
+Now you can run the Docker container with the provided [script](https://github.com/AndrejOrsula/space_robotics_bench/blob/main/.docker/run.bash). The first run will automatically pull the latest image from Docker Hub:
 
 ```bash
-# Run a specific script
-.docker/run.bash scripts/teleop.py --env perseverance
-
-# Run with environment variables
-.docker/run.bash -e SRB_DETAIL=1.0 scripts/teleop.py --env perseverance
+./space_robotics_bench/.docker/run.bash
 ```
 
-### Custom Image Building (Optional)
+## 4. Verify Installation
+
+Once you enter the Docker container, verify that everything works as expected.
+
+### Isaac Sim
+
+Confirm that you can launch Isaac Sim:
 
 ```bash
-# Build a custom Docker image locally
-.docker/build.bash
+"$HOME/isaac-sim/isaac-sim.sh"
 ```
 
-### Development Workflow
+> Note: The first launch might take a while because Isaac Sim needs to compile shaders and prepare the environment.
 
-The Docker setup is optimized for development:
+### Space Robotics Bench
+
+Verify that the `srb` command is available:
 
 ```bash
-# By default, your local repository is mounted inside the container
-.docker/run.bash
-
-# Make changes in your local editor
-# The changes are immediately available inside the container
-# No rebuild or restart necessary!
-
-# For deployment without source mounting:
-WITH_DEV_VOLUME=false .docker/run.bash
+srb --help
 ```
 
-### Managing Running Containers
+## ... continue with [Basic Usage](./basic_usage.md)
+
+______________________________________________________________________
+
+## Extras
+
+### Build a New Docker Image
+
+If you want to build a custom Docker image, you can use the provided [script](https://github.com/AndrejOrsula/space_robotics_bench/blob/main/.docker/build.bash):
 
 ```bash
-# Connect to an already running container
-.docker/join.bash
+./space_robotics_bench/.docker/build.bash
 ```
+
+### Join a Running Container
+
+To join a running container from another terminal, use the provided [script](https://github.com/AndrejOrsula/space_robotics_bench/blob/main/.docker/join.bash):
+
+```bash
+./space_robotics_bench/.docker/join.bash
+```
+
+### Development
+
+The repository workspace is automatically mounted inside the Docker container, so you can edit the code either on the host or inside the container, and the changes will be reflected in both environments persistently.
+
+To improve your development experience, you can open the project as a [Dev Container (guide)](../development/devcontainer.md).

@@ -10,17 +10,15 @@ SRB supports three installation methods, each with different trade-offs:
 
 - ✅ Full system integration
 - ✅ Smooth development experience
-- ⚠️ No CLI argument completion
-- ❗ Complex setup
-- ❗ Potential conflicts
+- ❗ Complex setup process
+- ❗ Potential dependency conflicts
 
 #### B. [Docker — Recommended](./install_docker.md)
 
 - ✅ Simple installation & deployment
-- ✅ Reproducible & easy to update
-- ✅ User-friendly interface (via custom scripts)
+- ✅ Reproducible environment & easy to update
 - ⚠️ Moderate development experience (via Dev Containers)
-- ❗ Requires privileged access (no HPC)
+- ❗ Requires privileged access (not suitable for HPC)
 
 #### C. [Apptainer/Singularity](./install_apptainer.md)
 
@@ -29,11 +27,7 @@ SRB supports three installation methods, each with different trade-offs:
 
 ## Temporary Setup (Quickstart)
 
-For quick experimentation with SRB, you can use a temporary setup that downloads a pre-built Docker image and runs it in a pre-configured container. Everything is accomplished by a single script that you can directly call via [`curl`](https://curl.se) or [`wget`](https://www.gnu.org/software/wget):
-
-<div class="warning">
-Consider inspecting the <a href="https://github.com/AndrejOrsula/space_robotics_bench/blob/main/.docker/run.bash" target="_blank"><code>.docker/run.bash</code> script</a> first before executing it.
-</div>
+For quick experimentation with SRB, you can use a temporary setup that downloads a pre-built Docker image and runs it in a pre-configured container. A single [script](https://github.com/AndrejOrsula/space_robotics_bench/blob/main/.docker/run.bash) accomplishes everything, which you can call directly via [`curl`](https://curl.se) or [`wget`](https://www.gnu.org/software/wget) (consider inspecting the script before executing it):
 
 #### A. `curl`
 
@@ -48,12 +42,14 @@ WITH_DEV_VOLUME=false WITH_HISTORY=false bash -c "$(wget -qO - https://raw.githu
 ```
 
 <div class="warning">
-The Docker container created by this setup is ephemeral, and data is not persisted between sessions. <strong>Any changes made inside the container will be lost when the container is removed.</strong>
+
+The Docker container created by this setup is ephemeral, and data is not persisted between sessions. **Any changes made inside the container will be lost when the container is removed.**
+
 </div>
 
 ## Cleanup of Temporary Setup
 
-If you do not wish to continue using SRB, you can remove the Docker container and its associated image by executing the following commands:
+If you do not wish to continue using SRB, you can remove the Docker container and its associated image by executing these commands:
 
 ```bash
 docker rm -f space_robotics_bench

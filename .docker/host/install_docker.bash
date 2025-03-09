@@ -15,8 +15,12 @@ if ! command -v curl >/dev/null 2>&1; then
 fi
 
 ## Install Docker via the convenience script
-curl -fsSL https://get.docker.com | sh
-sudo systemctl enable --now docker
+if ! command -v docker >/dev/null 2>&1; then
+    curl -fsSL https://get.docker.com | sh
+    sudo systemctl enable --now docker
+else
+    echo -e "[INFO] Docker is already installed."
+fi
 
 ## (Optional) Install support for NVIDIA if an NVIDIA GPU is detected and the installation is requested
 check_nvidia_gpu() {

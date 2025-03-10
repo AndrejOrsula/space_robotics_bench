@@ -41,7 +41,7 @@ source ~/.zshrc
 ##### C. `fish`
 
 ```sh
-set -Ux ISAAC_SIM_PYTHON '$HOME/isaac-sim/python.sh'
+set -Ux ISAAC_SIM_PYTHON "$HOME/isaac-sim/python.sh"
 ```
 
 ## 3. Install NVIDIA Isaac Lab 2.0
@@ -54,7 +54,32 @@ Install Isaac Lab either by following the official instructions above or using t
 ./space_robotics_bench/scripts/install_isaaclab.bash "$HOME/isaaclab"
 ```
 
-## 4. Install the Space Robotics Bench
+## 4. Install Blender 4.3 with SimForge
+
+> Official instructions: [Blender — Install from blender.org](https://docs.blender.org/manual/en/4.3/getting_started/installing/linux.html#install-from-blender-org)
+
+1. Install Blender by following the official instructions for downloading and extracting its archive.
+1. Ensure that the `blender` executable is accessible from your system's `PATH`.
+1. Install SimForge with its assets within the Blender Python environment.
+
+As an example, the commands below will install Blender in your home directory and create a symbolic link to `$HOME/.local/bin/blender` (assuming it is in your `PATH`):
+
+```bash
+export BLENDER_VERSION="4.3.2"
+export BLENDER_VERSION_SHORT=$(echo $BLENDER_VERSION | sed 's/\.[^.]*$//')
+mkdir -p $HOME/blender$BLENDER_VERSION
+curl -fsSL "https://download.blender.org/release/Blender$BLENDER_VERSION_SHORT/blender-$BLENDER_VERSION-linux-x64.tar.xz" | tar xJ -C $HOME/blender$BLENDER_VERSION --strip-components=1
+ln -sf $HOME/blender$BLENDER_VERSION/blender $HOME/.local/bin/blender
+"$HOME/blender$BLENDER_VERSION/$BLENDER_VERSION_SHORT/python/bin/python3.11" -m pip install simforge[assets]
+```
+
+<div class="warning">
+
+Avoid installing Blender through Snap as it would prevent integrating the required Python dependencies within its environment.
+
+</div>
+
+## 5. Install the Space Robotics Bench
 
 Install the `srb` package in editable mode:
 
@@ -64,15 +89,15 @@ Install the `srb` package in editable mode:
 
 > **Note**: The `all` extra installs optional dependencies to support all workflows and improve usability. Feel free to check [`pyproject.toml`](https://github.com/AndrejOrsula/space_robotics_bench/blob/main/pyproject.toml) and adjust the extras to your needs.
 
-### Install `srb` CLI
+### Setup `srb` CLI
 
-To make the `srb` command available in your shell with autocompletion, use the provided convenience [script](https://github.com/AndrejOrsula/space_robotics_bench/blob/main/scripts/setup_cli.bash)
+Make the `srb` CLI command available in your shell through the provided [script](https://github.com/AndrejOrsula/space_robotics_bench/blob/main/scripts/setup_cli.bash):
 
 ```bash
 ./space_robotics_bench/scripts/setup_cli.bash
 ```
 
-## 5. Verify Installation
+## 6. Verify Installation
 
 After the installation, verify that everything works as expected.
 
@@ -96,10 +121,22 @@ Confirm that Isaac Lab is installed:
 
 ### Space Robotics Bench
 
-Verify that the `srb` command is available:
+Verify that the entrypoint script of SRB is available in the Python environment of Isaac Sim:
 
 ```bash
 "$ISAAC_SIM_PYTHON" -m srb --help
+```
+
+Verify that the `srb` command is available:
+
+```bash
+srb --help
+```
+
+Verify that argument completion works:
+
+```bash
+srb <TAB> <TAB>
 ```
 
 ## ... continue with [Basic Usage](./basic_usage.md)

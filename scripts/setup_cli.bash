@@ -71,7 +71,7 @@ fi
 
 # Make sure the destination directory is in PATH
 if [[ ! ":$PATH:" == *":${DEST_DIR}:"* ]]; then
-    echo >&2 -e "\033[1;31m[ERROR]\033[0m ${DEST_DIR} is not in PATH. Add it to your PATH and try again."
+    echo >&2 -e "\033[1;31m[ERROR]\033[0m ${DEST_DIR} is not in PATH. Add it to your PATH or specify a different destination directory via \`setup_cli.bash [destination_directory]\`."
     exit 1
 fi
 

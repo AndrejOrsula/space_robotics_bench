@@ -30,7 +30,7 @@ dependencies = [
   # "isaaclab~=2.0",
   "oxidasim~=0.1",
   ## Assets
-  "simforge~=0.2",
+  "simforge[assets]~=0.2",
   ## Typing
   "pydantic~=2.0",
 ]

@@ -32,6 +32,8 @@ WITH_GUI="${WITH_GUI:-true}"
 WITH_HISTORY="${WITH_HISTORY:-true}"
 # Flag to enable mounting the source code as a volume
 WITH_DEV_VOLUME="${WITH_DEV_VOLUME:-true}"
+# Flag to install Docker if it is not available
+ENSURE_DOCKER="${ENSURE_DOCKER:-false}"
 # Volumes to mount inside the container
 DOCKER_VOLUMES=(
     ## Common
@@ -93,6 +95,22 @@ elif [[ "${RMW_IMPLEMENTATION}" = "rmw_fastrtps_cpp" ]]; then
     if [ -n "${FASTRTPS_DEFAULT_PROFILES_FILE}" ]; then
         DOCKER_VOLUMES+=("${FASTRTPS_DEFAULT_PROFILES_FILE}:/root/.ros/fastrtps.xml:ro")
         DOCKER_ENVIRON+=("FASTRTPS_DEFAULT_PROFILES_FILE=/root/.ros/fastrtps.xml")
+    fi
+fi
+
+## Ensure that Docker Engine with NVIDIA Container Toolkit are available
+if [[ "${ENSURE_DOCKER,,}" = true ]]; then
+    if ! command -v docker >/dev/null 2>&1 || ! command -v nvidia-container-toolkit >/dev/null 2>&1; then
+        if ! command -v curl >/dev/null 2>&1; then
+            if command -v apt-get >/dev/null 2>&1; then
+                sudo apt-get install -y curl
+            elif command -v dnf >/dev/null 2>&1; then
+                sudo dnf install -y curl
+            elif command -v yum >/dev/null 2>&1; then
+                sudo yum install -y curl
+            fi
+        fi
+        bash -c "$(curl -fsSL https://raw.githubusercontent.com/AndrejOrsula/space_robotics_bench/refs/heads/main/.docker/host/install_docker.bash)"
     fi
 fi
 

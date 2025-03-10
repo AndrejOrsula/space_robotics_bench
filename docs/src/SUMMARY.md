@@ -39,7 +39,7 @@ ______________________________________________________________________
 - [System Requirements](getting_started/requirements.md)
 - [Installation](getting_started/install.md)
   - [Native](getting_started/install_native.md)
-  - [Docker](getting_started/install_docker.md)
+  - [Docker — Recommended](getting_started/install_docker.md)
   - [Apptainer (Singularity)](getting_started/install_apptainer.md)
 - [Basic Usage](getting_started/basic_usage.md)
 

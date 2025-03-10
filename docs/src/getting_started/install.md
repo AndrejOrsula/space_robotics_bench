@@ -32,22 +32,22 @@ For quick experimentation with SRB, you can use a temporary setup that downloads
 #### A. `curl`
 
 ```bash
-WITH_DEV_VOLUME=false WITH_HISTORY=false bash -c "$(curl -fsSL https://raw.githubusercontent.com/AndrejOrsula/space_robotics_bench/refs/heads/main/.docker/run.bash)" --
+ENSURE_DOCKER=true WITH_DEV_VOLUME=false WITH_HISTORY=false bash -c "$(curl -fsSL https://raw.githubusercontent.com/AndrejOrsula/space_robotics_bench/refs/heads/main/.docker/run.bash)" --
 ```
 
 #### B. `wget`
 
 ```bash
-WITH_DEV_VOLUME=false WITH_HISTORY=false bash -c "$(wget -qO - https://raw.githubusercontent.com/AndrejOrsula/space_robotics_bench/refs/heads/main/.docker/run.bash)" --
+ENSURE_DOCKER=true WITH_DEV_VOLUME=false WITH_HISTORY=false bash -c "$(wget -qO - https://raw.githubusercontent.com/AndrejOrsula/space_robotics_bench/refs/heads/main/.docker/run.bash)" --
 ```
 
 <div class="warning">
 
-The Docker container created by this setup is ephemeral, and data is not persisted between sessions. **Any changes made inside the container will be lost when the container is removed.**
+The Docker container created by this setup is ephemeral (`WITH_DEV_VOLUME=false`), and data is not persisted between sessions. **Any changes made inside the container will be lost when the container is removed.**
 
 </div>
 
-## Cleanup of Temporary Setup
+### Cleanup of Temporary Setup
 
 If you do not wish to continue using SRB, you can remove the Docker container and its associated image by executing these commands:
 

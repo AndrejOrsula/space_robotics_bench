@@ -89,13 +89,15 @@ Install the `srb` package in editable mode:
 
 > **Note**: The `all` extra installs optional dependencies to support all workflows and improve usability. Feel free to check [`pyproject.toml`](https://github.com/AndrejOrsula/space_robotics_bench/blob/main/pyproject.toml) and adjust the extras to your needs.
 
-### Setup `srb` CLI
+### Setup CLI
 
 Make the `srb` CLI command available in your shell through the provided [script](https://github.com/AndrejOrsula/space_robotics_bench/blob/main/scripts/setup_cli.bash):
 
 ```bash
 ./space_robotics_bench/scripts/setup_cli.bash
 ```
+
+> **Note:** In case the script fails, the `srb` CLI is still accessible via `"$ISAAC_SIM_PYTHON" -m srb`.
 
 ## 6. Verify Installation
 

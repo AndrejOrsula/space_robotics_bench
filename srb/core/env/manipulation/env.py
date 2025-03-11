@@ -75,7 +75,7 @@ class ManipulatorEnvCfg(DirectEnvCfg):
 
     ## Viewer
     viewer: ViewerCfg = ViewerCfg(
-        eye=(2.0, 0.0, 2.0), lookat=(0.0, 0.0, 0.0), origin_type="env"
+        eye=(1.5, 0.0, 1.75), lookat=(0.25, 0.0, 0.0), origin_type="env"
     )
 
     def __post_init__(self):

@@ -798,7 +798,7 @@ def list_registered(
         table.add_column("Type", justify="left", style="magenta", no_wrap=True)
         table.add_column("Subtype", justify="left", style="red", no_wrap=True)
         table.add_column("Parent Class", justify="left", style="green", no_wrap=True)
-        table.add_column("Asset Cfg", justify="left", style="yellow")
+        table.add_column("Asset Config", justify="left", style="yellow")
         table.add_column("Path", justify="left", style="white")
         i = 0
         if EntityToList.SCENERY in category:

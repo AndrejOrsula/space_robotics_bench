@@ -794,11 +794,11 @@ def list_registered(
 
         table = Table(title="Assets of the Space Robotics Bench")
         table.add_column("#", justify="right", style="cyan", no_wrap=True)
+        table.add_column("Name", justify="left", style="blue", no_wrap=True)
         table.add_column("Type", justify="left", style="magenta", no_wrap=True)
         table.add_column("Subtype", justify="left", style="red", no_wrap=True)
         table.add_column("Parent Class", justify="left", style="green", no_wrap=True)
         table.add_column("Asset Cfg", justify="left", style="yellow")
-        table.add_column("Name", justify="left", style="blue", no_wrap=True)
         table.add_column("Path", justify="left", style="white")
         i = 0
         if EntityToList.SCENERY in category:
@@ -825,11 +825,11 @@ def list_registered(
                         asset_module_relpath = path.join("EXT", asset_module_path.name)
                     table.add_row(
                         str(i),
+                        f"[link=vscode://file/{inspect.getabsfile(asset_class)}:{inspect.getsourcelines(asset_class)[1]}]{asset_name}[/link]",
                         str(asset_type),
                         str(asset_subtype),
                         f"[link=vscode://file/{inspect.getabsfile(parent_class)}:{inspect.getsourcelines(parent_class)[1]}]{parent_class.__name__}[/link]",
                         f"[link=vscode://file/{inspect.getabsfile(asset_cfg_class)}:{inspect.getsourcelines(asset_cfg_class)[1]}]{asset_cfg_class.__name__}[/link]",
-                        f"[link=vscode://file/{inspect.getabsfile(asset_class)}:{inspect.getsourcelines(asset_class)[1]}]{asset_name}[/link]",
                         f"[link=vscode://file/{asset_module_path}]{asset_module_relpath}[/link]",
                         end_section=(j + 1) == len(asset_classes),
                     )
@@ -857,11 +857,11 @@ def list_registered(
                         asset_module_relpath = path.join("EXT", asset_module_path.name)
                     table.add_row(
                         str(i),
+                        f"[link=vscode://file/{inspect.getabsfile(asset_class)}:{inspect.getsourcelines(asset_class)[1]}]{asset_name}[/link]",
                         str(asset_type),
                         str(asset_subtype),
                         f"[link=vscode://file/{inspect.getabsfile(parent_class)}:{inspect.getsourcelines(parent_class)[1]}]{parent_class.__name__}[/link]",
                         f"[link=vscode://file/{inspect.getabsfile(asset_cfg_class)}:{inspect.getsourcelines(asset_cfg_class)[1]}]{asset_cfg_class.__name__}[/link]",
-                        f"[link=vscode://file/{inspect.getabsfile(asset_class)}:{inspect.getsourcelines(asset_class)[1]}]{asset_name}[/link]",
                         f"[link=vscode://file/{asset_module_path}]{asset_module_relpath}[/link]",
                         end_section=(j + 1) == len(asset_classes),
                     )
@@ -889,13 +889,13 @@ def list_registered(
                         asset_module_relpath = path.join("EXT", asset_module_path.name)
                     table.add_row(
                         str(i),
+                        f"[link=vscode://file/{inspect.getabsfile(asset_class)}:{inspect.getsourcelines(asset_class)[1]}]{asset_name}[/link]",
                         str(asset_type),
                         str(asset_subtype),
                         f"[link=vscode://file/{inspect.getabsfile(parent_class)}:{inspect.getsourcelines(parent_class)[1]}]{parent_class.__name__}[/link]",
                         f"[link=vscode://file/{inspect.getabsfile(asset_cfg_class)}:{inspect.getsourcelines(asset_cfg_class)[1]}]{asset_cfg_class.__name__}[/link]"
                         if asset_cfg_class is not _MISSING_TYPE
                         else "<DYNAMIC>",
-                        f"[link=vscode://file/{inspect.getabsfile(asset_class)}:{inspect.getsourcelines(asset_class)[1]}]{asset_name}[/link]",
                         f"[link=vscode://file/{asset_module_path}]{asset_module_relpath}[/link]",
                         end_section=(j + 1) == len(asset_classes),
                     )

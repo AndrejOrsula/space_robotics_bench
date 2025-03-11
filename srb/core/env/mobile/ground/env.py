@@ -64,7 +64,7 @@ class GroundEnvCfg(MobileEnvCfg):
 
     ## Viewer
     viewer: ViewerCfg = ViewerCfg(
-        eye=(10.0, -10.0, 10.0), lookat=(0.0, 0.0, 0.0), origin_type="env"
+        eye=(7.5, -7.5, 15.0), lookat=(0.0, 0.0, 0.0), origin_type="env"
     )
 
     def __post_init__(self):

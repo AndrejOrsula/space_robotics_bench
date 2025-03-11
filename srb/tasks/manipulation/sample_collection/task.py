@@ -3,6 +3,7 @@ from typing import Sequence, Tuple
 
 import torch
 
+from srb import assets
 from srb._typing import StepReturn
 from srb.core.asset import (
     Articulation,
@@ -58,7 +59,7 @@ class EventCfg(ManipulatorEventCfg):
 @configclass
 class TaskCfg(ManipulatorEnvCfg):
     ## Assets
-    sample: Object | AssetVariant | None = AssetVariant.PROCEDURAL
+    sample: Object | AssetVariant = assets.LunarRock()
 
     ## Scene
     scene: SceneCfg = SceneCfg()
@@ -92,11 +93,7 @@ class TaskCfg(ManipulatorEnvCfg):
             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.55, 0.0, 0.0)),
             activate_contact_sensors=True,
         )
-        self.scene.sample = select_sample(
-            self,
-            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.55, 0.0, 0.0)),
-            activate_contact_sensors=True,
-        ).asset_cfg
+        self.scene.sample = sample.asset_cfg
 
         # Event: Randomize object state
         self.events.randomize_object_state.params["pose_range"] = (

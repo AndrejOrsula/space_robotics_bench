@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from simforge import TexResConfig
 
 from srb import assets
-from srb.core.asset import AssetVariant, RigidObjectCfg
+from srb.core.asset import AssetVariant, Object, RigidObjectCfg
 from srb.core.domain import Domain
 from srb.core.manager import EventTermCfg, SceneEntityCfg
 from srb.core.mdp import reset_root_state_uniform
@@ -33,10 +33,27 @@ def select_sample(
     pose_range = {
         "x": (-0.2, 0.2),
         "y": (-0.3, 0.3),
+        "z": (0.1, 0.1),
         "roll": (-torch.pi, torch.pi),
         "pitch": (-torch.pi, torch.pi),
         "yaw": (-torch.pi, torch.pi),
     }
+
+    if isinstance(env_cfg.sample, Object):
+        if isinstance(env_cfg.sample, assets.SampleTube):
+            pose_range.update(
+                {
+                    "z": (0.05, 0.05),
+                    "roll": (torch.pi / 7, torch.pi / 7),
+                    "pitch": (
+                        87.5 * torch.pi / 180,
+                        87.5 * torch.pi / 180,
+                    ),
+                    "yaw": (-torch.pi, torch.pi),
+                }
+            )
+        sample_cfg = env_cfg.sample.asset_cfg
+        assert isinstance(sample_cfg, RigidObjectCfg)
 
     match env_cfg.sample:
         case AssetVariant.PRIMITIVE:
@@ -76,9 +93,6 @@ def select_sample(
                     ).asset_cfg
 
             sample_cfg.spawn.seed = seed  # type: ignore
-
-        case _:
-            pose_range["z"] = (0.06, 0.06)
 
     sample_cfg.prim_path = prim_path
     sample_cfg.init_state = init_state

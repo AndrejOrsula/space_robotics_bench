@@ -10,7 +10,6 @@ from srb._typing import StepReturn
 from srb.core.asset import Articulation, RigidObject
 from srb.core.manager import ActionManager
 from srb.core.sim.robot_setup import AssembledBodies, RobotAssembler
-from srb.utils import logging
 from srb.utils.math import combine_frame_transforms, subtract_frame_transforms
 from srb.utils.str import resolve_env_prim_path
 
@@ -40,7 +39,7 @@ class DirectEnv(__DirectRLEnv, metaclass=__PostInitCaller):
                 self.cfg.actions,
                 env=self,  # type: ignore
             )
-            logging.info(f"Action Manager: {self.action_manager}")
+            print(self.action_manager)
 
         ## Get scene assets
         self._robot: Articulation = self.scene["robot"]

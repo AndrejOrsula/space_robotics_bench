@@ -69,6 +69,7 @@ class BaseEnvCfg:
     ## Scene
     scene: BaseSceneCfg = BaseSceneCfg()
     stack: bool = False
+    num_envs: int | None = None
     env_spacing: float | None = None
 
     ## Events
@@ -122,6 +123,8 @@ class BaseEnvCfg:
 
     def __post_init__(self):
         ## Scene
+        if self.num_envs is not None:
+            self.scene.num_envs = self.num_envs
         if self.env_spacing is None:
             self.env_spacing = self.scene.env_spacing
         self.scene.env_spacing = 0.0 if self.stack else self.env_spacing
@@ -613,9 +616,9 @@ class BaseEnvCfg:
             )
 
         ## Update command mapping function
-        self.actions.map_cmd_to_action = lambda twist, event: torch.cat(
-            [func(twist, event) for func in map_cmd_to_action_fns]
-        )
+        self.actions.map_cmd_to_action = lambda twist, event: torch.cat([
+            func(twist, event) for func in map_cmd_to_action_fns
+        ])
 
         # Store the updated config in an internal state
         self._robot = robot

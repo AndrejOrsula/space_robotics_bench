@@ -794,8 +794,8 @@ def list_registered(
 
         table = Table(title="Assets of the Space Robotics Bench")
         table.add_column("#", justify="right", style="cyan", no_wrap=True)
-        table.add_column("Type", justify="center", style="magenta", no_wrap=True)
-        table.add_column("Subtype", justify="center", style="red", no_wrap=True)
+        table.add_column("Type", justify="left", style="magenta", no_wrap=True)
+        table.add_column("Subtype", justify="left", style="red", no_wrap=True)
         table.add_column("Parent Class", justify="left", style="green", no_wrap=True)
         table.add_column("Asset Cfg", justify="left", style="yellow")
         table.add_column("Name", justify="left", style="blue", no_wrap=True)

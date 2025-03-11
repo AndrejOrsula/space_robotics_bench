@@ -25,5 +25,5 @@ class Scoop(Tool):
     )
 
     ## Frames
-    frame_mount: Frame = Frame()
+    frame_mount: Frame = Frame(prim_relpath="excavator_bucket")
     frame_tool_centre_point: Frame = Frame(offset=Transform(pos=(0.0, 0.0, 0.1)))

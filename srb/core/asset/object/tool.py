@@ -14,8 +14,8 @@ class Tool(Object, object_entrypoint=ObjectType.TOOL):
     asset_cfg: RigidObjectCfg | ArticulationCfg
 
     ## Frames
-    frame_mount: Frame = Frame()
-    frame_tool_centre_point: Frame = Frame()
+    frame_mount: Frame
+    frame_tool_centre_point: Frame
 
     @classmethod
     def object_registry(cls) -> Sequence[Type[Tool]]:

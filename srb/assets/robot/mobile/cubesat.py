@@ -37,12 +37,8 @@ class Cubesat(OrbitalRobot):
     )
 
     ## Frames
-    frame_payload_mount: Frame = Frame(
-        offset=Transform(
-            pos=(0.0, 0.0, 0.0),
-            rot=rpy_to_quat(0.0, 0.0, 0.0),
-        ),
-    )
+    frame_base: Frame = Frame(prim_relpath="cubesat")
+    frame_payload_mount: Frame = Frame(prim_relpath="cubesat")
     frame_manipulator_mount: Frame = Frame(
         offset=Transform(
             pos=(0.0, 0.0, 0.05),

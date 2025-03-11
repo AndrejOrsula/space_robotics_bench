@@ -20,7 +20,7 @@ class Robot(Asset, asset_entrypoint=AssetType.ROBOT):
     action_cfg: ActionGroup
 
     ## Frames
-    frame_base: Frame = Frame()
+    frame_base: Frame
 
     def __init_subclass__(
         cls,

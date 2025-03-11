@@ -71,11 +71,12 @@ class EventCfg(GroundEventCfg):
 @configclass
 class TaskCfg(GroundEnvCfg):
     ## Assets
-    robot: LeggedRobot | Humanoid | AssetVariant = assets.RandomAnymal()
+    robot: LeggedRobot | Humanoid | AssetVariant = assets.Spot()
     _robot: LeggedRobot = MISSING  # type: ignore
 
     ## Scene
     scene: SceneCfg = SceneCfg()
+    stack: bool = True
 
     ## Events
     events: EventCfg = EventCfg()

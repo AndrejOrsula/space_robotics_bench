@@ -13,10 +13,10 @@ from srb.core.asset import (
     RigidObjectCfg,
 )
 from srb.core.env import (
-    ManipulatorEnv,
-    ManipulatorEnvCfg,
-    ManipulatorEventCfg,
-    ManipulatorSceneCfg,
+    ManipulationEnv,
+    ManipulationEnvCfg,
+    ManipulationEventCfg,
+    ManipulationSceneCfg,
 )
 from srb.core.manager import EventTermCfg, SceneEntityCfg
 from srb.core.marker import VisualizationMarkers, VisualizationMarkersCfg
@@ -39,12 +39,12 @@ from .asset import select_sample
 
 
 @configclass
-class SceneCfg(ManipulatorSceneCfg):
+class SceneCfg(ManipulationSceneCfg):
     sample: RigidObjectCfg = MISSING  # type: ignore
 
 
 @configclass
-class EventCfg(ManipulatorEventCfg):
+class EventCfg(ManipulationEventCfg):
     randomize_object_state: EventTermCfg = EventTermCfg(
         func=reset_root_state_uniform,
         mode="reset",
@@ -57,7 +57,7 @@ class EventCfg(ManipulatorEventCfg):
 
 
 @configclass
-class TaskCfg(ManipulatorEnvCfg):
+class TaskCfg(ManipulationEnvCfg):
     ## Assets
     sample: Object | AssetVariant = assets.LunarRock()
 
@@ -115,7 +115,7 @@ class TaskCfg(ManipulatorEnvCfg):
 ############
 
 
-class Task(ManipulatorEnv):
+class Task(ManipulationEnv):
     cfg: TaskCfg
 
     def __init__(self, cfg: TaskCfg, **kwargs):

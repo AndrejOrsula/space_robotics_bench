@@ -1,26 +1,36 @@
 from dataclasses import MISSING
 
 from srb import assets
+from srb.core.action import (
+    InverseKinematicsActionGroup,
+    JointPositionRelativeActionGroup,
+    OperationalSpaceControlActionGroup,
+)
 from srb.core.asset import AerialManipulator, Articulation, AssetVariant
-from srb.core.env import ViewerCfg
+from srb.core.env.manipulation.env import (
+    ManipulationEnv,
+    ManipulationEventCfg,
+    ManipulationSceneCfg,
+)
 from srb.core.env.mobile.aerial.env import (
     AerialEnv,
     AerialEnvCfg,
     AerialEventCfg,
     AerialSceneCfg,
 )
-from srb.core.manager import EventTermCfg
+from srb.core.sensor import ContactSensorCfg
 from srb.utils.cfg import configclass
+from srb.utils.math import combine_frame_transforms_tuple
 
 
 @configclass
-class AerialManipulationSceneCfg(AerialSceneCfg):
-    env_spacing = 16.0
+class AerialManipulationSceneCfg(AerialSceneCfg, ManipulationSceneCfg):
+    pass
 
 
 @configclass
-class AerialManipulationEventCfg(AerialEventCfg):
-    randomize_robot_state: EventTermCfg | None = None
+class AerialManipulationEventCfg(AerialEventCfg, ManipulationEventCfg):
+    pass
 
 
 @configclass
@@ -41,16 +51,59 @@ class AerialManipulationEnvCfg(AerialEnvCfg):
     env_rate: float = 1.0 / 150.0
     agent_rate: float = 1.0 / 50.0
 
-    ## Viewer
-    viewer: ViewerCfg = ViewerCfg(
-        eye=(10.0, -10.0, 10.0), lookat=(0.0, 0.0, 0.0), origin_type="env"
-    )
-
     def __post_init__(self):
+        ## Jacobian-based actions are currently not supported for free-floating manipulators
+        if isinstance(self.robot, AerialManipulator) and isinstance(
+            self.robot.manipulator.action_cfg,
+            (InverseKinematicsActionGroup, OperationalSpaceControlActionGroup),
+        ):
+            self.robot.manipulator.action_cfg = JointPositionRelativeActionGroup()
+
         super().__post_init__()
+        assert self.scene.manipulator is not None
+
+        ## Adapted from ManipulatorEnvCfg
+        # Sensor: End-effector transform
+        self.scene.tf_end_effector.prim_path = f"{self.scene.manipulator.prim_path}/{self._robot.manipulator.frame_base.prim_relpath}"
+        self.scene.tf_end_effector.target_frames[
+            0
+        ].prim_path = f"{self.scene.manipulator.prim_path}/{self._robot.manipulator.frame_flange.prim_relpath}"
+        if self._robot.manipulator.end_effector is not None:
+            (
+                self.scene.tf_end_effector.target_frames[0].offset.pos,
+                self.scene.tf_end_effector.target_frames[0].offset.rot,
+            ) = combine_frame_transforms_tuple(
+                self._robot.manipulator.frame_flange.offset.pos,
+                self._robot.manipulator.frame_flange.offset.rot,
+                self._robot.manipulator.end_effector.frame_tool_centre_point.offset.pos,
+                self._robot.manipulator.end_effector.frame_tool_centre_point.offset.rot,
+            )
+        else:
+            (
+                self.scene.tf_end_effector.target_frames[0].offset.pos,
+                self.scene.tf_end_effector.target_frames[0].offset.rot,
+            ) = (
+                self._robot.manipulator.frame_flange.offset.pos,
+                self._robot.manipulator.frame_flange.offset.rot,
+            )
+
+        # Sensor: Robot contacts
+        self.scene.contacts_robot.prim_path = f"{self.scene.manipulator.prim_path}/.*"
+
+        # Sensor: End-effector contacts
+        self.scene.contacts_end_effector = (
+            ContactSensorCfg(
+                prim_path=f"{self._robot.manipulator.end_effector.asset_cfg.prim_path}/.*",
+            )
+            if self._robot.manipulator.end_effector is not None
+            else None
+        )
+
+        # Event: Randomize robot joints
+        self.events.randomize_robot_joints.params["asset_cfg"].name = "manipulator"
 
 
-class AerialManipulationEnv(AerialEnv):
+class AerialManipulationEnv(AerialEnv, ManipulationEnv):
     cfg: AerialManipulationEnvCfg
 
     def __init__(self, cfg: AerialManipulationEnvCfg, **kwargs):

@@ -616,9 +616,9 @@ class BaseEnvCfg:
             )
 
         ## Update command mapping function
-        self.actions.map_cmd_to_action = lambda twist, event: torch.cat([
-            func(twist, event) for func in map_cmd_to_action_fns
-        ])
+        self.actions.map_cmd_to_action = lambda twist, event: torch.cat(
+            [func(twist, event) for func in map_cmd_to_action_fns]
+        )
 
         # Store the updated config in an internal state
         self._robot = robot

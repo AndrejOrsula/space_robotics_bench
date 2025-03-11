@@ -5,10 +5,10 @@ import torch
 from srb._typing import StepReturn
 from srb.core.asset import Articulation
 from srb.core.env import (
-    ManipulationEnv,
-    ManipulationEnvCfg,
-    ManipulationEventCfg,
-    ManipulationSceneCfg,
+    AerialManipulationEnv,
+    AerialManipulationEnvCfg,
+    AerialManipulationEventCfg,
+    AerialManipulationSceneCfg,
 )
 from srb.core.sensor import ContactSensor
 from srb.utils.cfg import configclass
@@ -20,17 +20,17 @@ from srb.utils.math import matrix_from_quat, rotmat_to_rot6d, scale_transform
 
 
 @configclass
-class SceneCfg(ManipulationSceneCfg):
+class SceneCfg(AerialManipulationSceneCfg):
     pass
 
 
 @configclass
-class EventCfg(ManipulationEventCfg):
+class EventCfg(AerialManipulationEventCfg):
     pass
 
 
 @configclass
-class TaskCfg(ManipulationEnvCfg):
+class TaskCfg(AerialManipulationEnvCfg):
     ## Scene
     scene: SceneCfg = SceneCfg()
 
@@ -50,7 +50,7 @@ class TaskCfg(ManipulationEnvCfg):
 ############
 
 
-class Task(ManipulationEnv):
+class Task(AerialManipulationEnv):
     cfg: TaskCfg
 
     def __init__(self, cfg: TaskCfg, **kwargs):
@@ -69,11 +69,21 @@ class Task(ManipulationEnv):
             act_current=self.action_manager.action,
             act_previous=self.action_manager.prev_action,
             ## States
-            # Joints
-            joint_pos_robot=self._robot.data.joint_pos,
+            # Root
+            tf_pos_robot=self._robot.data.root_pos_w,
+            tf_quat_robot=self._robot.data.root_quat_w,
+            vel_lin_robot=self._robot.data.root_lin_vel_b,
+            vel_ang_robot=self._robot.data.root_ang_vel_b,
+            # IMU
+            imu_lin_acc=self._imu_robot.data.lin_acc_b,
+            imu_ang_vel=self._imu_robot.data.ang_vel_b,
+            # Joints (manipulator)
+            joint_pos_robot=self._manipulator.data.joint_pos,
             joint_pos_limits_robot=(
-                self._robot.data.soft_joint_pos_limits
-                if torch.all(torch.isfinite(self._robot.data.soft_joint_pos_limits))
+                self._manipulator.data.soft_joint_pos_limits
+                if torch.all(
+                    torch.isfinite(self._manipulator.data.soft_joint_pos_limits)
+                )
                 else None
             ),
             joint_pos_end_effector=self._end_effector.data.joint_pos
@@ -115,6 +125,14 @@ def _compute_step_return(
     act_current: torch.Tensor,
     act_previous: torch.Tensor,
     ## States
+    # Root
+    tf_pos_robot: torch.Tensor,
+    tf_quat_robot: torch.Tensor,
+    vel_lin_robot: torch.Tensor,
+    vel_ang_robot: torch.Tensor,
+    # IMU
+    imu_lin_acc: torch.Tensor,
+    imu_ang_vel: torch.Tensor,
     # Joints
     joint_pos_robot: torch.Tensor,
     joint_pos_limits_robot: torch.Tensor | None,
@@ -138,6 +156,10 @@ def _compute_step_return(
     ############
     ## States ##
     ############
+    ## Root
+    tf_rotmat_robot = matrix_from_quat(tf_quat_robot)
+    tf_rot6d_robot = rotmat_to_rot6d(tf_rotmat_robot)
+
     ## Joints
     # Robot joints
     joint_pos_robot_normalized = (
@@ -214,16 +236,22 @@ def _compute_step_return(
     return StepReturn(
         {
             "state": {
+                "tf_pos_robot": tf_rot6d_robot,
+                "tf_rot6d_robot": tf_rot6d_robot,
+                "vel_lin_robot": vel_lin_robot,
+                "vel_ang_robot": vel_ang_robot,
                 "contact_forces_mean_robot": contact_forces_mean_robot,
                 "contact_forces_mean_end_effector": contact_forces_mean_end_effector,
             },
             "state_dyn": {
                 "contact_forces_robot": contact_forces_robot,
                 "contact_forces_end_effector": contact_forces_end_effector,
-            },
-            "proprio": {
                 "fk_pos_end_effector": fk_pos_end_effector,
                 "fk_rot6d_end_effector": fk_rot6d_end_effector,
+            },
+            "proprio": {
+                "imu_lin_acc": imu_lin_acc,
+                "imu_ang_vel": imu_ang_vel,
             },
             "proprio_dyn": {
                 "joint_pos_robot_normalized": joint_pos_robot_normalized,

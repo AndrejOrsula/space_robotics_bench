@@ -14,10 +14,10 @@ from srb.core.asset import (
 )
 from srb.core.domain import Domain
 from srb.core.env import (
-    ManipulatorEnv,
-    ManipulatorEnvCfg,
-    ManipulatorEventCfg,
-    ManipulatorSceneCfg,
+    ManipulationEnv,
+    ManipulationEnvCfg,
+    ManipulationEventCfg,
+    ManipulationSceneCfg,
 )
 from srb.core.manager import EventTermCfg, SceneEntityCfg
 from srb.core.marker import VisualizationMarkers, VisualizationMarkersCfg
@@ -40,12 +40,12 @@ from .asset import select_debris
 
 
 @configclass
-class SceneCfg(ManipulatorSceneCfg):
+class SceneCfg(ManipulationSceneCfg):
     debris: RigidObjectCfg = MISSING  # type: ignore
 
 
 @configclass
-class EventCfg(ManipulatorEventCfg):
+class EventCfg(ManipulationEventCfg):
     randomize_obj_state: EventTermCfg = EventTermCfg(
         func=reset_root_state_uniform,
         mode="reset",
@@ -72,7 +72,7 @@ class EventCfg(ManipulatorEventCfg):
 
 
 @configclass
-class TaskCfg(ManipulatorEnvCfg):
+class TaskCfg(ManipulationEnvCfg):
     ## Scenario
     domain: Domain = Domain.ORBIT
 
@@ -130,7 +130,7 @@ class TaskCfg(ManipulatorEnvCfg):
 ############
 
 
-class Task(ManipulatorEnv):
+class Task(ManipulationEnv):
     cfg: TaskCfg
 
     def __init__(self, cfg: TaskCfg, **kwargs):

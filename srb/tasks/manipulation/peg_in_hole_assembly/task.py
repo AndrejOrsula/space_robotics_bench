@@ -12,10 +12,10 @@ from srb.core.asset import (
     RigidObjectCfg,
 )
 from srb.core.env import (
-    ManipulatorEnv,
-    ManipulatorEnvCfg,
-    ManipulatorEventCfg,
-    ManipulatorSceneCfg,
+    ManipulationEnv,
+    ManipulationEnvCfg,
+    ManipulationEventCfg,
+    ManipulationSceneCfg,
 )
 from srb.core.manager import EventTermCfg, SceneEntityCfg
 from srb.core.mdp import reset_root_state_uniform
@@ -37,13 +37,13 @@ from .asset import select_peg_in_hole_assembly
 
 
 @configclass
-class SceneCfg(ManipulatorSceneCfg):
+class SceneCfg(ManipulationSceneCfg):
     peg: RigidObjectCfg = MISSING  # type: ignore
     hole: RigidObjectCfg = MISSING  # type: ignore
 
 
 @configclass
-class EventCfg(ManipulatorEventCfg):
+class EventCfg(ManipulationEventCfg):
     randomize_object_state: EventTermCfg = EventTermCfg(
         func=reset_root_state_uniform,
         mode="reset",
@@ -64,7 +64,7 @@ class EventCfg(ManipulatorEventCfg):
 
 
 @configclass
-class TaskCfg(ManipulatorEnvCfg):
+class TaskCfg(ManipulationEnvCfg):
     ## Assets
     peg: Object | AssetVariant | None = AssetVariant.DATASET
 
@@ -109,7 +109,7 @@ class TaskCfg(ManipulatorEnvCfg):
 ############
 
 
-class Task(ManipulatorEnv):
+class Task(ManipulationEnv):
     cfg: TaskCfg
 
     def __init__(self, cfg: TaskCfg, **kwargs):

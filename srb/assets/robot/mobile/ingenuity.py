@@ -78,8 +78,8 @@ class Ingenuity(Multicopter):
     frame_manipulator_mount: Frame = Frame(
         prim_relpath="body",
         offset=Transform(
-            pos=(0.225, 0.0, 0.1),
-            rot=rpy_to_quat(0.0, 0.0, 0.0),
+            pos=(0.0, 0.0, 0.0),
+            rot=rpy_to_quat(0.0, 180.0, 0.0),
         ),
     )
     frame_downward_camera: Frame = Frame(

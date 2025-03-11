@@ -18,11 +18,11 @@ from .common import (  # noqa: F401
 # isort: split
 
 from .manipulation import (  # noqa: F401
-    ManipulatorEnv,
-    ManipulatorEnvCfg,
+    ManipulationEnv,
+    ManipulationEnvCfg,
+    ManipulationEventCfg,
+    ManipulationSceneCfg,
     ManipulatorEnvVisualExtCfg,
-    ManipulatorEventCfg,
-    ManipulatorSceneCfg,
 )
 from .mobile import (  # noqa: F401
     AerialEnv,

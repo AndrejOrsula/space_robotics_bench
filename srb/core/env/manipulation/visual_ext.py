@@ -3,12 +3,12 @@ from srb.core.sensor import CameraCfg, PinholeCameraCfg
 from srb.utils.cfg import configclass
 from srb.utils.math import rpy_to_quat
 
-from .env import ManipulatorEnvCfg
+from .env import ManipulationEnvCfg
 
 
 @configclass
 class ManipulatorEnvVisualExtCfg(VisualExtCfg):
-    def wrap(self, env_cfg: ManipulatorEnvCfg):
+    def wrap(self, env_cfg: ManipulationEnvCfg):
         self.cameras_cfg = {
             "cam_scene": CameraCfg(
                 prim_path=f"{env_cfg._robot.asset_cfg.prim_path}{('/' + env_cfg._robot.frame_base.prim_relpath) if env_cfg._robot.frame_base.prim_relpath else ''}/camera_scene",

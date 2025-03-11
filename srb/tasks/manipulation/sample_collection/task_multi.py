@@ -10,7 +10,7 @@ from srb.core.asset import (
     RigidObjectCollection,
     RigidObjectCollectionCfg,
 )
-from srb.core.env import ManipulatorEnv
+from srb.core.env import ManipulationEnv
 from srb.core.manager import EventTermCfg, SceneEntityCfg
 from srb.core.marker import VisualizationMarkers
 from srb.core.mdp import reset_collection_root_state_uniform_poisson_disk_2d
@@ -112,7 +112,7 @@ class MultiTaskCfg(TaskCfg):
 ############
 
 
-class MultiTask(ManipulatorEnv):
+class MultiTask(ManipulationEnv):
     cfg: MultiTaskCfg
 
     def __init__(self, cfg: MultiTaskCfg, **kwargs):

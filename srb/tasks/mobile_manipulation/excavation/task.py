@@ -47,7 +47,6 @@ class SceneCfg(GroundManipulationSceneCfg):
         ),
         init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 0.5)),
     )
-    # instrument: AssetBaseCfg = assets.BeneficiationUnit().asset_cfg
 
 
 @configclass
@@ -59,7 +58,7 @@ class EventCfg(GroundManipulationEventCfg):
 class TaskCfg(GroundManipulationEnvCfg):
     ## Assets
     robot: GroundManipulator | AssetVariant = assets.GenericGroundManipulator(
-        mobile_base=assets.AnymalD(payload=assets.CargoBay()),
+        mobile_base=assets.Spot(payload=assets.CargoBay()),
         manipulator=assets.Franka(end_effector=assets.Scoop()),
     )
     robot.asset_cfg.init_state.pos = (-1.0, 2.0, 1.0)  # type: ignore

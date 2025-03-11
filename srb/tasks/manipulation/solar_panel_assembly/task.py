@@ -15,10 +15,10 @@ from srb.core.asset import (
     RigidObjectCollectionCfg,
 )
 from srb.core.env import (
-    ManipulatorEnv,
-    ManipulatorEnvCfg,
-    ManipulatorEventCfg,
-    ManipulatorSceneCfg,
+    ManipulationEnv,
+    ManipulationEnvCfg,
+    ManipulationEventCfg,
+    ManipulationSceneCfg,
 )
 from srb.core.manager import EventTermCfg, SceneEntityCfg
 from srb.core.marker import VisualizationMarkers, VisualizationMarkersCfg
@@ -48,7 +48,7 @@ from .asset import select_solar_panel
 
 
 @configclass
-class SceneCfg(ManipulatorSceneCfg):
+class SceneCfg(ManipulationSceneCfg):
     peg: RigidObjectCollectionCfg = RigidObjectCollectionCfg(
         rigid_objects=MISSING,  # type: ignore
     )
@@ -59,7 +59,7 @@ class SceneCfg(ManipulatorSceneCfg):
 
 
 @configclass
-class EventCfg(ManipulatorEventCfg):
+class EventCfg(ManipulationEventCfg):
     randomize_object_state: EventTermCfg = EventTermCfg(
         func=reset_collection_root_state_uniform_poisson_disk_2d,
         mode="reset",
@@ -108,7 +108,7 @@ class EventCfg(ManipulatorEventCfg):
 
 
 @configclass
-class TaskCfg(ManipulatorEnvCfg):
+class TaskCfg(ManipulationEnvCfg):
     ## Assets
     peg: Object | AssetVariant = AssetVariant.DATASET
 
@@ -200,7 +200,7 @@ class TaskCfg(ManipulatorEnvCfg):
 ############
 
 
-class Task(ManipulatorEnv):
+class Task(ManipulationEnv):
     cfg: TaskCfg
 
     def __init__(self, cfg: TaskCfg, **kwargs):

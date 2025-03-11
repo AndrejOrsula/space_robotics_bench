@@ -3,10 +3,8 @@ from typing import Sequence
 
 import torch
 
-from srb import assets
 from srb._typing import StepReturn
-from srb.core.action import JointPositionRelativeActionGroup
-from srb.core.asset import AssetVariant, Object, OrbitalManipulator, RigidObjectCfg
+from srb.core.asset import AssetVariant, Object, RigidObjectCfg
 from srb.core.env import (
     OrbitalManipulationEnv,
     OrbitalManipulationEnvCfg,
@@ -60,11 +58,6 @@ class EventCfg(OrbitalManipulationEventCfg):
 @configclass
 class TaskCfg(OrbitalManipulationEnvCfg):
     ## Assets
-    robot: OrbitalManipulator | AssetVariant = assets.GenericOrbitalManipulator(
-        mobile_base=assets.Cubesat(),
-        manipulator=assets.UR10(action_cfg=JointPositionRelativeActionGroup()),
-    )
-
     debris: Object | AssetVariant | None = AssetVariant.PROCEDURAL
 
     ## Scene

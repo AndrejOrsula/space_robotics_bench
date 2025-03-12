@@ -944,7 +944,7 @@ def list_registered(
         table.add_column("Config", justify="left", style="yellow")
         table.add_column("Path", justify="left", style="white")
         i = 0
-        for task_id in sorted(get_srb_tasks()):
+        for task_id in get_srb_tasks():
             if not show_all and task_id.endswith("_visual"):
                 continue
             i += 1

@@ -42,28 +42,31 @@ ______________________________________________________________________
   - [Docker — Recommended](getting_started/install_docker.md)
   - [Apptainer (Singularity)](getting_started/install_apptainer.md)
 - [Basic Usage](getting_started/basic_usage.md)
-
-# Instructions
-
-- [Command Line Interface](instructions/cli.md)
-  - [List Assets and Tasks](instructions/cli_ls.md)
-  - [Zero Agent](instructions/cli_agent_zero.md)
-  - [Random Agent](instructions/cli_agent_rand.md)
-  - [Teleoperate Agent](instructions/cli_agent_teleop.md)
-  - [ROS 2 Agent](instructions/cli_agent_ros.md)
-  - [Train Agent](instructions/cli_agent_train.md)
-  - [Evaluate Agent](instructions/cli_agent_eval.md)
-  - [Collect Demonstrations](<>)
-  - [Learn from Demonstrations](<>)
-- [Graphical User Interface](instructions/gui.md)
-- [Workflows](instructions/workflows.md)
-  - [ROS 2 Workflows](instructions/ros2.md)
-  - [RL Workflows](instructions/rl_workflows.md)
-    - [Dreamer](instructions/dreamer.md)
-    - [SB3 & SBX](instructions/sb3_sbx.md)
-    - [skrl](instructions/skrl.md)
+- [Workflows](workflows/index.md)
+  - [ROS 2](workflows/ros2.md)
+  - [Reinforcement Learning](workflows/reinforcement_learning.md)
+    - [Dreamer](workflows/dreamer.md)
+    - [SB3 & SBX](workflows/sb3_sbx.md)
+    - [skrl](workflows/skrl.md)
   - [Imitation Learning](<>)
   - [Sim-to-Real](<>)
+
+# Reference
+
+- [Command Line Interface](reference/cli.md)
+  - [List Assets and Tasks](reference/cli_ls.md)
+  - [Zero Agent](reference/cli_agent_zero.md)
+  - [Random Agent](reference/cli_agent_rand.md)
+  - [Teleoperate Agent](reference/cli_agent_teleop.md)
+  - [ROS 2 Agent](reference/cli_agent_ros.md)
+  - [Train Agent](reference/cli_agent_train.md)
+  - [Evaluate Agent](reference/cli_agent_eval.md)
+  - [Collect Demonstrations](<>)
+  - [Learn from Demonstrations](<>)
+  - [Enter Python REPL](reference/cli_repl.md)
+  - [Run Tests](reference/cli_test.md)
+  - [Build Documentation](reference/cli_docs.md)
+- [Graphical User Interface](reference/gui.md)
 
 # Configuration
 
@@ -81,11 +84,9 @@ ______________________________________________________________________
 - [IDE Configuration](development/ide.md)
 - [Dev Container](development/devcontainer.md)
 - [Development Utilities](development/utilities.md)
-  - [Run Tests](development/test.md)
-  - [Enter REPL](development/repl.md)
-  - [Build Docs](development/docs.md)
   - [Update Assets](development/update_assets.md)
   - [Clean Cache](development/clean_cache.md)
+  - [Testing](development/testing.md)
 
 # Contributing
 

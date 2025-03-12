@@ -1,4 +1,4 @@
-# Contributing New Tasks
+# Contributing — New Tasks
 
 The process of introducing a new environment into the Space Robotics Bench is intended to be modular.
 

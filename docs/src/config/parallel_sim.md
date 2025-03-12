@@ -1,4 +1,4 @@
-# Environment Configuration: Parallel Simulation
+# Environment Configuration — Parallel Simulation
 
 ## The `env.scene.num_envs` Argument
 

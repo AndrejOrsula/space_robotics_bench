@@ -1,1 +1,1 @@
-# Environment Configuration: Particle System
+# Environment Configuration — Particle System

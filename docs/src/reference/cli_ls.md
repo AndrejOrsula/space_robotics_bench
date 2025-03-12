@@ -11,9 +11,9 @@ srb ls
 ┃ Name         ┃ Type    ┃ Subtype            ┃ Parent Class      ┃ Asset Config    ┃
 ┡━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━┩
 │ mars_surface │ scenery │ terrain            │ Terrain           │ AssetBaseCfg    │
+│ sample_tube  │ object  │ common             │ Object            │ RigidObjectCfg  │
 │ scoop        │ object  │ tool               │ Tool              │ RigidObjectCfg  │
 │ shadow_hand  │ object  │ tool               │ ActiveTool        │ ArticulationCfg │
-│ sample_tube  │ object  │ common             │ Object            │ RigidObjectCfg  │
 │ ur10         │ robot   │ manipulator        │ SerialManipulator │ ArticulationCfg │
 │ cubesat      │ robot   │ mobile_robot       │ OrbitalRobot      │ RigidObjectCfg  │
 │ ingenuity    │ robot   │ mobile_robot       │ Multicopter       │ ArticulationCfg │
@@ -31,6 +31,8 @@ srb ls
 ┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
 │ body_velocity_action_group      │
 │ joint_position_action_group     │
+│ joint_velocity_action_group     │
+│ joint_effort_action_group       │
 │ inverse_kinematics_action_group │
 │ ...                             │
 └─────────────────────────────────┘
@@ -39,19 +41,20 @@ srb ls
 #### Environments
 
 ```
-┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ ID                           ┃ Entrypoint           ┃ Config                     ┃
-┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ _aerial <template>           │ Task(AerialEnv)      │ TaskCfg(AerialEnvCfg)      │
-│ _ground <template>           │ Task(GroundEnv)      │ TaskCfg(GroundEnvCfg)      │
-│ _manipulation <template>     │ Task(ManipulatorEnv) │ TaskCfg(ManipulatorEnvCfg) │
-│ _orbital <template>          │ Task(OrbitalEnv)     │ TaskCfg(OrbitalEnvCfg)     │
-│ locomotion_velocity_tracking │ Task(GroundEnv)      │ TaskCfg(GroundEnvCfg)      │
-│ sample_collection            │ Task(ManipulatorEnv) │ TaskCfg(ManipulatorEnvCfg) │
-│ orbital_evasion              │ Task(OrbitalEnv)     │ TaskCfg(OrbitalEnvCfg)     │
-│ ...                          │ ...                  │ ...                        │
-└──────────────────────────────┴──────────────────────┴────────────────────────────┘
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ ID                               ┃ Entrypoint                   ┃ Config                             ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ _manipulation <template>         │ Task(ManipulationEnv)        │ TaskCfg(ManipulationEnvCfg)        │
+│ sample_collection                │ Task(ManipulationEnv)        │ TaskCfg(ManipulationEnvCfg)        │
+│ _aerial <template>               │ Task(AerialEnv)              │ TaskCfg(AerialEnvCfg)              │
+│ _ground <template>               │ Task(GroundEnv)              │ TaskCfg(GroundEnvCfg)              │
+│ _orbital <template>              │ Task(OrbitalEnv)             │ TaskCfg(OrbitalEnvCfg)             │
+│ locomotion_velocity_tracking     │ Task(GroundEnv)              │ TaskCfg(GroundEnvCfg)              │
+│ _aerial_manipulation <template>  │ Task(AerialManipulationEnv)  │ TaskCfg(AerialManipulationEnvCfg)  │
+│ _ground_manipulation <template>  │ Task(GroundManipulationEnv)  │ TaskCfg(GroundManipulationEnvCfg)  │
+│ _orbital_manipulation <template> │ Task(OrbitalManipulationEnv) │ TaskCfg(OrbitalManipulationEnvCfg) │
+│ ...                              │ ...                          │ ...                                │
+└──────────────────────────────────┴──────────────────────────────┴────────────────────────────────────┘
 ```
 
 mention VSCode links
-

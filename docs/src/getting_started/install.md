@@ -6,26 +6,26 @@ Before proceeding, ensure your system meets the [system requirements](./requirem
 
 SRB supports three installation methods, each with different trade-offs:
 
-#### A. [Native](./install_native.md)
+### A. [Native](./install_native.md)
 
 - ✅ Full system integration
 - ✅ Smooth development experience
 - ❗ Complex setup process
 - ❗ Potential dependency conflicts
 
-#### B. [Docker — Recommended](./install_docker.md)
+### B. [Docker — Recommended](./install_docker.md)
 
 - ✅ Simple installation & deployment
 - ✅ Reproducible environment & easy to update
 - ⚠️ Moderate development experience (via Dev Containers)
 - ❗ Requires privileged access (not suitable for HPC)
 
-#### C. [Apptainer/Singularity](./install_apptainer.md)
+### C. [Apptainer/Singularity](./install_apptainer.md)
 
 - ✅ Deployable to HPC clusters
 - ❗ Uff...
 
-## Temporary Setup (Quickstart)
+## Alternative — Temporary Setup (Quickstart)
 
 For quick experimentation with SRB, you can use a temporary setup that downloads a pre-built Docker image and runs it in a pre-configured container. A single [script](https://github.com/AndrejOrsula/space_robotics_bench/blob/main/.docker/run.bash) accomplishes everything, which you can call directly via [`curl`](https://curl.se) or [`wget`](https://www.gnu.org/software/wget) (consider inspecting the script before executing it):
 

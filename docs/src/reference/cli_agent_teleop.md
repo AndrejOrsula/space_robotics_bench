@@ -70,7 +70,4 @@ Teleop Policy:
 Name of the algorithm (default: None)
 --model MODEL         Path to the model checkpoint (default: None)
 
-
-
-
 ## Teleoperation via Policy

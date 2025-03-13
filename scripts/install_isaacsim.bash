@@ -7,6 +7,8 @@ set -e
 SRC_URL="${SRC_URL:-"https://download.isaacsim.omniverse.nvidia.com/isaac-sim-standalone%404.5.0-rc.36%2Brelease.19112.f59b3005.gl.linux-x86_64.release.zip"}"
 DEST_DIR="${1:-"${DEST_DIR:-"$HOME/isaac-sim"}"}"
 ARCHIVE_PATH="/tmp/isaac-sim-$(date +%s).zip"
+OMNI_HUB_ARCHIVE="/tmp/omni_hub-$(date +%s).zip"
+OMNI_HUB_EXTRACT="/tmp/omni_hub-$(date +%s)"
 
 echo "[INFO] Source URL: ${SRC_URL}"
 echo "[INFO] Destination path: ${DEST_DIR}"
@@ -22,10 +24,12 @@ if [[ -d "${DEST_DIR}" ]]; then
     rm -rf "${DEST_DIR}"
 fi
 
-# Function to clean up the downloaded archive
+# Function to clean up the downloaded archives
 cleanup() {
-    echo "[INFO] Removing the downloaded archive at ${ARCHIVE_PATH}"
+    echo "[INFO] Cleaning up temporary files"
     rm -f "${ARCHIVE_PATH}"
+    rm -f "${OMNI_HUB_ARCHIVE}"
+    rm -rf "${OMNI_HUB_EXTRACT}"
 }
 trap cleanup EXIT  # Ensure cleanup runs on script exit
 
@@ -51,6 +55,26 @@ if [[ -f "${DEST_DIR}/python.sh" ]]; then
     "${DEST_DIR}/python.sh" -m pip install --upgrade pip
 else
     echo >&2 -e "\033[1;33m[WARNING] python.sh not found in ${DEST_DIR}, skipping pip upgrade\033[0m"
+fi
+
+# Install Omniverse Hub
+echo "[INFO] Downloading Omniverse Hub"
+if curl --proto "=https" --tlsv1.2 -sSfL "https://api.ngc.nvidia.com/v2/resources/nvidia/omniverse/hub_workstation_cache/versions/1.0.0/files/omni_hub.linux-x86_64@1.0.0+8e3e0971.zip" -o "${OMNI_HUB_ARCHIVE}"; then
+    echo "[INFO] Extracting Omniverse Hub"
+    mkdir -p "${OMNI_HUB_EXTRACT}"
+    if unzip -q "${OMNI_HUB_ARCHIVE}" -d "${OMNI_HUB_EXTRACT}"; then
+        echo "[INFO] Running Omniverse Hub installation script"
+        if [[ -f "${OMNI_HUB_EXTRACT}/scripts/install.sh" ]]; then
+            "${OMNI_HUB_EXTRACT}/scripts/install.sh"
+            echo "[INFO] Omniverse Hub installation completed"
+        else
+            echo >&2 -e "\033[1;31m[ERROR] Omniverse Hub installation script not found\033[0m"
+        fi
+    else
+        echo >&2 -e "\033[1;31m[ERROR] Failed to extract Omniverse Hub archive\033[0m"
+    fi
+else
+    echo >&2 -e "\033[1;31m[ERROR] Failed to download Omniverse Hub\033[0m"
 fi
 
 # Print environment setup instructions

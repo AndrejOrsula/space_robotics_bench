@@ -14,3 +14,7 @@ class OrbitalRobot(
     @classmethod
     def mobile_robot_registry(cls) -> Sequence[Type[OrbitalRobot]]:
         return MobileRobotRegistry.registry.get(MobileRobotType.ORBITAL, [])  # type: ignore
+
+
+class Lander(OrbitalRobot, mobile_robot_metaclass=True):
+    pass

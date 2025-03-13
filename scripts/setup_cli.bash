@@ -77,6 +77,12 @@ fi
 
 echo "[INFO] Installing executables..."
 
+WITH_SUDO=""
+if [[ ! -w "${DEST_DIR}" ]]; then
+    echo "[INFO] Destination directory requires elevated permissions. Using sudo for file operations."
+    WITH_SUDO="sudo"
+    sudo -v
+fi
 for exe in "${EXECUTABLES[@]}"; do
     exe_path="${ISAAC_SIM_BIN_PATH}/${exe}"
 
@@ -85,8 +91,8 @@ for exe in "${EXECUTABLES[@]}"; do
         sed -i "1s|.*|#!${ISAAC_SIM_PYTHON}|" "${exe_path}"
 
         echo "[INFO] Copying ${exe} to ${DEST_DIR}"
-        cp -f "${exe_path}" "${DEST_DIR}/"
-        chmod +x "${DEST_DIR}/${exe}"
+        ${WITH_SUDO} cp -f "${exe_path}" "${DEST_DIR}/"
+        ${WITH_SUDO} chmod +x "${DEST_DIR}/${exe}"
     else
         echo >&2 -e "\033[1;33m[WARNING]\033[0m Executable ${exe} not found at ${exe_path}."
     fi

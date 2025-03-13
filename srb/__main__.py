@@ -126,6 +126,10 @@ def run_agent_with_env(
     else:
         logdir = new_logdir(env_id=env_id, workflow=workflow, root=logdir_root)
 
+    # Update Hydra output directory
+    if not any(arg.startswith("hydra.run.dir=") for arg in forwarded_args):
+        sys.argv.extend([f"hydra.run.dir={logdir.as_posix()}"])
+
     @hydra_task_config(
         task_name=env_id,
         agent_cfg_entry_point=f"{kwargs['algo']}_cfg" if kwargs.get("algo") else None,

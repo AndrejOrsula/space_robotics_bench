@@ -10,6 +10,7 @@ from srb.core.asset import ArticulationCfg, Frame, Multicopter, Transform
 from srb.core.sim import (
     ArticulationRootPropertiesCfg,
     CollisionPropertiesCfg,
+    MeshCollisionPropertiesCfg,
     RigidBodyPropertiesCfg,
     UsdFileCfg,
 )
@@ -28,6 +29,9 @@ class Ingenuity(Multicopter):
             activate_contact_sensors=True,
             collision_props=CollisionPropertiesCfg(
                 contact_offset=0.005, rest_offset=0.0
+            ),
+            mesh_collision_props=MeshCollisionPropertiesCfg(
+                mesh_approximation="convexDecomposition"
             ),
             articulation_props=ArticulationRootPropertiesCfg(
                 enabled_self_collisions=False,
@@ -71,14 +75,14 @@ class Ingenuity(Multicopter):
     frame_payload_mount: Frame = Frame(
         prim_relpath="body",
         offset=Transform(
-            pos=(-0.1, 0.0, 0.25),
+            pos=(0.0, 0.0, 0.0),
             rot=rpy_to_quat(0.0, 0.0, 0.0),
         ),
     )
     frame_manipulator_mount: Frame = Frame(
         prim_relpath="body",
         offset=Transform(
-            pos=(0.0, 0.0, 0.0),
+            pos=(0.0, 0.0, 0.13),
             rot=rpy_to_quat(0.0, 180.0, 0.0),
         ),
     )

@@ -110,7 +110,7 @@ class MarsRover(WheeledRobot):
     frame_manipulator_mount: Frame = Frame(
         prim_relpath="Body",
         offset=Transform(
-            pos=(0.225, 0.0, 0.1),
+            pos=(0.25, 0.0, 0.1),
             rot=rpy_to_quat(0.0, 0.0, 0.0),
         ),
     )

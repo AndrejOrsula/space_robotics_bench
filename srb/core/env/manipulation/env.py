@@ -43,7 +43,7 @@ class ManipulationEventCfg(BaseEventCfg):
         func=reset_joints_by_offset,
         mode="reset",
         params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names=".*"),
+            "asset_cfg": SceneEntityCfg("robot"),
             "position_range": (-deg_to_rad(5.0), deg_to_rad(5.0)),
             "velocity_range": (0.0, 0.0),
         },

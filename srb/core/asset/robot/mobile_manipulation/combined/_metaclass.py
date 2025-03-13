@@ -22,12 +22,12 @@ class CombinedMobileManipulator(
         if isinstance(data.get("mobile_base"), MobileRobot):
             for key, value in data["mobile_base"]._model_values.items():
                 data[key] = value
-            data["mobile_base"] = None
+            # data["mobile_base"] = None
         return data
 
     def model_post_init(self, __context):
         if isinstance(self.mobile_base, MobileRobot):
             for key, value in self.mobile_base._model_values.items():
                 setattr(self, key, value)
-            self.mobile_base = None
+            # self.mobile_base = None
         super().model_post_init(__context)

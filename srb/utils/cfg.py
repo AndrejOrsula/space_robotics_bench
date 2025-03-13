@@ -46,10 +46,12 @@ from srb.core.asset import (
     MobileRobotRegistry,
     Object,
     ObjectRegistry,
+    Payload,
     Robot,
     RobotRegistry,
     Scenery,
     SceneryRegistry,
+    Tool,
 )
 from srb.utils import logging
 from srb.utils.dict import replace_slices_with_strings, replace_strings_with_slices
@@ -58,6 +60,7 @@ from srb.utils.spaces import (
     replace_env_cfg_spaces_with_strings,
     replace_strings_with_env_cfg_spaces,
 )
+from srb.utils.str import convert_to_snake_case
 
 if TYPE_CHECKING:
     from srb._typing import AnyEnvCfg
@@ -233,6 +236,7 @@ def last_file(directory: Path, modification_time: bool = False) -> Path | None:
         return None
 
 
+# TODO[mid]: Improve hydra config handling by leveraging type hints
 def register_task_to_hydra(
     task_name: str, agent_cfg_entry_point: str | None = None
 ) -> Tuple["AnyEnvCfg", Dict[str, Any]]:
@@ -240,7 +244,7 @@ def register_task_to_hydra(
     env_cfg = load_cfg_from_registry(task_name, "task_cfg")
     # replace gymnasium spaces with strings because OmegaConf does not support them.
     # this must be done before converting the env configs to dictionary to avoid internal reinterpretations
-    replace_env_cfg_spaces_with_strings(env_cfg)
+    env_cfg = replace_env_cfg_spaces_with_strings(env_cfg)
     # convert the configs to dictionary
     env_cfg_dict = env_cfg.to_dict()
 
@@ -282,7 +286,11 @@ def hydra_task_config(
                 hydra_env_cfg: DictConfig, env_cfg=env_cfg, agent_cfg=agent_cfg
             ):
                 # convert to a native dictionary
-                hydra_env_cfg = OmegaConf.to_container(hydra_env_cfg, resolve=True)
+                hydra_env_cfg = OmegaConf.to_container(
+                    hydra_env_cfg,
+                    # structured_config_mode=SCMode.INSTANTIATE,
+                    resolve=True,
+                )
                 # replace string with slices because OmegaConf does not support slices
                 hydra_env_cfg = replace_strings_with_slices(hydra_env_cfg)
                 # update the configs with the Hydra command line arguments
@@ -332,7 +340,15 @@ def reconstruct_object(obj: Any, updates: Any) -> Any:
                 else:
                     return attr
             else:
-                # TODO[mid]: Use type hints when determining whether to look up the object in a registry
+                ## Asset variant updated via variant or asset name
+                if isinstance(obj, AssetVariant):
+                    if variant := AssetVariant.from_str(updates):
+                        # Asset variant updated via its name
+                        return variant
+                    elif asset_class := AssetRegistry.get_by_name(updates):
+                        # Asset variant updated via asset name
+                        return asset_class()  # type: ignore
+
                 ## Registered class updated via its name
                 if isinstance(obj, Asset):
                     # Asset variant
@@ -359,28 +375,6 @@ def reconstruct_object(obj: Any, updates: Any) -> Any:
 
                     # Robot
                     if isinstance(obj, Robot):
-                        # Manipulator
-                        if isinstance(obj, Manipulator):
-                            if manipulator_class := ManipulatorRegistry.get_by_name(
-                                updates
-                            ):
-                                return manipulator_class()  # type: ignore
-                            else:
-                                logging.warning(
-                                    f'Asset "{updates}" is supposed to update an instance of "{Manipulator.__name__}" but it is not registered under this type'
-                                )
-
-                        # Mobile robot
-                        if isinstance(obj, MobileRobot):
-                            if mobile_robot_class := MobileRobotRegistry.get_by_name(
-                                updates
-                            ):
-                                return mobile_robot_class()  # type: ignore
-                            else:
-                                logging.warning(
-                                    f'Asset "{updates}" is supposed to update an instance of "{MobileRobot.__name__}" but it is not registered under this type'
-                                )
-
                         # Mobile manipulator
                         if isinstance(obj, MobileManipulator):
                             if (
@@ -391,6 +385,136 @@ def reconstruct_object(obj: Any, updates: Any) -> Any:
                             else:
                                 logging.warning(
                                     f'Asset "{updates}" is supposed to update an instance of "{MobileManipulator.__name__}" but it is not registered under this type'
+                                )
+
+                        # Manipulator
+                        if isinstance(obj, Manipulator):
+                            if "+" in updates:
+                                manipulator_name, end_effector_name = updates.split(
+                                    "+", 1
+                                )
+
+                                # Find end_effector class if specified
+                                if end_effector_name:
+                                    if end_effector_class := next(
+                                        (
+                                            end_effector_class
+                                            for end_effector_class in Tool.object_registry()
+                                            if convert_to_snake_case(
+                                                end_effector_class.__name__
+                                            )
+                                            == end_effector_name
+                                        ),
+                                        None,
+                                    ):
+                                        end_effector = end_effector_class()  # type: ignore
+                                    else:
+                                        raise ValueError(
+                                            f'Asset "{end_effector_name}" is supposed to update an instance of "{Tool.__name__}" but it is not registered under this type'
+                                        )
+                                else:
+                                    end_effector = None
+
+                                # Handle end_effector-only update ("+end_effector_name")
+                                if not manipulator_name and end_effector:
+                                    obj.end_effector = end_effector
+                                    return obj
+
+                                # Handle robot update with optional end_effector ("robot_name+end_effector_name")
+                                if manipulator_name:
+                                    if manipulator_class := (
+                                        ManipulatorRegistry.get_by_name(
+                                            manipulator_name
+                                        )
+                                    ):
+                                        manipulator = manipulator_class()  # type: ignore
+                                    else:
+                                        raise ValueError(
+                                            f'Asset "{manipulator_name}" is supposed to update an instance of "{Manipulator.__name__}" but it is not registered under this type'
+                                        )
+
+                                    if end_effector:
+                                        manipulator.end_effector = end_effector
+                                    elif manipulator.end_effector is None:
+                                        manipulator.end_effector = obj.end_effector
+
+                                    return manipulator
+
+                            # Case 2: Format is just "robot_name"
+                            if manipulator_class := ManipulatorRegistry.get_by_name(
+                                updates
+                            ):
+                                manipulator = manipulator_class()  # type: ignore
+                                if manipulator.end_effector is None:
+                                    manipulator.end_effector = obj.end_effector
+                                return manipulator
+                            else:
+                                logging.warning(
+                                    f'Asset "{updates}" is supposed to update an instance of "{Manipulator.__name__}" but it is not registered under this type'
+                                )
+
+                        # Mobile robot
+                        if isinstance(obj, MobileRobot):
+                            if "+" in updates:
+                                mobile_robot_name, payload_name = updates.split("+", 1)
+
+                                # Find payload class if specified
+                                if payload_name:
+                                    if payload_class := next(
+                                        (
+                                            payload_class
+                                            for payload_class in Payload.object_registry()
+                                            if convert_to_snake_case(
+                                                payload_class.__name__
+                                            )
+                                            == payload_name
+                                        ),
+                                        None,
+                                    ):
+                                        payload = payload_class()  # type: ignore
+                                    else:
+                                        raise ValueError(
+                                            f'Asset "{payload_name}" is supposed to update an instance of "{Payload.__name__}" but it is not registered under this type'
+                                        )
+                                else:
+                                    payload = None
+
+                                # Handle payload-only update ("+payload_name")
+                                if not mobile_robot_name and payload:
+                                    obj.payload = payload
+                                    return obj
+
+                                # Handle robot update with optional payload ("robot_name+payload_name")
+                                if mobile_robot_name:
+                                    if mobile_robot_class := (
+                                        MobileRobotRegistry.get_by_name(
+                                            mobile_robot_name
+                                        )
+                                    ):
+                                        mobile_robot = mobile_robot_class()  # type: ignore
+                                    else:
+                                        raise ValueError(
+                                            f'Asset "{mobile_robot_name}" is supposed to update an instance of "{MobileRobot.__name__}" but it is not registered under this type'
+                                        )
+
+                                    if payload:
+                                        mobile_robot.payload = payload
+                                    elif mobile_robot.payload is None:
+                                        mobile_robot.payload = obj.payload
+
+                                    return mobile_robot
+
+                            # Case 2: Format is just "robot_name"
+                            if mobile_robot_class := MobileRobotRegistry.get_by_name(
+                                updates
+                            ):
+                                mobile_robot = mobile_robot_class()  # type: ignore
+                                if mobile_robot.payload is None:
+                                    mobile_robot.payload = obj.payload
+                                return mobile_robot
+                            else:
+                                logging.warning(
+                                    f'Asset "{updates}" is supposed to update an instance of "{MobileRobot.__name__}" but it is not registered under this type'
                                 )
 
                         # Other robot

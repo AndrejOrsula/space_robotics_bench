@@ -101,14 +101,14 @@ class Cassie(LeggedRobot):
     frame_payload_mount: Frame = Frame(
         prim_relpath="pelvis",
         offset=Transform(
-            pos=(-0.1, 0.0, 0.25),
-            rot=rpy_to_quat(0.0, 0.0, 0.0),
+            pos=(-0.125, 0.0, 0.1),
+            rot=rpy_to_quat(0.0, -30.0, 0.0),
         ),
     )
     frame_manipulator_mount: Frame = Frame(
         prim_relpath="pelvis",
         offset=Transform(
-            pos=(0.225, 0.0, 0.1),
+            pos=(0.1, 0.0, 0.125),
             rot=rpy_to_quat(0.0, 0.0, 0.0),
         ),
     )

@@ -8,6 +8,7 @@ from srb.core.asset import ArticulationCfg, Frame, LeggedRobot, Transform
 from srb.core.sim import (
     ArticulationRootPropertiesCfg,
     CollisionPropertiesCfg,
+    MultiAssetSpawnerCfg,
     RigidBodyPropertiesCfg,
     UsdFileCfg,
 )
@@ -73,14 +74,14 @@ class UnitreeA1(LeggedRobot):
     frame_payload_mount: Frame = Frame(
         prim_relpath="trunk",
         offset=Transform(
-            pos=(-0.1, 0.0, 0.25),
+            pos=(-0.1, 0.0, 0.06),
             rot=rpy_to_quat(0.0, 0.0, 0.0),
         ),
     )
     frame_manipulator_mount: Frame = Frame(
         prim_relpath="trunk",
         offset=Transform(
-            pos=(0.225, 0.0, 0.1),
+            pos=(0.15, 0.0, 0.06),
             rot=rpy_to_quat(0.0, 0.0, 0.0),
         ),
     )
@@ -157,14 +158,14 @@ class UnitreeGo1(LeggedRobot):
     frame_payload_mount: Frame = Frame(
         prim_relpath="trunk",
         offset=Transform(
-            pos=(-0.1, 0.0, 0.25),
+            pos=(-0.1, 0.0, 0.06),
             rot=rpy_to_quat(0.0, 0.0, 0.0),
         ),
     )
     frame_manipulator_mount: Frame = Frame(
         prim_relpath="trunk",
         offset=Transform(
-            pos=(0.225, 0.0, 0.1),
+            pos=(0.15, 0.0, 0.06),
             rot=rpy_to_quat(0.0, 0.0, 0.0),
         ),
     )
@@ -238,14 +239,60 @@ class UnitreeGo2(LeggedRobot):
     frame_payload_mount: Frame = Frame(
         prim_relpath="trunk",
         offset=Transform(
-            pos=(-0.1, 0.0, 0.25),
+            pos=(-0.1, 0.0, 0.06),
             rot=rpy_to_quat(0.0, 0.0, 0.0),
         ),
     )
     frame_manipulator_mount: Frame = Frame(
         prim_relpath="trunk",
         offset=Transform(
-            pos=(0.225, 0.0, 0.1),
+            pos=(0.15, 0.0, 0.06),
+            rot=rpy_to_quat(0.0, 0.0, 0.0),
+        ),
+    )
+    frame_front_camera: Frame = Frame(
+        prim_relpath="trunk/camera_front",
+        offset=Transform(
+            pos=(-0.7675, 0.0, 1.9793),
+            rot=rpy_to_quat(0.0, 15.0, -90.0),
+        ),
+    )
+
+    ## Links
+    regex_feet_links: str = ".*foot"
+
+
+class RandomUnitreeQuadruped(LeggedRobot):
+    asset_cfg: ArticulationCfg = UnitreeGo2().asset_cfg.copy()  # type: ignore
+    asset_cfg.prim_path = "{ENV_REGEX_NS}/anymal"
+    asset_cfg.spawn = MultiAssetSpawnerCfg(
+        random_choice=False,
+        assets_cfg=(
+            UnitreeA1().asset_cfg.spawn,  # type: ignore
+            UnitreeGo1().asset_cfg.spawn,  # type: ignore
+            UnitreeGo2().asset_cfg.spawn,  # type: ignore
+        ),
+        activate_contact_sensors=True,
+    )
+
+    ## Actions
+    action_cfg: ActionGroup = JointPositionActionGroup(
+        JointPositionActionCfg(asset_name="robot", joint_names=[".*"], scale=0.5)
+    )
+
+    ## Frames
+    frame_base: Frame = Frame(prim_relpath="trunk")
+    frame_payload_mount: Frame = Frame(
+        prim_relpath="trunk",
+        offset=Transform(
+            pos=(-0.1, 0.0, 0.06),
+            rot=rpy_to_quat(0.0, 0.0, 0.0),
+        ),
+    )
+    frame_manipulator_mount: Frame = Frame(
+        prim_relpath="trunk",
+        offset=Transform(
+            pos=(0.15, 0.0, 0.06),
             rot=rpy_to_quat(0.0, 0.0, 0.0),
         ),
     )

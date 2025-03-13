@@ -18,6 +18,7 @@ from srb.core.env.mobile.aerial.env import (
     AerialEventCfg,
     AerialSceneCfg,
 )
+from srb.core.manager import SceneEntityCfg
 from srb.core.sensor import ContactSensorCfg
 from srb.utils.cfg import configclass
 from srb.utils.math import combine_frame_transforms_tuple
@@ -100,7 +101,9 @@ class AerialManipulationEnvCfg(AerialEnvCfg):
         )
 
         # Event: Randomize robot joints
-        self.events.randomize_robot_joints.params["asset_cfg"].name = "manipulator"
+        self.events.randomize_robot_joints.params["asset_cfg"] = SceneEntityCfg(
+            "manipulator"
+        )
 
 
 class AerialManipulationEnv(AerialEnv, ManipulationEnv):

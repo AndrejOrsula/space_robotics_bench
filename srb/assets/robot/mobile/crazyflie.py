@@ -80,15 +80,15 @@ class Crazyflie(Multicopter):
     frame_payload_mount: Frame = Frame(
         prim_relpath="body",
         offset=Transform(
-            pos=(-0.1, 0.0, 0.25),
+            pos=(0.0, 0.0, 0.0),
             rot=rpy_to_quat(0.0, 0.0, 0.0),
         ),
     )
     frame_manipulator_mount: Frame = Frame(
         prim_relpath="body",
         offset=Transform(
-            pos=(0.225, 0.0, 0.1),
-            rot=rpy_to_quat(0.0, 0.0, 0.0),
+            pos=(0.0, 0.0, 0.005),
+            rot=rpy_to_quat(0.0, 180.0, 0.0),
         ),
     )
     frame_downward_camera: Frame = Frame(

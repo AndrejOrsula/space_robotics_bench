@@ -8,6 +8,7 @@ from .universal_robots import (  # noqa: F401
     UR10,
     UR20,
     UR30,
+    RandomURManipulator,
     UR3e,
     UR5e,
     UR10e,

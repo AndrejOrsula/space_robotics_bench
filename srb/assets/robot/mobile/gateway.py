@@ -40,14 +40,14 @@ class Gateway(OrbitalRobot):
     frame_payload_mount: Frame = Frame(
         prim_relpath="base",
         offset=Transform(
-            pos=(-0.15, 0.0, 0.1),
+            pos=(-0.5, 0.0, -0.1),
             rot=rpy_to_quat(0.0, 0.0, 0.0),
         ),
     )
     frame_manipulator_mount: Frame = Frame(
         prim_relpath="base",
         offset=Transform(
-            pos=(0.25, 0.0, 0.1),
+            pos=(0.0, 0.0, 0.0),
             rot=rpy_to_quat(0.0, 0.0, 0.0),
         ),
     )

@@ -235,23 +235,23 @@ class UnitreeGo2(LeggedRobot):
     )
 
     ## Frames
-    frame_base: Frame = Frame(prim_relpath="trunk")
+    frame_base: Frame = Frame(prim_relpath="base")
     frame_payload_mount: Frame = Frame(
-        prim_relpath="trunk",
+        prim_relpath="base",
         offset=Transform(
             pos=(-0.1, 0.0, 0.06),
             rot=rpy_to_quat(0.0, 0.0, 0.0),
         ),
     )
     frame_manipulator_mount: Frame = Frame(
-        prim_relpath="trunk",
+        prim_relpath="base",
         offset=Transform(
             pos=(0.15, 0.0, 0.06),
             rot=rpy_to_quat(0.0, 0.0, 0.0),
         ),
     )
     frame_front_camera: Frame = Frame(
-        prim_relpath="trunk/camera_front",
+        prim_relpath="base/camera_front",
         offset=Transform(
             pos=(-0.7675, 0.0, 1.9793),
             rot=rpy_to_quat(0.0, 15.0, -90.0),
@@ -270,7 +270,6 @@ class RandomUnitreeQuadruped(LeggedRobot):
         assets_cfg=(
             UnitreeA1().asset_cfg.spawn,  # type: ignore
             UnitreeGo1().asset_cfg.spawn,  # type: ignore
-            UnitreeGo2().asset_cfg.spawn,  # type: ignore
         ),
         activate_contact_sensors=True,
     )

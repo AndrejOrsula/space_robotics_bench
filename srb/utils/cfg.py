@@ -444,10 +444,7 @@ def reconstruct_object(obj: Any, updates: Any) -> Any:
                             if manipulator_class := ManipulatorRegistry.get_by_name(
                                 updates
                             ):
-                                manipulator = manipulator_class()  # type: ignore
-                                if manipulator.end_effector is None:
-                                    manipulator.end_effector = obj.end_effector
-                                return manipulator
+                                return manipulator_class()  # type: ignore
                             else:
                                 logging.warning(
                                     f'Asset "{updates}" is supposed to update an instance of "{Manipulator.__name__}" but it is not registered under this type'
@@ -508,10 +505,7 @@ def reconstruct_object(obj: Any, updates: Any) -> Any:
                             if mobile_robot_class := MobileRobotRegistry.get_by_name(
                                 updates
                             ):
-                                mobile_robot = mobile_robot_class()  # type: ignore
-                                if mobile_robot.payload is None:
-                                    mobile_robot.payload = obj.payload
-                                return mobile_robot
+                                return mobile_robot_class()  # type: ignore
                             else:
                                 logging.warning(
                                     f'Asset "{updates}" is supposed to update an instance of "{MobileRobot.__name__}" but it is not registered under this type'

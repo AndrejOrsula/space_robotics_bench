@@ -23,14 +23,12 @@ ______________________________________________________________________
   - [Mobile Manipulators](robots/mobile_manipulators.md)
     - [Combined Manipulators](robots/combined_manipulators.md)
     - [Humanoids](robots/humanoids.md)
-
-# Integrations & Interfaces
-
-- [ROS 2](integrations/ros2.md)
-  - [Space ROS](integrations/space_ros.md)
-- [Reinforcement Learning](integrations/reinforcement_learning.md)
-- [Imitation Learning](<>)
-- [Extended Reality](<>)
+- [Integrations & Interfaces](integrations/index.md)
+  - [ROS 2](integrations/ros2.md)
+    - [Space ROS](integrations/space_ros.md)
+  - [Reinforcement Learning](integrations/reinforcement_learning.md)
+  - [Imitation Learning](<>)
+  - [Extended Reality](<>)
 
 ______________________________________________________________________
 

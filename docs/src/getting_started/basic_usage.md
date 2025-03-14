@@ -1,6 +1,6 @@
 # Basic Usage
 
-After successful [installation](./install.md), you are now ready to explore the Space Robotics Bench. This guide covers the essentials for getting started.
+After successful [installation](./install.md), you are now ready to explore the Space Robotics Bench. This guide covers the essentials for getting started with the environments.
 
 <div class="warning">
 
@@ -14,20 +14,22 @@ After successful [installation](./install.md), you are now ready to explore the 
 
 ## 1. List Registered Assets & Environments
 
-> Reference: [`srb ls` — List Assets and Environments](../instructions/cli_ls.md)
+> Reference: [`srb ls` — List Assets and Environments](../reference/cli_ls.md)
 
-As a first step, it is recommended that you list all registered assets and tasks to get an overview of what SRB has to offer:
+As a first step, it is recommended that you list all registered assets, action groups, and tasks to get an overview of what SRB has to offer:
 
 ```bash
 srb ls
 ```
 
-After a while, you should see 3 tables printed in the terminal (output is truncated here for clarity):
+After a while, you should see 3 tables printed in the terminal:
 
-1. **Assets** - Simulation assets categorized under **sceneries**, **objects**, and **robots**
-   - **Sceneries** - Terrains, space stations, ...
-   - **Objects** - Interactive objects, tools, ...
-   - **Robots** - Manipulators, mobile robots, ...
+<details>
+  <summary><strong>1. Assets:</strong> Simulation assets categorized under <strong>sceneries</strong>, <strong>objects</strong>, and <strong>robots</strong> <i>(click to expand)</i></summary>
+
+- **Sceneries** - Terrains, space stations, ...
+- **Objects** - Interactive objects, tools, ...
+- **Robots** - Manipulators, mobile robots, ...
 
 ```
 ┏━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┓
@@ -46,7 +48,31 @@ After a while, you should see 3 tables printed in the terminal (output is trunca
 └──────────────┴─────────┴────────────────────┴───────────────────┴─────────────────┘
 ```
 
-2. **Action groups** - Pre-configured action spaces for **robots** and **active tools**
+#### Scenery asset (automatically registered as "mars_surface" scenery/terrain)
+```py
+{{#include ../../../srb/assets/scenery/planetary_surface.py:example}}
+```
+
+#### Object asset (automatically registered as "sample_tube" object/common)
+```py
+{{#include ../../../srb/assets/object/sample.py:example}}
+```
+
+#### Robot asset (automatically registered as "franka" robot/manipulator)
+```py
+{{#include ../../../srb/assets/robot/manipulation/franka.py:example_p1}}
+            ...
+{{#include ../../../srb/assets/robot/manipulation/franka.py:example_p2}}
+        ...
+{{#include ../../../srb/assets/robot/manipulation/franka.py:example_p3}}
+```
+</details>
+
+<details>
+  <summary><strong>2. Action groups:</strong> Pre-configured action spaces for <strong>robots</strong> and <strong>active tools</strong></summary>
+
+- **Actions for robots** - Each robot (mobile or manipulator) has an action group
+- **Actions for active tools** - Each active tool (e.g. gripper) has an action group
 
 ```
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
@@ -61,9 +87,13 @@ After a while, you should see 3 tables printed in the terminal (output is trunca
 └─────────────────────────────────┘
 ```
 
-3. **Environments** - Gymnasium environments for **templates** and **tasks**
-   - **Templates** - Barebones environments
-   - **Tasks** - Goal-oriented environments
+</details>
+
+<details>
+  <summary><strong>3. Environments:</strong> Gymnasium environments for <strong>templates</strong> and <strong>tasks</strong></summary>
+
+- **Templates** - Barebones environments that can be used as a starting point
+- **Tasks** - Goal-oriented environments that provide a specific scenario
 
 ```
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
@@ -82,21 +112,22 @@ After a while, you should see 3 tables printed in the terminal (output is trunca
 └──────────────────────────────────┴──────────────────────────────┴────────────────────────────────────┘
 ```
 
+</details>
+
 ## 2. Teleoperate your 1<sup>st</sup> Robot across Diverse Domains
 
-> Reference: [`srb agent teleop` — Teleoperate Agent](../instructions/cli_agent_teleop.md)
+> Reference: [`srb agent teleop` — Teleoperate Agent](../reference/cli_agent_teleop.md)
 
-Let's start with your first environment where you can manually control a robot through your keyboard. This can be accomplished through the `agent teleop` subcommand.
-
-### Sample Collection — Default (Moon)
-
-To demonstrate direct teleoperation, we will use the `sample_collection` environment as it provides high-level of configurability:
+Let's start with the `sample_collection` environment where you can manually control the **Franka** manipulator through your keyboard to collect samples on the Moon:
 
 ```bash
 srb agent teleop --env sample_collection
 ```
 
-Eventually, Isaac Sim will open with the selected environment and you will be greeted in your terminal with the teleoperation interface:
+Eventually, Isaac Sim will open with the selected environment and you will be greeted in your terminal with a schematic of the teleoperation interface.
+
+<details>
+  <summary><strong>Teleoperation Interface</strong> (click to expand)</summary>
 
 ```
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
@@ -123,15 +154,20 @@ Eventually, Isaac Sim will open with the selected environment and you will be gr
 │       [ C ] ↺————————(±Z)————————↻ [ V ]       │
 └────────────────────────────────────────────────┘
 ```
+</details>
+
+<br>
 
 <iframe style="width:100%;aspect-ratio:16/9" src="https://www.youtube-nocookie.com/embed/d6KhKuB-XAs?si=DM0I2IFinw-rqgdD&mute=1&autoplay=1&loop=1&playlist=d6KhKuB-XAs" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
 
-### Sample Collection — Mars
+> **Note:** Most tasks employ action spaces that support direct teleoperation (e.g. via Inverse Kinematics). However, some tasks such as `locomotion_velocity_tracking` rely on low-level control of individual joints. In this case, direct teleoperation is not supported and you will need to provide a control policy that maps your teleoperation commands into low-level control signals. Further instructions are provided in the section for [Teleoperation via Policy](../reference/cli_agent_teleop.md#teleoperation-via-policy).
+
+### Moving to a Different Domain
 
 > Reference: [Environment Configuration](../config/env_cfg.md)\
 > Reference: [Environment Configuration — Domain](../config/domain.md)
 
-Now, we learn how to configure some aspects of the environment using [Hydra](https://hydra.cc). For instance, we can adjust the **domain** and **sample asset** in order to simulate a scenario on Mars:
+What if we want to collect samples on Mars instead? Luckily, you can easily configure many aspects of the environment through [Hydra](https://hydra.cc). For instance, you can adjust the **domain** and **sample** asset in order to simulate the Mars Sample Return mission:
 
 ```bash
 srb agent teleop --env sample_collection env.domain=mars env.sample=sample_tube
@@ -139,17 +175,11 @@ srb agent teleop --env sample_collection env.domain=mars env.sample=sample_tube
 
 <iframe style="width:100%;aspect-ratio:16/9" src="https://www.youtube-nocookie.com/embed/dlzwlct1BLA?si=d_oEZzmvS7SQviO1&mute=1&autoplay=1&loop=1&playlist=dlzwlct1BLA" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
 
-> **Note:** Most tasks employ action spaces that support direct teleoperation (e.g. via Inverse Kinematics). However, some tasks such as `locomotion_velocity_tracking` rely on low-level control of individual joints. In this case, direct teleoperation is not supported and you will need to provide a control policy that maps your teleoperation commands into low-level control signals. Further instructions are provided in the section for [Teleoperation via Policy](../instructions/cli_agent_teleop.md#teleoperation-via-policy).
+## 3. Observe Random Agents in Action
 
-## 3. Observe Random Agents with Different Robots
+> Reference: [`srb agent rand` — Random Agent](../reference/cli_agent_rand.md)
 
-> Reference: [`srb agent rand` — Random Agent](../instructions/cli_agent_rand.md)
-
-Now, let's observe an environment where an agent acts based on random actions sampled from the action space. This is particularly useful for verifying if environments are running as intended without manual control.
-
-### Locomotion — Default (Spot)
-
-To demonstrate a random agent, we will use the `locomotion_velocity_tracking` environment that uses **Boston Dynamics' Spot** quadruped by default:
+Now, let's observe an environment where agents act based on random actions sampled uniformly from their action space, which is particularly useful for verifying that environments function as intended. To demonstrate a random agent, we will use the `locomotion_velocity_tracking` task that uses the **Spot** quadruped by default:
 
 ```bash
 srb agent rand --env locomotion_velocity_tracking
@@ -159,11 +189,11 @@ srb agent rand --env locomotion_velocity_tracking
 
 > **Hint:** Use `--hide_ui` option to disable most of the Isaac Sim UI, as shown in the video above.
 
-### Locomotion — Unitree G1
+### Changing the Robot
 
 > Reference: [Environment Configuration — Robot](../config/robot.md)
 
-Selecting a different robot for any environment is as simple as changing the `env.robot` parameter. This particular environment supports all legged robots, including humanoids. For instance, let's try the **Unitree G1** humanoid:
+Selecting a different robot for any environment is as simple as adjusting the `env.robot` parameter. This particular environment supports all legged robots, so let's try the **Unitree G1** humanoid:
 
 ```bash
 srb agent rand --env locomotion_velocity_tracking env.robot=unitree_g1
@@ -171,11 +201,11 @@ srb agent rand --env locomotion_velocity_tracking env.robot=unitree_g1
 
 <iframe style="width:100%;aspect-ratio:16/9" src="https://www.youtube-nocookie.com/embed/viFvuz0Uq-g?si=SqoaHgz073j5V4on&mute=1&autoplay=1&loop=1&playlist=viFvuz0Uq-g" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
 
-### Locomotion — 16 Parallel Environments
+### Simulating Multiple Robots
 
 > Reference: [Environment Configuration — Parallel Simulation](../config/parallel_sim.md)
 
-Many workflows benefit from running multiple parallel instances of the same environment. This can be achieved with the `env.num_envs` parameter. For instance, let's observe **16 instances** of the **Cassie** bipedal robot:
+Many workflows benefit from running multiple parallel simulation instances. This can be achieved with the `env.num_envs` parameter. For instance, let's try **16 instances** of the Cassie biped:
 
 ```bash
 srb agent rand -e locomotion_velocity_tracking env.robot=cassie env.num_envs=16
@@ -191,28 +221,44 @@ srb agent rand -e locomotion_velocity_tracking env.robot=cassie env.num_envs=16
 >
 > ![Image](https://github.com/user-attachments/assets/2711d026-e0b5-4839-af2b-ff3a0423b683)
 
-## 4. Assemble your Mobile Manipulator
+## 4. Explore & Experiment with Environment Templates
 
-> Reference: [Mobile Manipulators — Combined](../robots/combined_manipulators.md)
+> Reference: [Robots](../robots/index.md)\
+> Reference: [Contributing — New Tasks](../contributing/new_tasks.md)
 
-So far, you explored how to use pre-configured robots in diverse parallel environments. However, it is often useful to combine multiple robots and tools into an integrated mobile manipulation system.
+Both `sample_collection` and `locomotion_velocity_tracking` are examples of tasks that implement specific goal-oriented scenarios. However, SRB also provides a set of environment templates that can serve as a foundation for exploring and experimenting with custom scenarios.
 
-### Ground Mobile Manipulation Template
+In general, each robot category has its own template:
 
-First, let's start with the ground mobile manipulation template environment:
+| Template                | Description                                  |
+| ----------------------- | -------------------------------------------- |
+| `_manipulation`         | Fixed-base manipulation with robotic arms    |
+| `_ground`               | Ground traversal on planetary surfaces       |
+| `_aerial`               | Aerial navigation above planetary surfaces   |
+| `_orbital`              | Spaceflight maneuvers                        |
+| `_ground_manipulation`  | Mobile manipulation with ground-based robots |
+| `_aerial_manipulation`  | Mobile manipulation with flying robots       |
+| `_orbital_manipulation` | Mobile manipulation with spacecraft          |
+
+With this in mind, let's explore the `_ground_manipulation` template that combines the mobile **Spot** quadruped with **Franka** manipulator into an integrated mobile manipulation system:
 
 ```bash
-srb agent rand --env _ground_manipulation
+srb agent rand -e _ground_manipulation env.domain=mars
 ```
 
-The default template uses the **Spot** mobile base with a **UR10** arm, which is already a capable mobile manipulation platform. However, we can customize this combination as needed.
+<iframe style="width:100%;aspect-ratio:16/9" src="https://www.youtube-nocookie.com/embed/iFRMExXJEfI?si=sCPI-UuyVgJF7ucL&mute=1&autoplay=1&loop=1&playlist=iFRMExXJEfI" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
 
-### Spot with Franka Panda
-
-Let's modify our mobile manipulator to use a **Franka Panda** arm instead:
+### Diversifying the Robot Configuration
 
 ```bash
-srb agent rand --env _ground_manipulation env.robot.manipulator=franka_panda
+srb agent rand -e _ground_manipulation env.robot.mobile_base=random_unitree_quadruped env.robot.manipulator=random_ur_manipulator env.num_envs=8 env.stack=true
+```
+
+
+
+
+```bash
+srb agent rand --env _ground_manipulation env.robot.mobile_base=random_unitree_quadruped env.robot.manipulator=random_ur_manipulator+scoop env.stack=true env.num_envs=8
 ```
 
 ### Husky with Shadow Hand

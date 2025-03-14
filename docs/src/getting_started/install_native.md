@@ -67,10 +67,10 @@ As an example, the commands below will install Blender in your home directory an
 ```bash
 export BLENDER_VERSION="4.3.2"
 export BLENDER_VERSION_SHORT=$(echo $BLENDER_VERSION | sed 's/\.[^.]*$//')
-mkdir -p $HOME/blender$BLENDER_VERSION
-curl -fsSL "https://download.blender.org/release/Blender$BLENDER_VERSION_SHORT/blender-$BLENDER_VERSION-linux-x64.tar.xz" | tar xJ -C $HOME/blender$BLENDER_VERSION --strip-components=1
-ln -sf $HOME/blender$BLENDER_VERSION/blender $HOME/.local/bin/blender
-"$HOME/blender$BLENDER_VERSION/$BLENDER_VERSION_SHORT/python/bin/python3.11" -m pip install simforge[assets]
+mkdir -p $HOME/blender
+curl -fsSL "https://download.blender.org/release/Blender$BLENDER_VERSION_SHORT/blender-$BLENDER_VERSION-linux-x64.tar.xz" | tar xJ -C $HOME/blender --strip-components=1
+ln -sf $HOME/blender/blender $HOME/.local/bin/blender
+"$HOME/blender/$BLENDER_VERSION_SHORT/python/bin/python3.11" -m pip install simforge[assets]
 ```
 
 <div class="warning">

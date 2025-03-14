@@ -17,3 +17,5 @@ The new environment will be automatically registered with the Gymnasium API. The
 ## 4. Running Your New Environment
 
 Test your new environment by specifying the name of your new environment via the `--env`/`--task`/`--demo` argument.
+
+<!-- TODO: Add srb new command -->

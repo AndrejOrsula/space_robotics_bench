@@ -9,9 +9,12 @@ from srb.core.sim import (
 from srb.utils.path import SRB_ASSETS_DIR_SRB_OBJECT
 
 
+### ANCHOR: example (docs)
 class SampleTube(Object):
+    ## Model - Rigid object affected by physics
     asset_cfg: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/sample",
+        ## Spawner loads a static USD file
         spawn=UsdFileCfg(
             usd_path=(
                 SRB_ASSETS_DIR_SRB_OBJECT.joinpath("sample_tube")
@@ -26,3 +29,4 @@ class SampleTube(Object):
             mass_props=MassPropertiesCfg(density=1500.0),
         ),
     )
+    ### ANCHOR_END: example (docs)

@@ -747,11 +747,8 @@ class RandomURManipulator(SerialManipulator):
     asset_cfg.spawn = MultiAssetSpawnerCfg(
         random_choice=False,
         assets_cfg=(
-            UR3().asset_cfg.spawn,  # type: ignore
             UR3e().asset_cfg.spawn,  # type: ignore
-            UR5().asset_cfg.spawn,  # type: ignore
             UR5e().asset_cfg.spawn,  # type: ignore
-            # UR10().asset_cfg.spawn,  # type: ignore # Note: UR10 is instanceable
             UR10e().asset_cfg.spawn,  # type: ignore
             UR16e().asset_cfg.spawn,  # type: ignore
             UR20().asset_cfg.spawn,  # type: ignore

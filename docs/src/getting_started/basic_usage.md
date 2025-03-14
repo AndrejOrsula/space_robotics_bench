@@ -162,7 +162,7 @@ Eventually, Isaac Sim will open with the selected environment and you will be gr
 
 > **Note:** Most tasks employ action spaces that support direct teleoperation (e.g. via Inverse Kinematics). However, some tasks such as `locomotion_velocity_tracking` rely on low-level control of individual joints. In this case, direct teleoperation is not supported and you will need to provide a control policy that maps your teleoperation commands into low-level control signals. Further instructions are provided in the section for [Teleoperation via Policy](../reference/cli_agent_teleop.md#teleoperation-via-policy).
 
-### Moving to a Different Domain
+### Move to a Different Domain
 
 > Reference: [Environment Configuration](../config/env_cfg.md)\
 > Reference: [Environment Configuration — Domain](../config/domain.md)
@@ -189,7 +189,7 @@ srb agent rand --env locomotion_velocity_tracking
 
 > **Hint:** Use `--hide_ui` option to disable most of the Isaac Sim UI, as shown in the video above.
 
-### Changing the Robot
+### Change the Robot
 
 > Reference: [Environment Configuration — Robot](../config/robot.md)
 
@@ -201,7 +201,7 @@ srb agent rand --env locomotion_velocity_tracking env.robot=unitree_g1
 
 <iframe style="width:100%;aspect-ratio:16/9" src="https://www.youtube-nocookie.com/embed/viFvuz0Uq-g?si=SqoaHgz073j5V4on&mute=1&autoplay=1&loop=1&playlist=viFvuz0Uq-g" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
 
-### Simulating Multiple Robots
+### Simulate Multiple Robots
 
 > Reference: [Environment Configuration — Parallel Simulation](../config/parallel_sim.md)
 
@@ -243,126 +243,36 @@ In general, each robot category has its own template:
 With this in mind, let's explore the `_ground_manipulation` template that combines the mobile **Spot** quadruped with **Franka** manipulator into an integrated mobile manipulation system:
 
 ```bash
-srb agent rand -e _ground_manipulation env.domain=mars
+srb agent rand -e _ground_manipulation
 ```
 
 <iframe style="width:100%;aspect-ratio:16/9" src="https://www.youtube-nocookie.com/embed/iFRMExXJEfI?si=sCPI-UuyVgJF7ucL&mute=1&autoplay=1&loop=1&playlist=iFRMExXJEfI" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
 
-### Diversifying the Robot Configuration
+### Diversify Robot Configurations
+
+Robot configurations can also be randomized across multiple parallel instances. For example, you can combine a random **Unitree** quadruped (`random_unitree_quadruped`) with a random **Universal Robots** manipulator (`random_ur_manipulator`),  ranging all the way from **UR3** to **UR30**! For mobile manipulators, changing the mobile base and manipulator is separated into two parameters for more flexibility, namely `env.robot.mobile_base` and `env.robot.manipulator`:
 
 ```bash
-srb agent rand -e _ground_manipulation env.robot.mobile_base=random_unitree_quadruped env.robot.manipulator=random_ur_manipulator env.num_envs=8 env.stack=true
+srb agent rand -e _ground_manipulation env.robot.mobile_base=random_unitree_quadruped env.robot.manipulator=random_ur_manipulator env.num_envs=6 env.stack=true
 ```
 
+<iframe style="width:100%;aspect-ratio:16/9" src="https://www.youtube-nocookie.com/embed/ac5p5kPCHyE?si=pujsR8vHy9pn-ZRG&mute=1&autoplay=1&loop=1&playlist=ac5p5kPCHyE" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
 
+### Customize Payloads & End Effectors
 
+Modifying only the robot might not be enough for your envisioned scenario. You might also want to customize the **payload of mobile robots** or the **end effector of manipulators**. Similar to previous examples, this can also be configured via `env.robot` for mobile robots and manipulators; or `env.robot.mobile_base` and `env.robot.manipulator` for mobile manipulators. The configuration is context-aware and you can specify payloads and end effectors by separating them with a `+` sign, i.e. `mobile_base+payload` or `manipulator+end_effector`. For example, let's combine the **Anymal D** quadruped with the **Cargo Bay** payload and the **Unitree Z1** manipulator with the **Shadow Hand** end effector:
 
 ```bash
-srb agent rand --env _ground_manipulation env.robot.mobile_base=random_unitree_quadruped env.robot.manipulator=random_ur_manipulator+scoop env.stack=true env.num_envs=8
+srb agent rand -e _ground_manipulation env.robot.mobile_base=anymal_d+cargo_bay env.robot.manipulator=unitree_z1+shadow_hand
 ```
 
-### Husky with Shadow Hand
+> **Hint:** If you wish to only change the payload or end effector but keep the rest of the robot configuration the same, 
 
-You can also combine a **Clearpath Husky** wheeled base with a dexterous **Shadow Hand**:
 
-```bash
-srb agent rand --env _ground_manipulation env.robot.mobile_base=husky env.robot.manipulator=shadow_hand
-```
 
-## 5. Create your Custom Simulation
+## What's Next?
 
-> Reference: [Environment Configuration](../config/env_cfg.md)
+Everything you learned so far is just the tip of the iceberg, but it is applicable to all environments and workflows within the Space Robotics Bench. Diving deeper into the codebase will allow you to customize and extend the environments to suit your specific needs.
 
-One of the advantages of SRB is the ability to create highly customized simulation scenarios. Let's explore how to configure advanced simulations.
 
-### Custom Rendering Settings
-
-For better visual quality, you can configure the rendering parameters:
-
-```bash
-srb agent rand --env sample_collection \
-  rendering.ray_tracing=True \
-  rendering.ray_tracing_settings.max_bounces=8 \
-  rendering.ray_tracing_settings.samples_per_pixel=4
-```
-
-### Multi-Robot Simulation
-
-You can also set up environments with multiple robots. For instance, let's simulate two Spot robots with different arm configurations:
-
-```bash
-srb agent rand --env _ground_manipulation \
-  env.stack=true \
-  env.num_envs=2 \
-  env.robots=[spot+ur10,spot+franka_panda]
-```
-
-## 6. Use the Python API
-
-> Reference: [Python API Examples](../examples/python_api.md)
-
-While the CLI is convenient for quick experiments, SRB is primarily designed to be used programmatically through its Python API for reinforcement learning, motion planning, or other robotic applications.
-
-### Basic Control Loop
-
-Here's a simple example showing how to interact with an environment:
-
-```python
-import gymnasium as gym
-import space_robotics_bench as srb
-
-# Create environment
-env = gym.make("sample_collection", headless=False)
-
-# Get initial observation
-obs, info = env.reset()
-
-# Run simulation loop
-for _ in range(1000):
-    # Sample random action
-    action = env.action_space.sample()
-
-    # Apply action and get next observation, reward, etc.
-    obs, reward, terminated, truncated, info = env.step(action)
-
-    if terminated or truncated:
-        obs, info = env.reset()
-
-# Clean up
-env.close()
-```
-
-### Custom Environment Configuration
-
-You can configure environments with the same flexibility as the CLI:
-
-```python
-import gymnasium as gym
-import space_robotics_bench as srb
-
-# Configure environment with hydra
-env_cfg = {
-    "robot": "unitree_a1",
-    "domain": "mars",
-    "num_envs": 4,
-    "stack": False,
-    "camera": {
-        "eye": [2.5, 0.0, 1.5],
-        "target": [0.0, 0.0, 0.5],
-    }
-}
-
-# Create environment with configuration
-env = gym.make("locomotion_velocity_tracking", cfg=env_cfg, headless=False)
-```
-
-## Next Steps
-
-Now that you're familiar with the basic usage of Space Robotics Bench, you might want to explore:
-
-1. [Detailed Configuration Options](../config/env_cfg.md) — Learn about all the ways you can customize your simulations
-1. [Running Reinforcement Learning](../examples/reinforcement_learning.md) — Train your first RL policy
-1. [Creating Custom Tasks](../examples/custom_tasks.md) — Design your own robotic tasks
-1. [Simulation-to-Real](../examples/sim2real.md) — Transfer learned policies to real robots
-
-Continue exploring with the tutorials in the sidebar to get the most out of Space Robotics Bench!
+The next step is to dive deeper into the [reference section](../reference/index.md) to explore more advanced features and functionalities. If you are interested in contributing to the project, you can also check out the [contributing section](../contributing/index.md) to learn how to create new tasks, assets, and robots.

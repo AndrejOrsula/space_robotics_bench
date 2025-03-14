@@ -186,7 +186,7 @@ class UnitreeGo2(LeggedRobot):
     asset_cfg: ArticulationCfg = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/unitree_go2",
         spawn=UsdFileCfg(
-            usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/A1/a1.usd",
+            usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/Go2/go2.usd",
             activate_contact_sensors=True,
             collision_props=CollisionPropertiesCfg(
                 contact_offset=0.005, rest_offset=0.0

@@ -748,7 +748,7 @@ class RandomURManipulator(SerialManipulator):
         random_choice=False,
         assets_cfg=(
             UR3e().asset_cfg.spawn,  # type: ignore
-            UR5e().asset_cfg.spawn,  # type: ignore
+            UR5().asset_cfg.spawn,  # type: ignore
             UR10e().asset_cfg.spawn,  # type: ignore
             UR16e().asset_cfg.spawn,  # type: ignore
             UR20().asset_cfg.spawn,  # type: ignore

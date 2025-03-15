@@ -49,16 +49,19 @@ After a while, you should see 3 tables printed in the terminal:
 ```
 
 #### Scenery asset (automatically registered as "mars_surface" scenery/terrain)
+
 ```py
 {{#include ../../../srb/assets/scenery/planetary_surface.py:example}}
 ```
 
 #### Object asset (automatically registered as "sample_tube" object/common)
+
 ```py
 {{#include ../../../srb/assets/object/sample.py:example}}
 ```
 
 #### Robot asset (automatically registered as "franka" robot/manipulator)
+
 ```py
 {{#include ../../../srb/assets/robot/manipulation/franka.py:example_p1}}
             ...
@@ -66,6 +69,7 @@ After a while, you should see 3 tables printed in the terminal:
         ...
 {{#include ../../../srb/assets/robot/manipulation/franka.py:example_p3}}
 ```
+
 </details>
 
 <details>
@@ -154,6 +158,7 @@ Eventually, Isaac Sim will open with the selected environment and you will be gr
 │       [ C ] ↺————————(±Z)————————↻ [ V ]       │
 └────────────────────────────────────────────────┘
 ```
+
 </details>
 
 <br>
@@ -219,12 +224,12 @@ srb agent rand -e locomotion_velocity_tracking env.robot=cassie env.num_envs=16
 > SF_BAKER=0 srb agent rand -e locomotion_velocity_tracking env.stack=false env.num_envs=16
 > ```
 >
-> ![Image](https://github.com/user-attachments/assets/2711d026-e0b5-4839-af2b-ff3a0423b683)
+> ![](https://github.com/user-attachments/assets/2711d026-e0b5-4839-af2b-ff3a0423b683)
 
 ## 4. Explore & Experiment with Environment Templates
 
 > Reference: [Robots](../robots/index.md)\
-> Reference: [Contributing — New Tasks](../contributing/new_tasks.md)
+> Reference: [Environment Configuration — Robot](../config/robot.md)
 
 Both `sample_collection` and `locomotion_velocity_tracking` are examples of tasks that implement specific goal-oriented scenarios. However, SRB also provides a set of environment templates that can serve as a foundation for exploring and experimenting with custom scenarios.
 
@@ -260,19 +265,50 @@ srb agent rand -e _ground_manipulation env.robot.mobile_base=random_unitree_quad
 
 ### Customize Payloads & End Effectors
 
-Modifying only the robot might not be enough for your envisioned scenario. You might also want to customize the **payload of mobile robots** or the **end effector of manipulators**. Similar to previous examples, this can also be configured via `env.robot` for mobile robots and manipulators; or `env.robot.mobile_base` and `env.robot.manipulator` for mobile manipulators. The configuration is context-aware and you can specify payloads and end effectors by separating them with a `+` sign, i.e. `mobile_base+payload` or `manipulator+end_effector`. For example, let's combine the **Anymal D** quadruped with the **Cargo Bay** payload and the **Unitree Z1** manipulator with the **Shadow Hand** end effector:
+> Reference: [`srb agent zero` — Zero Agent](../reference/cli_agent_zero.md)
+
+Modifying only the robot might not be enough for your envisioned scenario. You might also want to customize the **payload of mobile robots** or the **end effector of manipulators**. Similar to previous examples, this can also be configured via `env.robot` for mobile robots and manipulators; or `env.robot.mobile_base` and `env.robot.manipulator` for mobile manipulators. The configuration is context-aware and you can specify payloads and end effectors by separating them with a `+` sign, i.e. `mobile_base+payload` or `manipulator+end_effector`. For example, let's combine **Unitree Z1** manipulator with **Shadow Hand** end effector on top of **Anymal D** quadruped with the **Cargo Bay** payload:
 
 ```bash
-srb agent rand -e _ground_manipulation env.robot.mobile_base=anymal_d+cargo_bay env.robot.manipulator=unitree_z1+shadow_hand
+srb agent zero -e _ground_manipulation env.robot.mobile_base=anymal_d+cargo_bay env.robot.manipulator=unitree_z1+shadow_hand
 ```
 
-> **Hint:** If you wish to only change the payload or end effector but keep the rest of the robot configuration the same, 
+![](https://github.com/user-attachments/assets/edce5af8-9fa5-4686-9829-550c07efba76)
 
+> **Hint:** If you only wish to change the payload or end effector but keep the rest of the robot configuration the same, `+payload` and `+end_effector` are also valid inputs. Similarly, `mobile_robot+` and `manipulator+` will maintain the original payload or end effector.
 
+And while the results might look ridiculous, the same level of customization is available across the board for all domains. Furthermore, aspects such as the pose of sensors and dimensionality of action spaces are adjusted automatically.
+
+```bash
+srb agent zero -e _aerial_manipulation env.robot.mobile_base=ingenuity env.robot.manipulator=+scoop
+```
+
+```bash
+srb agent zero -e _orbital_manipulation env.robot.mobile_base=gateway env.robot.manipulator=canadarm3+
+```
+
+<img src="https://github.com/user-attachments/assets/e12669d1-8a30-4220-91f5-b86df2b0f718" style="width:50%" /><img src="https://github.com/user-attachments/assets/f61a71b6-0cdb-4dcf-9b1b-fe4a24d2b5bc" style="width:50%" />
+
+## 5. Enable Visual Sensors
+
+To maintain the performance of simulation, all visual sensors are disabled by default. However, you might have noticed that all listed environments also have their `*_visual` variant (e.g. `_aerial` -> `_aerial_visual`). This variant enables a number of pre-configured cameras that provide both RGB and depth images (available via observations and middleware communication).
+
+Let's see a camera view of the **Ingenuity** helicopter on Mars:
+
+```bash
+srb agent zero -e _aerial_visual
+```
+
+<iframe style="width:100%;aspect-ratio:16/9" src="https://www.youtube-nocookie.com/embed/NHh0EiwaD2A?si=dE5Z_7zV6JT5hLU3&mute=1&autoplay=1&loop=1&playlist=NHh0EiwaD2A" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
 
 ## What's Next?
 
-Everything you learned so far is just the tip of the iceberg, but it is applicable to all environments and workflows within the Space Robotics Bench. Diving deeper into the codebase will allow you to customize and extend the environments to suit your specific needs.
+Everything you learned so far is just the tip of the iceberg, but it is applicable to all environments and workflows within the Space Robotics Bench. Yet, diving deeper into the codebase will allow you to customize and extend the environments further to suit your specific needs.
 
+Depending on your specific interests, you are welcome to explore one or more following guides:
 
-The next step is to dive deeper into the [reference section](../reference/index.md) to explore more advanced features and functionalities. If you are interested in contributing to the project, you can also check out the [contributing section](../contributing/index.md) to learn how to create new tasks, assets, and robots.
+- [Workflows: ROS 2](../workflows/ros2.md)
+- [Workflows: Reinforcement Learning](../workflows/reinforcement_learning.md)
+- [Contributing — New Assets](../contributing/new_assets.md)
+- [Contributing — New Robots](../contributing/new_robots.md)
+- [Contributing — New Tasks](../contributing/new_tasks.md)

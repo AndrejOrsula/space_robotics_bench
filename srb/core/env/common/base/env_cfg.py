@@ -45,7 +45,7 @@ from srb.core.visuals import VisualsCfg, rtx_post
 from srb.utils import logging
 from srb.utils.cfg import configclass
 from srb.utils.math import combine_frame_transforms_tuple
-from srb.utils.path import SRB_ASSETS_DIR_SRB_HDRI
+from srb.utils.path import SRB_ASSETS_DIR_SRB_SKYDOME
 
 from .event_cfg import BaseEventCfg
 from .scene_cfg import BaseSceneCfg
@@ -191,7 +191,7 @@ class BaseEnvCfg:
 
         match self.domain:
             case Domain.MARS:
-                texture_file = SRB_ASSETS_DIR_SRB_HDRI.joinpath(
+                texture_file = SRB_ASSETS_DIR_SRB_SKYDOME.joinpath(
                     "martian_sky_day.hdr"
                 ).as_posix()
                 rtx_post.fog(
@@ -203,7 +203,7 @@ class BaseEnvCfg:
                     fog_distance_density=0.05,
                 )
             case Domain.ORBIT:
-                texture_file = SRB_ASSETS_DIR_SRB_HDRI.joinpath(
+                texture_file = SRB_ASSETS_DIR_SRB_SKYDOME.joinpath(
                     "low_lunar_orbit.jpg"
                 ).as_posix()
 

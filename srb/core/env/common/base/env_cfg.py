@@ -27,7 +27,11 @@ from srb.core.asset import (
     Tool,
 )
 from srb.core.domain import Domain
+from srb.core.manager import EventTermCfg, SceneEntityCfg
 from srb.core.marker import VisualizationMarkersCfg
+from srb.core.mdp import follow_xform_orientation_linear_trajectory  # noqa F401
+from srb.core.mdp import reset_scene_to_default  # noqa F401
+from srb.core.mdp import reset_xform_orientation_uniform
 from srb.core.sensor import SensorBaseCfg
 from srb.core.sim import (
     DistantLightCfg,
@@ -41,7 +45,7 @@ from srb.core.sim import (
     SimulationCfg,
 )
 from srb.core.sim.robot_setup import RobotAssemblerCfg
-from srb.core.visuals import VisualsCfg, rtx_post
+from srb.core.visuals import VisualsCfg
 from srb.utils import logging
 from srb.utils.cfg import configclass
 from srb.utils.math import combine_frame_transforms_tuple
@@ -186,38 +190,80 @@ class BaseEnvCfg:
         )
 
     def _add_skydome(self, *, prim_path: str = "/World/skydome", **kwargs):
-        # TODO[low]: Transfer skydome texture files as a property of domain
-        texture_file = None
-
         match self.domain:
-            case Domain.MARS:
-                texture_file = SRB_ASSETS_DIR_SRB_SKYDOME.joinpath(
-                    "martian_sky_day.hdr"
-                ).as_posix()
-                rtx_post.fog(
-                    enable=True,
-                    color=(0.8, 0.4, 0.2),
-                    intensity=0.25,
-                    start_height=16.0,
-                    height_density=0.5,
-                    fog_distance_density=0.05,
+            case Domain.EARTH:
+                self.scene.skydome = AssetBaseCfg(
+                    prim_path=prim_path,
+                    spawn=DomeLightCfg(
+                        intensity=0.25 * self.domain.light_intensity,
+                        texture_file=SRB_ASSETS_DIR_SRB_SKYDOME.joinpath(
+                            "cloudy_sky.exr"
+                        ).as_posix(),
+                        **kwargs,
+                    ),
                 )
+            case Domain.MOON:
+                self.scene.skydome = AssetBaseCfg(
+                    prim_path=prim_path,
+                    spawn=DomeLightCfg(
+                        intensity=0.25 * self.domain.light_intensity,
+                        texture_file=SRB_ASSETS_DIR_SRB_SKYDOME.joinpath(
+                            "stars.exr"
+                        ).as_posix(),
+                        **kwargs,
+                    ),
+                )
+                self.events.randomize_skydome_orientation = EventTermCfg(
+                    func=reset_xform_orientation_uniform,
+                    mode="reset",
+                    params={
+                        "asset_cfg": SceneEntityCfg("skydome"),
+                        "orientation_distribution_params": {
+                            "roll": (-torch.pi, torch.pi),
+                            "pitch": (-torch.pi, torch.pi),
+                            "yaw": (-torch.pi, torch.pi),
+                        },
+                    },
+                )
+            case Domain.MARS:
+                self.scene.skydome = AssetBaseCfg(
+                    prim_path=prim_path,
+                    spawn=DomeLightCfg(
+                        intensity=0.25 * self.domain.light_intensity,
+                        texture_file=SRB_ASSETS_DIR_SRB_SKYDOME.joinpath(
+                            "mars_sky.exr"
+                        ).as_posix(),
+                        **kwargs,
+                    ),
+                )
+                self.events.randomize_skydome_orientation = None
             case Domain.ORBIT:
-                texture_file = SRB_ASSETS_DIR_SRB_SKYDOME.joinpath(
-                    "low_lunar_orbit.jpg"
-                ).as_posix()
-
-        if texture_file is None:
-            return
-
-        self.scene.skydome = AssetBaseCfg(
-            prim_path=prim_path,
-            spawn=DomeLightCfg(
-                intensity=0.25 * self.domain.light_intensity,
-                texture_file=texture_file,
-                **kwargs,
-            ),
-        )
+                self.scene.skydome = AssetBaseCfg(
+                    prim_path=prim_path,
+                    spawn=DomeLightCfg(
+                        intensity=0.25 * self.domain.light_intensity,
+                        texture_file=SRB_ASSETS_DIR_SRB_SKYDOME.joinpath(
+                            # "low_lunar_orbit.jpg"
+                            "low_earth_orbit.exr"
+                        ).as_posix(),
+                        **kwargs,
+                    ),
+                )
+                self.events.randomize_skydome_orientation = EventTermCfg(
+                    func=reset_xform_orientation_uniform,
+                    mode="reset",
+                    params={
+                        "asset_cfg": SceneEntityCfg("skydome"),
+                        "orientation_distribution_params": {
+                            "roll": (-torch.pi, torch.pi),
+                            "pitch": (-torch.pi, torch.pi),
+                            "yaw": (-torch.pi, torch.pi),
+                        },
+                    },
+                )
+            case _:
+                self.scene.skydome = None
+                self.events.randomize_skydome_orientation = None
 
     def _add_scenery(
         self,

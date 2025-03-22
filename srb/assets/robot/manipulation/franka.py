@@ -1,8 +1,13 @@
 from srb.assets.object.tool import FrankaHand
-from srb.core.action import (
+from srb.core.action import (  # noqa: F401
     ActionGroup,
     DifferentialInverseKinematicsActionCfg,
     InverseKinematicsActionGroup,
+    JointEffortActionGroup,
+    JointPositionRelativeActionGroup,
+    OperationalSpaceControlActionGroup,
+    OperationalSpaceControllerActionCfg,
+    OperationalSpaceControllerCfg,
 )
 from srb.core.actuator import ImplicitActuatorCfg
 from srb.core.asset import ArticulationCfg, Frame, SerialManipulator, Tool, Transform
@@ -82,7 +87,7 @@ class Franka(SerialManipulator):
     end_effector: Tool | None = FrankaHand()
 
     ## Actions - Inverse Kinematics action group that drives all joints
-    actions: ActionGroup = InverseKinematicsActionGroup(
+    actions: ActionGroup = InverseKinematicsActionGroup(  # ll203
         DifferentialInverseKinematicsActionCfg(
             asset_name="robot",
             joint_names=["panda_joint[1-7]"],
@@ -97,6 +102,51 @@ class Franka(SerialManipulator):
             body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(),
         ),
     )
+    # ## Actions - Operational Space Control
+    # actions: ActionGroup = OperationalSpaceControlActionGroup(
+    #     OperationalSpaceControllerActionCfg(
+    #         asset_name="robot",
+    #         joint_names=["panda_joint[1-7]"],
+    #         body_name="panda_link7",
+    #         controller_cfg=OperationalSpaceControllerCfg(
+    #             target_types=["pose_rel"],  # Dart ~ error immediately
+    #             impedance_mode="fixed",
+    #             inertial_dynamics_decoupling=True,
+    #             partial_inertial_dynamics_decoupling=False,
+    #             gravity_compensation=False,
+    #             motion_stiffness_task=100.0,
+    #             motion_damping_ratio_task=1.0,
+    #             nullspace_control="position",
+    #         ),
+    #         nullspace_joint_pos_target="center",
+    #         position_scale=1.0,
+    #         orientation_scale=1.0,
+    #     )
+    # )
+    # actions: ActionGroup = OperationalSpaceControlActionGroup(
+    #     OperationalSpaceControllerActionCfg(
+    #         asset_name="robot",
+    #         joint_names=["panda_joint[1-7]"],
+    #         body_name="panda_link7",
+    #         controller_cfg=OperationalSpaceControllerCfg(
+    #             target_types=["pose_rel", "wrench_abs"],  # Artemis
+    #             impedance_mode="fixed",
+    #             inertial_dynamics_decoupling=True,
+    #             partial_inertial_dynamics_decoupling=False,
+    #             gravity_compensation=False,
+    #             motion_stiffness_task=100.0,
+    #             motion_damping_ratio_task=1.0,
+    #             nullspace_control="position",
+    #         ),
+    #         nullspace_joint_pos_target="center",
+    #         position_scale=1.0,
+    #         orientation_scale=1.0,
+    #     )
+    # )
+    # ## Actions - Joint effort
+    # actions: ActionGroup = JointEffortActionGroup()  # Gemini
+    # ## Actions - Joint position
+    # actions: ActionGroup = JointPositionRelativeActionGroup()  # Dart
 
     ## Frames - Relevant frames for attaching the robot and mounting tool/sensors
     frame_base: Frame = Frame(prim_relpath="panda_link0")

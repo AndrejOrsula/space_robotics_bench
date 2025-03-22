@@ -5,11 +5,12 @@ from srb.core.action import DifferentialInverseKinematicsActionCfg
 from srb.core.asset import CombinedMobileManipulator
 from srb.core.manager import EventTermCfg, SceneEntityCfg
 from srb.core.mdp import follow_xform_orientation_linear_trajectory  # noqa F401
+from srb.core.mdp import reset_scene_to_default  # noqa F401
 from srb.core.mdp import (
     randomize_gravity_uniform,
     randomize_usd_prim_attribute_uniform,
     release_assembly_root_joins_on_action,
-    reset_scene_to_default,
+    reset_articulations_default,
     reset_xform_orientation_uniform,
 )
 from srb.utils.cfg import configclass
@@ -21,8 +22,12 @@ if TYPE_CHECKING:
 
 @configclass
 class BaseEventCfg:
-    # Default reset
-    reset_scene: EventTermCfg = EventTermCfg(func=reset_scene_to_default, mode="reset")
+    ## Default reset
+    reset_scene: EventTermCfg | None = EventTermCfg(
+        # func=reset_scene_to_default,
+        func=reset_articulations_default,
+        mode="reset",
+    )
 
     ## Gravity
     randomize_gravity: EventTermCfg | None = EventTermCfg(
@@ -97,6 +102,7 @@ class BaseEventCfg:
             "distribution_params": MISSING,
         },
     )
+    randomize_skydome_orientation: EventTermCfg | None = None
 
     ## Mobile manipulation
     mobile_manipulator_dynamic_root_joint_release: EventTermCfg | None = None

@@ -6,6 +6,12 @@ from .cubesat import Cubesat  # noqa: F401
 from .fictionlab import LeoRover  # noqa: F401
 from .gateway import Gateway  # noqa: F401
 from .ingenuity import Ingenuity  # noqa: F401
+from .lander import (  # noqa: F401
+    ApolloLander,
+    PeregrineLander,
+    RandomLander,
+    VikramLander,
+)
 from .mars_rover import MarsRover  # noqa: F401
 from .perseverance import Perseverance  # noqa: F401
 from .unitree import (  # noqa: F401

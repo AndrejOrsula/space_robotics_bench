@@ -23,7 +23,7 @@ class ROSTeleopInterface(DeviceBase, Node):
         self,
         node: Node | None = None,
         pos_sensitivity: float = 1.0,
-        rot_sensitivity: float = 1.0,
+        rot_sensitivity: float = 3.1415927,
     ):
         if not node:
             rclpy.init()

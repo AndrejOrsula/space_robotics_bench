@@ -1402,13 +1402,13 @@ def parse_cli_args() -> argparse.Namespace:
             "--pos_sensitivity",
             help="Sensitivity factor for translation",
             type=float,
-            default=10.0,
+            default=1.0,
         )
         teleop_group.add_argument(
             "--rot_sensitivity",
             help="Sensitivity factor for rotation",
             type=float,
-            default=40.0,
+            default=3.1415927,
         )
         teleop_group.add_argument(
             "--invert_controls",

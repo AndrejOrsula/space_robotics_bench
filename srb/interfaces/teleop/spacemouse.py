@@ -14,8 +14,8 @@ from srb.utils import logging
 class SpacemouseTeleopInterface(DeviceBase):
     def __init__(
         self,
-        pos_sensitivity: float = 0.4,
-        rot_sensitivity: float = 0.8,
+        pos_sensitivity: float = 1.0,
+        rot_sensitivity: float = 3.1415927,
         rate: float = 1000.0,
     ):
         self.pos_sensitivity = pos_sensitivity

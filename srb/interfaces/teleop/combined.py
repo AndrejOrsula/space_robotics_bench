@@ -20,7 +20,7 @@ class CombinedTeleopInterface(DeviceBase):
         devices: Sequence[TeleopDeviceType],
         node: "Node | None" = None,
         pos_sensitivity: float = 1.0,
-        rot_sensitivity: float = 1.0,
+        rot_sensitivity: float = 3.1415927,
         actions: ActionGroup | None = None,
     ):
         if not node and (
@@ -45,22 +45,22 @@ class CombinedTeleopInterface(DeviceBase):
                 case TeleopDeviceType.KEYBOARD:
                     self.interfaces.append(
                         KeyboardTeleopInterface(
-                            pos_sensitivity=0.05 * pos_sensitivity,
-                            rot_sensitivity=10.0 * rot_sensitivity,
+                            pos_sensitivity=1.0 * pos_sensitivity,
+                            rot_sensitivity=1.0 * rot_sensitivity,
                         )
                     )
                 case TeleopDeviceType.SPACEMOUSE:
                     self.interfaces.append(
                         SpacemouseTeleopInterface(
-                            pos_sensitivity=0.1 * pos_sensitivity,
-                            rot_sensitivity=0.05 * rot_sensitivity,
+                            pos_sensitivity=1.0 * pos_sensitivity,
+                            rot_sensitivity=1.0 * rot_sensitivity,
                         )
                     )
                 case TeleopDeviceType.GAMEPAD:
                     self.interfaces.append(
                         Se3Gamepad(
-                            pos_sensitivity=0.1 * pos_sensitivity,
-                            rot_sensitivity=0.1 * rot_sensitivity,
+                            pos_sensitivity=1.0 * pos_sensitivity,
+                            rot_sensitivity=1.0 * rot_sensitivity,
                         )
                     )
                 case TeleopDeviceType.ROS:
@@ -79,7 +79,7 @@ class CombinedTeleopInterface(DeviceBase):
                     interface = HapticROSTeleopInterface(
                         node=self._node,
                         pos_sensitivity=1.0 * pos_sensitivity,
-                        rot_sensitivity=0.15 * rot_sensitivity,
+                        rot_sensitivity=1.0 * rot_sensitivity,
                     )
                     self.interfaces.append(interface)
                     self.ft_feedback_interfaces.append(interface)

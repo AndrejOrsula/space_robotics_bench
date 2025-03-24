@@ -10,6 +10,7 @@ from srb._typing import StepReturn
 from srb.core.asset import Articulation, RigidObject
 from srb.core.manager import ActionManager
 from srb.core.sim.robot_setup import AssembledBodies, RobotAssembler
+from srb.utils import logging
 from srb.utils.math import combine_frame_transforms, subtract_frame_transforms
 from srb.utils.str import resolve_env_prim_path
 
@@ -54,6 +55,50 @@ class DirectEnv(__DirectRLEnv, metaclass=__PostInitCaller):
     def extract_step_return(self) -> StepReturn:
         raise NotImplementedError
 
+    def _extract_step_return_wrapped(self) -> StepReturn:
+        step_return = self.extract_step_return()
+
+        ## Detect environments that "exploded" due to physics and terminate them
+        invalid_envs = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+        for rew_key, rew_val in step_return.reward.items():
+            rew_invalid = ~torch.isfinite(rew_val)
+            invalid_envs = invalid_envs | rew_invalid
+            if rew_invalid.any():
+                step_return.reward[rew_key] = torch.where(
+                    rew_invalid, torch.zeros_like(rew_val), rew_val
+                )
+        for obs_cat, obs_group in step_return.observation.items():
+            for obs_key, obs_val in obs_group.items():
+                if len(obs_val.shape) > 1:
+                    dims = tuple(range(1, len(obs_val.shape)))
+                    obs_invalid = torch.any(~torch.isfinite(obs_val), dim=dims)
+                else:
+                    obs_invalid = ~torch.isfinite(obs_val)
+                invalid_envs = invalid_envs | obs_invalid
+                if obs_invalid.any():
+                    mask = obs_invalid
+                    for _ in range(len(obs_val.shape) - 1):
+                        mask = mask.unsqueeze(-1)
+                    mask = mask.expand_as(obs_val)
+                    step_return.observation[obs_cat][obs_key] = torch.where(
+                        mask, torch.zeros_like(obs_val), obs_val
+                    )
+        if invalid_envs.any():
+            logging.warning(
+                f"Terminating {invalid_envs.sum().item()} environment instance{'s' if invalid_envs.sum().item() > 1 else ''} due to non-finite rewards or observations."
+            )
+            step_return = StepReturn(
+                observation=step_return.observation,
+                reward=step_return.reward,
+                termination=torch.where(
+                    invalid_envs, torch.ones_like(invalid_envs), step_return.termination
+                ),
+                truncation=step_return.truncation,
+                info=step_return.info,
+            )
+
+        return step_return
+
     def _reset_idx(self, env_ids: Sequence[int]):
         if self.cfg.actions:
             self.action_manager.reset(env_ids)
@@ -79,18 +124,24 @@ class DirectEnv(__DirectRLEnv, metaclass=__PostInitCaller):
         if self._use_step_return_workflow:
             self._step_return = self.extract_step_return()
 
-            # Verify that all observation components have the correct shape
+            # Verify that all observation components have the correct shape and are finite
             for obs_cat, obs_group in self._step_return.observation.items():
                 for obs_key, obs_val in obs_group.items():
                     assert obs_val.size(0) == self.num_envs, (
                         f"Observation component '{obs_cat}/{obs_key}' has an incorrect shape. "
                         f"Expected: ({self.num_envs}, ...) | Actual: {obs_val.shape}"
                     )
-            # Verify that all reward components have the correct shape
+                    assert torch.isfinite(obs_val).all(), (
+                        f"Observation component '{obs_cat}/{obs_key}' contains non-finite values."
+                    )
+            # Verify that all reward components have the correct shape and are finite
             for rew_key, rew_val in self._step_return.reward.items():
                 assert rew_val.shape == (self.num_envs,), (
                     f"Reward component '{rew_key}' has an incorrect shape. "
                     f"Expected: ({self.num_envs},) | Actual: {rew_val.shape}"
+                )
+                assert torch.isfinite(rew_val).all(), (
+                    f"Reward component '{rew_key}' contains non-finite values."
                 )
 
         # Automatically determine the action and observation spaces for all sub-classes
@@ -129,7 +180,7 @@ class DirectEnv(__DirectRLEnv, metaclass=__PostInitCaller):
 
     def _get_dones(self) -> Tuple[torch.Tensor, torch.Tensor]:
         if self._use_step_return_workflow:
-            self._step_return = self.extract_step_return()
+            self._step_return = self._extract_step_return_wrapped()
             if self.cfg.include_extras:
                 self.extras["reward_terms"] = self._step_return.reward
             if self._step_return.info:

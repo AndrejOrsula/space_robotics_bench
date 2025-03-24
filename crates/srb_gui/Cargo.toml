@@ -52,5 +52,5 @@ subprocess = { version = "0.2" }
 sysinfo = { version = "0.33" }
 tracing = { version = "0.1" }
 tracing-subscriber = { version = "0.3" }
-typed-builder = { version = "0.20" }
+typed-builder = { version = "0.21" }
 winit = { version = "0.30" }

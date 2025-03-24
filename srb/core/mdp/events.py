@@ -17,6 +17,12 @@ if TYPE_CHECKING:
     from srb._typing import AnyEnv
 
 
+def reset_scene_to_default(env: "AnyEnv", env_ids: torch.Tensor):
+    reset_rigid_objects_default(env, env_ids)
+    reset_articulations_default(env, env_ids)
+    reset_deformable_objects_default(env, env_ids)
+
+
 def reset_rigid_objects_default(env: "AnyEnv", env_ids: torch.Tensor | None):
     for rigid_object in env.scene.rigid_objects.values():
         # Obtain default and deal with the offset for env origins
@@ -27,6 +33,7 @@ def reset_rigid_objects_default(env: "AnyEnv", env_ids: torch.Tensor | None):
             default_root_state[:, :7],
             env_ids=env_ids,  # type: ignore
         )
+        # TODO[mid]: Do not reset velocity for kinematic objects
         rigid_object.write_root_velocity_to_sim(
             default_root_state[:, 7:],
             env_ids=env_ids,  # type: ignore

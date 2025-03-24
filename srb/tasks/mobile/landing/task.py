@@ -20,7 +20,7 @@ from srb.utils.math import deg_to_rad
 
 @configclass
 class SceneCfg(OrbitalSceneCfg):
-    env_spacing = 64.0
+    env_spacing = 256.0
 
 
 @configclass
@@ -31,20 +31,20 @@ class EventCfg(OrbitalEventCfg):
         params={
             "asset_cfg": SceneEntityCfg("robot"),
             "pose_range": {
-                "x": (-5.0, 5.0),
-                "y": (-5.0, 5.0),
-                "z": (10.0, 25.0),
-                "roll": (-deg_to_rad(10.0), deg_to_rad(10.0)),
-                "pitch": (-deg_to_rad(10.0), deg_to_rad(10.0)),
+                "x": (-32.0, 32.0),
+                "y": (-32.0, 32.0),
+                "z": (100.0, 250.0),
+                "roll": (-deg_to_rad(15.0), deg_to_rad(15.0)),
+                "pitch": (-deg_to_rad(15.0), deg_to_rad(15.0)),
                 "yaw": (-torch.pi, torch.pi),
             },
             "velocity_range": {
-                "x": (-1.0, 1.0),
-                "y": (-1.0, 1.0),
-                "z": (-5.0, 0.0),
-                "roll": (-deg_to_rad(5.0), deg_to_rad(5.0)),
-                "pitch": (-deg_to_rad(5.0), deg_to_rad(5.0)),
-                "yaw": (-deg_to_rad(5.0), deg_to_rad(5.0)),
+                "x": (-16.0, 16.0),
+                "y": (-16.0, 16.0),
+                "z": (-64.0, -32.0),
+                "roll": (-deg_to_rad(15.0), deg_to_rad(15.0)),
+                "pitch": (-deg_to_rad(15.0), deg_to_rad(15.0)),
+                "yaw": (-deg_to_rad(15.0), deg_to_rad(15.0)),
             },
         },
     )
@@ -82,6 +82,18 @@ class TaskCfg(OrbitalEnvCfg):
 ############
 
 # TODO[mid]: Implement MDP logic for excavation
+# - Contact sensor
+# - Reward: Minimize distance to target
+# - Reward: Minimize velocity
+# - Reward: Minimize angular velocity
+# - Reward: Minimize action rate
+# - Reward: Minimize energy consumption
+# - Reward: Minimize impact force
+
+# Keep track of energy budget, disable actions if used up
+
+
+# TODO[low]: Extend to booster landing
 
 
 class Task(OrbitalEnv):

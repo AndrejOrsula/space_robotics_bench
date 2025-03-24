@@ -160,12 +160,12 @@ class BaseEnvCfg:
 
     def _update_memory_allocation(self):
         # TODO[low]: Tune GPU memory allocation for all tasks
-        _mem_fac = math.floor(self.scene.num_envs**0.25)
+        _mem_fac = math.floor(self.scene.num_envs**0.3)
         self.sim.physx.gpu_max_rigid_contact_count = 2 ** (12 + _mem_fac)
         self.sim.physx.gpu_max_rigid_patch_count = 2 ** (11 + _mem_fac)
-        self.sim.physx.gpu_found_lost_pairs_capacity = 2 ** (16 + _mem_fac)
+        self.sim.physx.gpu_found_lost_pairs_capacity = 2 ** (20 + _mem_fac)
         self.sim.physx.gpu_found_lost_aggregate_pairs_capacity = 2 ** (20 + _mem_fac)
-        self.sim.physx.gpu_total_aggregate_pairs_capacity = 2 ** (16 + _mem_fac)
+        self.sim.physx.gpu_total_aggregate_pairs_capacity = 2 ** (18 + _mem_fac)
         self.sim.physx.gpu_collision_stack_size = 2 ** (20 + _mem_fac)
         self.sim.physx.gpu_heap_capacity = 2 ** (15 + _mem_fac)
         self.sim.physx.gpu_temp_buffer_capacity = 2 ** (12 + _mem_fac)

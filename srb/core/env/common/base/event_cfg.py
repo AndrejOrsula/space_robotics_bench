@@ -1,7 +1,10 @@
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
-from srb.core.action import DifferentialInverseKinematicsActionCfg
+from srb.core.action import (
+    DifferentialInverseKinematicsActionCfg,
+    OperationalSpaceControllerActionCfg,
+)
 from srb.core.asset import CombinedMobileManipulator
 from srb.core.manager import EventTermCfg, SceneEntityCfg
 from srb.core.mdp import follow_xform_orientation_linear_trajectory  # noqa F401
@@ -161,7 +164,13 @@ class BaseEventCfg:
                 (
                     action_term
                     for action_term in env_cfg._robot.manipulator.actions.__dict__.values()
-                    if isinstance(action_term, DifferentialInverseKinematicsActionCfg)
+                    if isinstance(
+                        action_term,
+                        (
+                            DifferentialInverseKinematicsActionCfg,
+                            OperationalSpaceControllerActionCfg,
+                        ),
+                    )
                 ),
                 None,
             )

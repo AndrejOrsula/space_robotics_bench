@@ -64,7 +64,7 @@ class DifferentialInverseKinematicsAction(__DifferentialInverseKinematicsAction)
 
         return ee_pose_b, ee_quat_b
 
-    def _compute_frame_jacobian(self):
+    def _compute_frame_jacobian(self) -> torch.Tensor:
         jacobian = self.jacobian_b
         if self.cfg.body_offset is not None:
             jacobian[:, :3, :] += torch.bmm(

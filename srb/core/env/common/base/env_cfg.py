@@ -10,6 +10,7 @@ from srb.core.action import (
     ActionGroup,
     ActionTermCfg,
     DifferentialInverseKinematicsActionCfg,
+    OperationalSpaceControllerActionCfg,
 )
 from srb.core.action.term import DummyActionCfg
 from srb.core.asset import (
@@ -510,7 +511,11 @@ class BaseEnvCfg:
                         action_term
                         for action_term in robot.manipulator.actions.__dict__.values()
                         if isinstance(
-                            action_term, DifferentialInverseKinematicsActionCfg
+                            action_term,
+                            (
+                                DifferentialInverseKinematicsActionCfg,
+                                OperationalSpaceControllerActionCfg,
+                            ),
                         )
                     ),
                     None,
@@ -606,9 +611,15 @@ class BaseEnvCfg:
                 )
                 # Offset TCP
                 for action_term in manipulator.actions.__dict__.values():
-                    if isinstance(action_term, DifferentialInverseKinematicsActionCfg):
+                    if isinstance(
+                        action_term,
+                        (
+                            DifferentialInverseKinematicsActionCfg,
+                            OperationalSpaceControllerActionCfg,
+                        ),
+                    ):
                         if action_term.body_offset is None:
-                            action_term.body_offset = DifferentialInverseKinematicsActionCfg.OffsetCfg(
+                            action_term.body_offset = action_term.__class__.OffsetCfg(  # type: ignore
                                 pos=manipulator.end_effector.frame_tool_centre_point.offset.pos,
                                 rot=manipulator.end_effector.frame_tool_centre_point.offset.rot,
                             )

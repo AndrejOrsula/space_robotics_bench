@@ -469,7 +469,7 @@ def _compute_step_return(
 
     # Reward: Distance | Peg -> Hole entrance
     WEIGHT_DISTANCE_PEG_TO_HOLE_ENTRANCE = 16.0
-    TANH_STD_DISTANCE_PEG_TO_HOLE_ENTRANCE = 0.05
+    TANH_STD_DISTANCE_PEG_TO_HOLE_ENTRANCE = 0.04
     reward_distance_peg_to_hole_entrance = WEIGHT_DISTANCE_PEG_TO_HOLE_ENTRANCE * (
         1.0
         - torch.tanh(
@@ -480,7 +480,7 @@ def _compute_step_return(
 
     # Reward: Distance | Peg -> Hole bottom
     WEIGHT_DISTANCE_PEG_TO_HOLE_BOTTOM = 128.0
-    TANH_STD_DISTANCE_PEG_TO_HOLE_BOTTOM = 0.005
+    TANH_STD_DISTANCE_PEG_TO_HOLE_BOTTOM = 0.002
     reward_distance_peg_to_hole_bottom = WEIGHT_DISTANCE_PEG_TO_HOLE_BOTTOM * (
         1.0
         - torch.tanh(

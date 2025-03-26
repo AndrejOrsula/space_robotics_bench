@@ -83,8 +83,6 @@ class Franka(SerialManipulator):
                 damping=800.0,
             ),
         },
-        # TODO[now]: Revert to 1.0 or something close to 1.0
-        soft_joint_pos_limit_factor=0.9,
         ### ANCHOR: example_p3 (docs)
     )
     ## End effector - The default hand is separate to allow for easy replacement

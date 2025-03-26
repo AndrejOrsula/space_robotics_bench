@@ -379,6 +379,20 @@ def _compute_step_return(
         > THRESHOLD_UNDESIRED_ROBOT_CONTACTS
     )
 
+    # Reward: End-effector top-down orientation
+    WEIGHT_TOP_DOWN_ORIENTATION = 1.0
+    TANH_STD_TOP_DOWN_ORIENTATION = 0.3
+    top_down_alignment = torch.sum(
+        matrix_from_quat(tf_quat_end_effector)[:, :, 2]
+        * torch.tensor((0.0, 0.0, -1.0), device=device)
+        .unsqueeze(0)
+        .expand(num_envs, 3),
+        dim=1,
+    )
+    reward_top_down_orientation = WEIGHT_TOP_DOWN_ORIENTATION * (
+        1.0 - torch.tanh((1.0 - top_down_alignment) / TANH_STD_TOP_DOWN_ORIENTATION)
+    )
+
     # Reward: Distance | End-effector <--> Object
     WEIGHT_DISTANCE_END_EFFECTOR_TO_OBJ = 1.0
     TANH_STD_DISTANCE_END_EFFECTOR_TO_OBJ = 0.25
@@ -467,6 +481,22 @@ def _compute_step_return(
         )
     )
 
+    # Reward: Distance | Peg -> Hole entrance (gradual)
+    WEIGHT_DISTANCE_PEG_TO_HOLE_GRADUAL = 8.0
+    TANH_STD_DISTANCE_PEG_TO_HOLE_GRADUAL = 0.12
+    reward_distance_peg_to_hole_entrance_gradual = (
+        WEIGHT_DISTANCE_PEG_TO_HOLE_GRADUAL
+        * (
+            1.0
+            - torch.tanh(
+                torch.min(torch.norm(tf_pos_peg_ends_to_hole_entrance, dim=-1), dim=1)[
+                    0
+                ]
+                / TANH_STD_DISTANCE_PEG_TO_HOLE_GRADUAL
+            )
+        )
+    )
+
     # Reward: Distance | Peg -> Hole entrance
     WEIGHT_DISTANCE_PEG_TO_HOLE_ENTRANCE = 16.0
     TANH_STD_DISTANCE_PEG_TO_HOLE_ENTRANCE = 0.04
@@ -530,11 +560,13 @@ def _compute_step_return(
         {
             "penalty_action_rate": penalty_action_rate,
             "penalty_undesired_robot_contacts": penalty_undesired_robot_contacts,
+            "reward_top_down_orientation": reward_top_down_orientation,
             "reward_distance_end_effector_to_obj": reward_distance_end_effector_to_obj,
             "reward_grasp": reward_grasp,
             "reward_lift": reward_lift,
             "reward_align_peg_to_hole_primary": reward_align_peg_to_hole_primary,
             "reward_align_peg_to_hole_secondary": reward_align_peg_to_hole_secondary,
+            "reward_distance_peg_to_hole_entrance_gradual": reward_distance_peg_to_hole_entrance_gradual,
             "reward_distance_peg_to_hole_entrance": reward_distance_peg_to_hole_entrance,
             "reward_distance_peg_to_hole_bottom": reward_distance_peg_to_hole_bottom,
         },

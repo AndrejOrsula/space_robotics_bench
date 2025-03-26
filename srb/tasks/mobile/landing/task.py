@@ -95,6 +95,8 @@ class TaskCfg(OrbitalEnvCfg):
 
 # TODO[low]: Extend to booster landing
 
+# TODO[low]: Decrease the lander mass based on remaining fuel (try to do it at the action level)
+
 
 class Task(OrbitalEnv):
     cfg: TaskCfg

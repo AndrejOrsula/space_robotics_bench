@@ -6,11 +6,13 @@ from srb.core.manager import ActionTerm, ActionTermCfg
 from srb.utils.cfg import configclass
 
 if TYPE_CHECKING:
+    from srb._typing import AnyEnv
     from srb.core.asset import Articulation, RigidObject
 
 
 class BodyAccelerationAction(ActionTerm):
     cfg: "BodyAccelerationActionCfg"
+    _env: "AnyEnv"
     _asset: "Articulation | RigidObject"
 
     @property

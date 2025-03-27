@@ -1,4 +1,4 @@
-from typing import Type
+from typing import TYPE_CHECKING, Type
 
 import isaaclab.utils.math as math_utils
 import torch
@@ -11,12 +11,21 @@ from isaaclab.envs.mdp.actions.task_space_actions import (
 from isaaclab.managers.action_manager import ActionTerm
 from isaaclab.utils import configclass
 
+if TYPE_CHECKING:
+    from srb._typing import AnyEnv
+    from srb.core.asset import Articulation
+
 
 class OperationalSpaceControllerAction(__OperationalSpaceControllerAction):
     cfg: "OperationalSpaceControllerActionCfg"
+    _env: "AnyEnv"
+    _asset: "Articulation"
 
-    def __init__(self, cfg: "OperationalSpaceControllerActionCfg", *args, **kwargs):
-        super().__init__(cfg, *args, **kwargs)
+    def __init__(self, cfg: "OperationalSpaceControllerActionCfg", env: "AnyEnv"):
+        super().__init__(
+            cfg,
+            env,  # type: ignore
+        )
 
         if self.cfg.base_name:
             base_ids, base_names = self._asset.find_bodies(self.cfg.base_name)

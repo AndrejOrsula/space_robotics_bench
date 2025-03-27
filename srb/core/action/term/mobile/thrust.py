@@ -9,7 +9,6 @@ from srb.core.sim import PreviewSurfaceCfg
 from srb.utils.cfg import configclass
 from srb.utils.math import (
     combine_frame_transforms,
-    deg_to_rad,
     matrix_from_euler,
     normalize,
     quat_apply,
@@ -23,6 +22,7 @@ if TYPE_CHECKING:
 
 class ThrustAction(ActionTerm):
     cfg: "ThrustActionCfg"
+    _env: "AnyEnv"
     _asset: "RigidObject"
 
     def __init__(self, cfg: "ThrustActionCfg", env: "AnyEnv"):
@@ -80,10 +80,11 @@ class ThrustAction(ActionTerm):
             action_indices_gimbal, device=env.device
         )
 
-        ## Initialize fuel
+        ## Initialize fuel & mass
         self._remaining_fuel = cfg.fuel_capacity * torch.ones(
             env.num_envs, device=env.device
         )
+        self._dry_masses = self._asset.root_physx_view.get_masses().clone()
 
         ## Set up visualization markers
         if self.cfg.debug_vis:
@@ -148,13 +149,17 @@ class ThrustAction(ActionTerm):
 
         ## Compute thrust force magnitude for each thruster
         thrust_actions = self._processed_actions[:, self._action_indices_thrust]
-        thrust_magnitudes = (
-            thrust_actions * self._thruster_power.unsqueeze(0) * self.cfg.scale
-        )
+        thrust_magnitudes = thrust_actions * self._thruster_power.unsqueeze(0)
+
+        ## Disable thrust if fuel is depleted
+        thrust_magnitudes *= self._remaining_fuel.unsqueeze(-1) > 0.0
 
         ## Compute force vector for each thruster
-        # Note: The force is applied in the opposite direction of the thurst vector
-        thruster_forces = -thrust_magnitudes.unsqueeze(-1) * thruster_directions
+        # Note: The force is applied in the opposite direction of the thrust vector
+        thruster_forces = (
+            -self.cfg.scale * thrust_magnitudes.unsqueeze(-1) * thruster_directions
+            # / self._env.cfg.agent_rate
+        )
 
         ## Get center of mass positions [num_envs, 3]
         thruster_offsets = self._thruster_offset.unsqueeze(0).expand(
@@ -175,9 +180,20 @@ class ThrustAction(ActionTerm):
             is_global=False,
         )
 
-        ## Update fuel
-        self._remaining_fuel -= thrust_magnitudes.sum(dim=1) * self._env.cfg.sim.dt
+        ## Update fuel and mass
+        self._remaining_fuel -= (
+            self.cfg.fuel_consumption_rate
+            * thrust_magnitudes.sum(dim=1)
+            * self._env.cfg.agent_rate
+        )
         self._remaining_fuel.clamp_(min=0.0)
+        masses = self._dry_masses + self._remaining_fuel.unsqueeze(-1)
+        mass_decrease_ratio = masses / self._asset.root_physx_view.get_masses()
+        self._asset.root_physx_view.set_masses(masses, indices=self._asset._ALL_INDICES)
+        self._asset.root_physx_view.set_inertias(
+            mass_decrease_ratio * self._asset.root_physx_view.get_inertias(),
+            indices=self._asset._ALL_INDICES,
+        )
 
         ## Update visualization markers
         if self.cfg.debug_vis:
@@ -193,16 +209,15 @@ class ThrustAction(ActionTerm):
             cfg = ARROW_CFG.copy().replace(  # type: ignore
                 prim_path=f"/Visuals/thrusters/thruster{i}"
             )
-            cfg.markers["arrow"].tail_radius = 20 * 0.01
-            cfg.markers["arrow"].tail_length = 20 * 0.1
-            cfg.markers["arrow"].head_radius = 20 * 0.02
-            cfg.markers["arrow"].head_length = 20 * 0.05
+            cfg.markers["arrow"].tail_radius = 0.1
+            cfg.markers["arrow"].tail_length = 1.0
+            cfg.markers["arrow"].head_radius = 0.2
+            cfg.markers["arrow"].head_length = 0.5
 
-            # Use a different color for each thruster (gradient from blue to red)
-            r = min(1.0, i / max(1, self._num_thrusters - 1))
-            b = 1.0 - r
+            # Use a different color for each thruster (gradient from red to blue)
+            blue = i / max(self._num_thrusters - 1, 1)
             cfg.markers["arrow"].visual_material = PreviewSurfaceCfg(
-                emissive_color=(r, 0.2, b)
+                emissive_color=(1.0 - blue, 0.2, blue)
             )
 
             # Create the marker and add to list
@@ -257,19 +272,18 @@ class ThrustAction(ActionTerm):
             thrust_dir_quat_w = quat_from_matrix(rot_matrix)
 
             # Scale the marker based on the thrust magnitude
-            marker_scale = torch.ones(
-                (self.num_envs, 3), dtype=torch.float32, device=self.device
-            )
-            marker_scale[:, 0] = thrust_magnitudes[:, i] * (
-                1.0 / self._thruster_power.max().item()
-            )
+            marker_scale = torch.ones((self.num_envs, 3), device=self.device)
+            marker_scale[:, :] = (
+                thrust_magnitudes[:, i] * (1.0 / self._thruster_power.max().item())
+            ).unsqueeze(1)
 
             # Visualize the marker
             self._thruster_markers[i].visualize(
                 thruster_pos_w, thrust_dir_quat_w, marker_scale
             )
 
-    def reset_idx(self, env_ids):
+    def reset(self, env_ids: Sequence[int] | None = None):
+        super().reset(env_ids)
         self._remaining_fuel[env_ids] = self.cfg.fuel_capacity
 
 
@@ -283,16 +297,8 @@ class ThrusterCfg(BaseModel):
 @configclass
 class ThrustActionCfg(ActionTermCfg):
     class_type: Type = ThrustAction
-
     scale: float = 1.0
 
-    thrusters: Sequence[ThrusterCfg] = (
-        ThrusterCfg(
-            offset=(0.0, 0.0, 0.0),
-            direction=(0.0, 0.0, -1.0),
-            power=1000.0,
-            gimbal_limits=(deg_to_rad(30.0), deg_to_rad(30.0)),
-        ),
-    )
-
+    thrusters: Sequence[ThrusterCfg] = (ThrusterCfg(),)
     fuel_capacity: float = 1.0
+    fuel_consumption_rate: float = 0.1

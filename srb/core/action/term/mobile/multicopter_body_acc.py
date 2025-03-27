@@ -14,6 +14,7 @@ if TYPE_CHECKING:
 
 class MulticopterBodyAccelerationAction(ActionTerm):
     cfg: "MulticopterBodyAccelerationActionCfg"
+    _env: "AnyEnv"
     _asset: "Articulation"
 
     def __init__(self, cfg: "MulticopterBodyAccelerationActionCfg", env: "AnyEnv"):

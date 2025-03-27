@@ -13,6 +13,7 @@ if TYPE_CHECKING:
 
 class WheeledRoverDriveAction(ActionTerm):
     cfg: "WheeledRoverDriveActionCfg"
+    _env: "AnyEnv"
     _asset: "Articulation"
 
     def __init__(self, cfg: "WheeledRoverDriveActionCfg", env: "AnyEnv"):

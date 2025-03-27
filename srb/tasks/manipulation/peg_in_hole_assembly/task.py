@@ -176,6 +176,8 @@ class Task(ManipulationEnv):
                 )
                 else None
             ),
+            joint_acc_robot=self._robot.data.joint_acc,
+            joint_applied_torque_robot=self._robot.data.applied_torque,
             # Kinematics
             fk_pos_end_effector=self._tf_end_effector.data.target_pos_source[:, 0, :],
             fk_quat_end_effector=self._tf_end_effector.data.target_quat_source[:, 0, :],
@@ -219,6 +221,8 @@ def _compute_step_return(
     joint_pos_limits_robot: torch.Tensor | None,
     joint_pos_end_effector: torch.Tensor | None,
     joint_pos_limits_end_effector: torch.Tensor | None,
+    joint_acc_robot: torch.Tensor,
+    joint_applied_torque_robot: torch.Tensor,
     # Kinematics
     fk_pos_end_effector: torch.Tensor,
     fk_quat_end_effector: torch.Tensor,
@@ -379,11 +383,23 @@ def _compute_step_return(
         > THRESHOLD_UNDESIRED_ROBOT_CONTACTS
     )
 
+    # Penalty: Joint torque
+    WEIGHT_JOINT_TORQUE = -0.00025
+    penalty_joint_torque = WEIGHT_JOINT_TORQUE * torch.sum(
+        torch.square(joint_applied_torque_robot), dim=1
+    )
+
+    # Penalty: Joint acceleration
+    WEIGHT_JOINT_ACCELERATION = -0.0001
+    penalty_joint_acceleration = WEIGHT_JOINT_ACCELERATION * torch.sum(
+        torch.square(joint_acc_robot), dim=1
+    )
+
     # Reward: End-effector top-down orientation
-    WEIGHT_TOP_DOWN_ORIENTATION = 1.0
-    TANH_STD_TOP_DOWN_ORIENTATION = 0.3
+    WEIGHT_TOP_DOWN_ORIENTATION = 5.0
+    TANH_STD_TOP_DOWN_ORIENTATION = 0.35
     top_down_alignment = torch.sum(
-        matrix_from_quat(tf_quat_end_effector)[:, :, 2]
+        fk_rotmat_end_effector[:, :, 2]
         * torch.tensor((0.0, 0.0, -1.0), device=device)
         .unsqueeze(0)
         .expand(num_envs, 3),
@@ -423,10 +439,10 @@ def _compute_step_return(
     )
 
     # Reward: Lift object
-    WEIGHT_LIFT = 16.0
-    HEIGHT_OFFSET_LIFT = 0.5
-    HEIGHT_SPAN_LIFT = 0.25
-    TANH_STD_HEIGHT_LIFT = 0.1
+    WEIGHT_LIFT = 4.0
+    HEIGHT_OFFSET_LIFT = 0.2
+    HEIGHT_SPAN_LIFT = 0.1
+    TANH_STD_HEIGHT_LIFT = 0.2
     reward_lift = WEIGHT_LIFT * (
         1.0
         - torch.tanh(
@@ -482,8 +498,8 @@ def _compute_step_return(
     )
 
     # Reward: Distance | Peg -> Hole entrance (gradual)
-    WEIGHT_DISTANCE_PEG_TO_HOLE_GRADUAL = 8.0
-    TANH_STD_DISTANCE_PEG_TO_HOLE_GRADUAL = 0.12
+    WEIGHT_DISTANCE_PEG_TO_HOLE_GRADUAL = 4.0
+    TANH_STD_DISTANCE_PEG_TO_HOLE_GRADUAL = 0.16
     reward_distance_peg_to_hole_entrance_gradual = (
         WEIGHT_DISTANCE_PEG_TO_HOLE_GRADUAL
         * (
@@ -555,11 +571,15 @@ def _compute_step_return(
             "proprio_dyn": {
                 "joint_pos_robot_normalized": joint_pos_robot_normalized,
                 "joint_pos_end_effector_normalized": joint_pos_end_effector_normalized,
+                "joint_acc_robot": joint_acc_robot,
+                "joint_applied_torque_robot": joint_applied_torque_robot,
             },
         },
         {
             "penalty_action_rate": penalty_action_rate,
             "penalty_undesired_robot_contacts": penalty_undesired_robot_contacts,
+            "penalty_joint_torque": penalty_joint_torque,
+            "penalty_joint_acceleration": penalty_joint_acceleration,
             "reward_top_down_orientation": reward_top_down_orientation,
             "reward_distance_end_effector_to_obj": reward_distance_end_effector_to_obj,
             "reward_grasp": reward_grasp,

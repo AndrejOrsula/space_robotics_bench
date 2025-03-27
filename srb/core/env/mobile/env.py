@@ -2,6 +2,7 @@ from dataclasses import MISSING
 
 from srb.core.asset import AssetVariant, Humanoid, MobileRobot
 from srb.core.env import BaseEventCfg, BaseSceneCfg, DirectEnv, DirectEnvCfg
+from srb.core.marker import RED_ARROW_X_MARKER_CFG
 from srb.core.sensor import Imu, ImuCfg
 from srb.utils.cfg import configclass
 
@@ -11,6 +12,9 @@ class MobileSceneCfg(BaseSceneCfg):
     imu_robot: ImuCfg = ImuCfg(
         prim_path=MISSING,  # type: ignore
         gravity_bias=(0.0, 0.0, 0.0),
+        visualizer_cfg=RED_ARROW_X_MARKER_CFG.replace(  # type: ignore
+            prim_path="/Visuals/imu_robot/lin_acc"
+        ),
     )
 
 

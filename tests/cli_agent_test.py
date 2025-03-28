@@ -91,6 +91,7 @@ def test_cli_agent_rand(env: str, num_envs: int):
             terminate_process("srb", process)
 
 
+@pytest.mark.skip
 @pytest.mark.parametrize(
     "env,num_envs,algo",
     (

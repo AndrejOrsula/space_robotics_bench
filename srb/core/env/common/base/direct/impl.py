@@ -181,7 +181,7 @@ class DirectEnv(__DirectRLEnv, metaclass=__PostInitCaller):
     def _get_dones(self) -> Tuple[torch.Tensor, torch.Tensor]:
         if self._use_step_return_workflow:
             self._step_return = self._extract_step_return_wrapped()
-            if self.cfg.include_extras:
+            if self.cfg.extras:
                 self.extras["reward_terms"] = self._step_return.reward
             if self._step_return.info:
                 self.extras.update(self._step_return.info)

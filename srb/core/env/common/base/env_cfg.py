@@ -117,7 +117,7 @@ class BaseEnvCfg:
 
     ## Misc
     truncate_episodes: bool = True
-    include_extras: bool = False
+    extras: bool = False
     debug_vis: bool = False
 
     ## Particles

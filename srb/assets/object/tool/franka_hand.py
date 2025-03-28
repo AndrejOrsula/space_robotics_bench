@@ -44,8 +44,8 @@ class FrankaHand(ActiveTool):
                 joint_names_expr=["panda_finger_joint.*"],
                 effort_limit=200.0,
                 velocity_limit=0.2,
-                stiffness=1800.0,
-                damping=400.0,
+                stiffness=2000.0,
+                damping=250.0,
             ),
         },
     )

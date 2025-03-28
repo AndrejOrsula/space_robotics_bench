@@ -207,7 +207,7 @@ def run_agent_with_env(
                     return step_return
 
             env = InterfaceWrapper(env)  # type: ignore
-            env.unwrapped.cfg.include_extras = True  # type: ignore
+            env.unwrapped.cfg.extras = True  # type: ignore
 
         # Run the implementation
         def agent_impl(**kwargs):
@@ -660,7 +660,7 @@ def ros_agent(
     should_update_interface = False
     if ros_interface is None:
         ros_interface = RosInterface(env=env, node=ros_node)
-        env.unwrapped.cfg.include_extras = True  # type: ignore
+        env.unwrapped.cfg.extras = True  # type: ignore
         if hasattr(env, "_srb_interfaces"):
             env._srb_interfaces = (  # type: ignore
                 *env._srb_interfaces,  # type: ignore

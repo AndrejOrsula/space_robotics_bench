@@ -366,6 +366,23 @@ def _compute_step_return(
         torch.square(act_current - act_previous), dim=1
     )
 
+    # Penalty: Joint torque
+    WEIGHT_JOINT_TORQUE = -0.000025
+    MAX_JOINT_TORQUE_PENALTY = -4.0
+    penalty_joint_torque = torch.clamp_min(
+        WEIGHT_JOINT_TORQUE
+        * torch.sum(torch.square(joint_applied_torque_robot), dim=1),
+        min=MAX_JOINT_TORQUE_PENALTY,
+    )
+
+    # Penalty: Joint acceleration
+    WEIGHT_JOINT_ACCELERATION = -0.00000025
+    MAX_JOINT_ACCELERATION_PENALTY = -2.0
+    penalty_joint_acceleration = torch.clamp_min(
+        WEIGHT_JOINT_ACCELERATION * torch.sum(torch.square(joint_acc_robot), dim=1),
+        min=MAX_JOINT_ACCELERATION_PENALTY,
+    )
+
     # Penalty: Undesired robot contacts
     WEIGHT_UNDESIRED_ROBOT_CONTACTS = -2.0
     THRESHOLD_UNDESIRED_ROBOT_CONTACTS = 1.0
@@ -420,18 +437,6 @@ def _compute_step_return(
         torch.square(vel_ang_robot[:, :2]), dim=-1
     )
 
-    # Penalty: Joint torque
-    WEIGHT_JOINT_TORQUE = -0.000025
-    penalty_joint_torque = WEIGHT_JOINT_TORQUE * torch.sum(
-        torch.square(joint_applied_torque_robot), dim=1
-    )
-
-    # Penalty: Joint acceleration
-    WEIGHT_JOINT_ACCELERATION = -0.00000025
-    penalty_joint_acceleration = WEIGHT_JOINT_ACCELERATION * torch.sum(
-        torch.square(joint_acc_robot), dim=1
-    )
-
     # Penalty: Minimize rotation with the gravity direction
     WEIGHT_GRAVITY_ROTATION_ALIGNMENT = -2.0
     penalty_gravity_rotation_alignment = WEIGHT_GRAVITY_ROTATION_ALIGNMENT * (
@@ -478,14 +483,14 @@ def _compute_step_return(
         },
         {
             "penalty_action_rate": penalty_action_rate,
+            "penalty_joint_torque": penalty_joint_torque,
+            "penalty_joint_acceleration": penalty_joint_acceleration,
             "penalty_undesired_robot_contacts": penalty_undesired_robot_contacts,
             "reward_cmd_lin_vel_xy": reward_cmd_lin_vel_xy,
             "reward_cmd_ang_vel_z": reward_cmd_ang_vel_z,
             "reward_feet_air_time": reward_feet_air_time,
             "penalty_undesired_lin_vel_z": penalty_undesired_lin_vel_z,
             "penalty_undesired_ang_vel_xy": penalty_undesired_ang_vel_xy,
-            "penalty_joint_torque": penalty_joint_torque,
-            "penalty_joint_acceleration": penalty_joint_acceleration,
             "penalty_gravity_rotation_alignment": penalty_gravity_rotation_alignment,
         },
         termination,

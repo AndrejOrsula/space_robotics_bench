@@ -7,8 +7,8 @@ class GatewayScenery(ExtravehicularScenery):
     asset_cfg: AssetBaseCfg = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/gateway",
         spawn=UsdFileCfg(
-            usd_path=SRB_ASSETS_DIR_SRB_ROBOT.joinpath("gateway")
-            .joinpath("gateway.usdc")
+            usd_path=SRB_ASSETS_DIR_SRB_ROBOT.joinpath("spacecraft")
+            .joinpath("gateway.usdz")
             .as_posix(),
             collision_props=CollisionPropertiesCfg(),
         ),

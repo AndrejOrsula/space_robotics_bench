@@ -65,7 +65,7 @@ class VenusExpress(OrbitalRobot):
     asset_cfg: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/venus_express",
         spawn=UsdFileCfg(
-            usd_path=SRB_ASSETS_DIR_SRB_ROBOT.joinpath("satellite")
+            usd_path=SRB_ASSETS_DIR_SRB_ROBOT.joinpath("spacecraft")
             .joinpath("venus_express.usdz")
             .as_posix(),
             activate_contact_sensors=True,

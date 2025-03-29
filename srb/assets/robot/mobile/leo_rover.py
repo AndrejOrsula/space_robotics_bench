@@ -16,8 +16,8 @@ class LeoRover(WheeledRobot):
     asset_cfg: ArticulationCfg = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/leo_rover",
         spawn=UsdFileCfg(
-            usd_path=SRB_ASSETS_DIR_SRB_ROBOT.joinpath("fictionlab")
-            .joinpath("leo_rover.usd")
+            usd_path=SRB_ASSETS_DIR_SRB_ROBOT.joinpath("rover")
+            .joinpath("leo_rover.usdc")
             .as_posix(),
             activate_contact_sensors=True,
             collision_props=CollisionPropertiesCfg(

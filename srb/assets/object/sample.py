@@ -17,9 +17,7 @@ class SampleTube(Object):
         ## Spawner loads a static USD file
         spawn=UsdFileCfg(
             usd_path=(
-                SRB_ASSETS_DIR_SRB_OBJECT.joinpath("sample_tube")
-                .joinpath("sample_tube.usdc")
-                .as_posix()
+                SRB_ASSETS_DIR_SRB_OBJECT.joinpath("sample_tube.usdz").as_posix()
             ),
             collision_props=CollisionPropertiesCfg(),
             mesh_collision_props=MeshCollisionPropertiesCfg(

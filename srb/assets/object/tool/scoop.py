@@ -13,9 +13,7 @@ class Scoop(Tool):
     asset_cfg: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/scoop",
         spawn=UsdFileCfg(
-            usd_path=(
-                SRB_ASSETS_DIR_SRB_OBJECT.joinpath("excavation_scoop.usdz").as_posix()
-            ),
+            usd_path=(SRB_ASSETS_DIR_SRB_OBJECT.joinpath("scoop.usdz").as_posix()),
             activate_contact_sensors=True,
             collision_props=CollisionPropertiesCfg(),
             mesh_collision_props=MeshCollisionPropertiesCfg(mesh_approximation="sdf"),
@@ -25,5 +23,5 @@ class Scoop(Tool):
     )
 
     ## Frames
-    frame_mount: Frame = Frame(prim_relpath="excavator_bucket")
+    frame_mount: Frame = Frame(prim_relpath="scoop")
     frame_tool_centre_point: Frame = Frame(offset=Transform(pos=(0.0, 0.0, 0.1)))

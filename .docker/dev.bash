@@ -11,8 +11,8 @@ export WITH_DEV_VOLUME="${WITH_DEV_VOLUME:-true}"
 ## Config
 # Development volumes to mount inside the container
 DOCKER_DEV_VOLUMES=(
-    "${WS_DIR}/isaaclab:/root/isaaclab:rw"
-    "${WS_DIR}/simforge:/root/simforge:rw"
+    # "${WS_DIR}/isaaclab:/root/isaaclab:rw"
+    # "${WS_DIR}/simforge:/root/simforge:rw"
     # "${WS_DIR}/simforge_foundry:/root/simforge_foundry:rw"
     # "${WS_DIR}/oxidasim:/root/oxidasim:rw"
     # "${WS_DIR}/dreamerv3:/root/dreamerv3:rw"
@@ -21,6 +21,7 @@ DOCKER_DEV_VOLUMES=(
 # Development environment variables to set inside the container
 DOCKER_DEV_ENVIRON=(
     LOG_LEVEL="${LOG_LEVEL:-debug}"
+    DEBUG_VIS="${DEBUG_VIS:-true}"
     HYDRA_FULL_ERROR="${HYDRA_FULL_ERROR:-1}"
     RICH_TRACEBACK="${RICH_TRACEBACK:-true}"
     # RICH_TRACEBACK_LOCALS="${RICH_TRACEBACK_LOCALS:-true}"

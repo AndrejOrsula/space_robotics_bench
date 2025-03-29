@@ -14,9 +14,7 @@ class SolarPanel(Object):
         prim_path="{ENV_REGEX_NS}/panel",
         spawn=UsdFileCfg(
             usd_path=(
-                SRB_ASSETS_DIR_SRB_OBJECT.joinpath("solar_panel")
-                .joinpath("solar_panel.usdc")
-                .as_posix()
+                SRB_ASSETS_DIR_SRB_OBJECT.joinpath("solar_panel.usdz").as_posix()
             ),
             collision_props=CollisionPropertiesCfg(),
             mesh_collision_props=MeshCollisionPropertiesCfg(mesh_approximation="sdf"),

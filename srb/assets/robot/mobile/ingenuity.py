@@ -23,8 +23,8 @@ class Ingenuity(Multicopter):
     asset_cfg: ArticulationCfg = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/ingenuity",
         spawn=UsdFileCfg(
-            usd_path=SRB_ASSETS_DIR_SRB_ROBOT.joinpath("ingenuity")
-            .joinpath("ingenuity.usdc")
+            usd_path=SRB_ASSETS_DIR_SRB_ROBOT.joinpath("copter")
+            .joinpath("ingenuity.usdz")
             .as_posix(),
             activate_contact_sensors=True,
             collision_props=CollisionPropertiesCfg(

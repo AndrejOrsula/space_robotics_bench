@@ -19,7 +19,7 @@ def __initialize_impl(self):
     # check that only rigid bodies are selected
     leaf_pattern = self.cfg.prim_path.rsplit("/", 1)[-1]
     template_prim_path = self._parent_prims[0].GetPath().pathString
-    body_names = list()
+    body_names = []
     for prim in sim_utils.find_matching_prims(template_prim_path + "/" + leaf_pattern):
         # check if prim has contact reporter API
         if prim.HasAPI(PhysxSchema.PhysxContactReportAPI):

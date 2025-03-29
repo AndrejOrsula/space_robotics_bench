@@ -22,8 +22,8 @@ class Canadarm3(SerialManipulator):
     asset_cfg: ArticulationCfg = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/canadarm3_large",
         spawn=UsdFileCfg(
-            usd_path=SRB_ASSETS_DIR_SRB_ROBOT.joinpath("canadarm3")
-            .joinpath("canadarm3_large.usdc")
+            usd_path=SRB_ASSETS_DIR_SRB_ROBOT.joinpath("manipulator")
+            .joinpath("canadarm3_large.usdz")
             .as_posix(),
             activate_contact_sensors=True,
             collision_props=CollisionPropertiesCfg(

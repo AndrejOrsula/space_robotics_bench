@@ -1,6 +1,7 @@
 import math
 import types
 from dataclasses import MISSING
+from os import environ
 from typing import Dict, get_type_hints
 
 import torch
@@ -118,7 +119,9 @@ class BaseEnvCfg:
     ## Misc
     truncate_episodes: bool = True
     extras: bool = False
-    debug_vis: bool = False
+    debug_vis: bool = (
+        environ.get("DEBUG_VIS") or environ.get("SRB_DEBUG_VIS", "false")
+    ).lower() in ("true", "1")
 
     ## Particles
     # Note: This option is likely to be removed in the future

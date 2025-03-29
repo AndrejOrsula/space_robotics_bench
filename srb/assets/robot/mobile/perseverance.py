@@ -14,16 +14,14 @@ from srb.core.sim import (
 from srb.utils.math import rpy_to_quat
 from srb.utils.path import SRB_ASSETS_DIR_SRB_ROBOT
 
-# TODO[low]: Perseverance model - Remove translucency from textures
-
 
 class Perseverance(WheeledRobot):
     ## Model
     asset_cfg: ArticulationCfg = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/perseverance",
         spawn=UsdFileCfg(
-            usd_path=SRB_ASSETS_DIR_SRB_ROBOT.joinpath("perseverance")
-            .joinpath("perseverance.usdc")
+            usd_path=SRB_ASSETS_DIR_SRB_ROBOT.joinpath("rover")
+            .joinpath("perseverance.usdz")
             .as_posix(),
             activate_contact_sensors=True,
             collision_props=CollisionPropertiesCfg(

@@ -450,24 +450,22 @@ dependencies = [
 
 [[package]]
 name = "bindgen"
-version = "0.63.0"
+version = "0.71.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "36d860121800b2a9a94f9b5604b332d5cffb234ce17609ea479d723dbc9d3885"
+checksum = "5f58bf3d7db68cfbac37cfc485a8d711e87e064c3d0fe0435b92f7a407f9d6b3"
 dependencies = [
- "bitflags 1.3.2",
+ "bitflags 2.9.0",
  "cexpr",
  "clang-sys",
- "lazy_static",
- "lazycell",
+ "itertools 0.10.5",
  "log",
- "peeking_take_while",
+ "prettyplease",
  "proc-macro2",
  "quote",
  "regex",
  "rustc-hash",
  "shlex",
- "syn 1.0.109",
- "which",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -1922,12 +1920,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 
 [[package]]
-name = "lazycell"
-version = "1.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
-
-[[package]]
 name = "libc"
 version = "0.2.171"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2486,12 +2478,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
-name = "peeking_take_while"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "19b17cddbe7ec3f8bc800887bab5e717348c95ea2ca0b1bf0837fb964dc67099"
-
-[[package]]
 name = "percent-encoding"
 version = "2.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2746,9 +2732,9 @@ checksum = "74765f6d916ee2faa39bc8e68e4f3ed8949b48cccdac59983d287a7cb71ce9c5"
 
 [[package]]
 name = "r2r"
-version = "0.9.4"
+version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "82f7b62c21b28403706844629ce89de2869677d83f33bdef615b32de56f0b5a0"
+checksum = "b36b61a6252e8e7a24919b9877dacf1dc9f0ac4c2d0eba91c68b35c1b2283ed2"
 dependencies = [
  "force-send-sync",
  "futures",
@@ -2774,9 +2760,9 @@ dependencies = [
 
 [[package]]
 name = "r2r_actions"
-version = "0.9.4"
+version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7d4e672304c3e50c75f39b8c97f97b87f7aef89fc43091071d7c9ab2a2ecf057"
+checksum = "5ca8488195951aaadef421b470c823cd095848bebf2004ff96ef5d351067eac1"
 dependencies = [
  "bindgen",
  "r2r_common",
@@ -2786,9 +2772,9 @@ dependencies = [
 
 [[package]]
 name = "r2r_common"
-version = "0.9.4"
+version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c4dee1e660f88ae6f8caf368db2b616f178bb7d57332e4ac157beeb6bbe57fe5"
+checksum = "9838c2f88c9fd088f188eadbf9459371b1e576affd7b2df04c45cd1e44b79b99"
 dependencies = [
  "bindgen",
  "os_str_bytes",
@@ -2798,9 +2784,9 @@ dependencies = [
 
 [[package]]
 name = "r2r_macros"
-version = "0.9.4"
+version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d47d4c56155db63630574a4f0a2426561ff37c18a2021affdf8611b712b7a892"
+checksum = "be0cda9778c21f78d2d593df41298c14b6530061dc70d2d31eb831f7fec8d648"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2809,9 +2795,9 @@ dependencies = [
 
 [[package]]
 name = "r2r_msg_gen"
-version = "0.9.4"
+version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7ec7a0473fa69271526ac1eeb5b1279b94e76cbfccec8ba9e32a18f0fb313de4"
+checksum = "03d5e77385a6b959014c14c45a444e1fbff99afad70912e120c21c30e7a65488"
 dependencies = [
  "bindgen",
  "force-send-sync",
@@ -2827,9 +2813,9 @@ dependencies = [
 
 [[package]]
 name = "r2r_rcl"
-version = "0.9.4"
+version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "05d79af52bdec385b7b732e78e5b8c20631c8f6968bd37316a84e6adaae41591"
+checksum = "9e5c208b2fbe64a00a42a70391f708298b6765769d39987286f4b7c82539561e"
 dependencies = [
  "bindgen",
  "paste",
@@ -3003,9 +2989,9 @@ checksum = "3cd14fd5e3b777a7422cca79358c57a8f6e3a703d9ac187448d0daf220c2407f"
 
 [[package]]
 name = "rustc-hash"
-version = "1.1.0"
+version = "2.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "08d43f7aa6b08d49f382cde6a7982047c3426db949b1424bc4b7ec9ae12c6ce2"
+checksum = "357703d41365b4b27c590e3ed91eabb1b663f07c4c084095e60cbed4362dff0d"
 
 [[package]]
 name = "rustix"
@@ -4101,18 +4087,6 @@ name = "weezl"
 version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "53a85b86a771b1c87058196170769dd264f66c0782acf1ae6cc51bfd64b39082"
-
-[[package]]
-name = "which"
-version = "4.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "87ba24419a2078cd2b0f2ede2691b6c66d8e47836da3b6db8265ebad47afbfc7"
-dependencies = [
- "either",
- "home",
- "once_cell",
- "rustix 0.38.44",
-]
 
 [[package]]
 name = "widestring"

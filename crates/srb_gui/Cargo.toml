@@ -43,7 +43,7 @@ image = { version = "0.25", default-features = false, features = [
     "png",
 ] }
 itertools = { version = "0.14" }
-nix = { version = "0.29", features = ["signal"] }
+nix = { version = "0.30", features = ["signal"] }
 r2r = { version = "0.9" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1" }

@@ -49,7 +49,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1" }
 strum = { version = "0.27", features = ["derive"] }
 subprocess = { version = "0.2" }
-sysinfo = { version = "0.34" }
+sysinfo = { version = "0.35" }
 tracing = { version = "0.1" }
 tracing-subscriber = { version = "0.3" }
 typed-builder = { version = "0.21" }

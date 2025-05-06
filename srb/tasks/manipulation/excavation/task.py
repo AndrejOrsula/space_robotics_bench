@@ -79,7 +79,7 @@ class TaskCfg(ManipulationEnvCfg):
     particles_settle_step_time: float = 2.0
     particles_settle_extra_time: float = 10.0
     particles_settle_vel_threshold: float = 0.01
-    particles_update_interval: float = 2.0
+    particles_update_interval: float = 10000.0
 
     def __post_init__(self):
         super().__post_init__()

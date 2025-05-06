@@ -51,7 +51,7 @@ from srb.core.sim.robot_setup import RobotAssemblerCfg
 from srb.core.visuals import VisualsCfg
 from srb.utils import logging
 from srb.utils.cfg import configclass
-from srb.utils.math import combine_frame_transforms_tuple
+from srb.utils.math import combine_frame_transforms_tuple, rpy_to_quat
 from srb.utils.path import (
     SRB_ASSETS_DIR_SRB_SKYDOME_HIGH_RES,
     SRB_ASSETS_DIR_SRB_SKYDOME_LOW_RES,
@@ -233,6 +233,13 @@ class BaseEnvCfg:
                 enable_color_temperature=True,
                 **kwargs,
             ),
+            init_state=AssetBaseCfg.InitialStateCfg(
+                rot=rpy_to_quat(
+                    -15.0,
+                    -30.0,
+                    0.0,
+                ),
+            ),
         )
 
     def _add_skydome(self, *, prim_path: str = "/World/skydome", **kwargs):
@@ -375,7 +382,7 @@ class BaseEnvCfg:
                 BakeType.NORMAL: _dyn_res * 2048,
                 BakeType.ROUGHNESS: _dyn_res * 1024,
             }
-            density = 0.01 * (_dyn_res**2)
+            density = 0.005 * (_dyn_res**2)
             flat_area_size = 0.8 * (_dyn_res**1.2)
 
             if isinstance(type_hints, types.UnionType):

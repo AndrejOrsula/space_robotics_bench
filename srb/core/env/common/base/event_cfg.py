@@ -35,7 +35,7 @@ class BaseEventCfg:
     ## Gravity
     randomize_gravity: EventTermCfg | None = EventTermCfg(
         func=randomize_gravity_uniform,
-        mode="interval",
+        mode="reset",
         is_global_time=True,
         interval_range_s=(10.0, 60.0),
         params={"distribution_params": MISSING},
@@ -44,26 +44,26 @@ class BaseEventCfg:
     ## Light
     randomize_sunlight_orientation: EventTermCfg | None = EventTermCfg(
         func=reset_xform_orientation_uniform,
-        mode="interval",
+        mode="reset",
         is_global_time=True,
         interval_range_s=(10.0, 60.0),
         params={
             "asset_cfg": SceneEntityCfg("sunlight"),
             "orientation_distribution_params": {
                 "roll": (
-                    deg_to_rad(-75.0),
-                    deg_to_rad(75.0),
+                    deg_to_rad(-60.0),
+                    deg_to_rad(60.0),
                 ),
                 "pitch": (
-                    deg_to_rad(-75.0),
-                    deg_to_rad(75.0),
+                    deg_to_rad(-60.0),
+                    deg_to_rad(60.0),
                 ),
             },
         },
     )
     # progress_sunlight_orientation: EventTermCfg | None = EventTermCfg(
     #     func=follow_xform_orientation_linear_trajectory,
-    #     mode="interval",
+    #     mode="reset",
     #     interval_range_s=(0.5, 0.5),
     #     is_global_time=True,
     #     params={
@@ -76,7 +76,7 @@ class BaseEventCfg:
     # )
     randomize_sunlight_intensity: EventTermCfg | None = EventTermCfg(
         func=randomize_usd_prim_attribute_uniform,
-        mode="interval",
+        mode="reset",
         is_global_time=True,
         interval_range_s=(10.0, 60.0),
         params={
@@ -87,7 +87,7 @@ class BaseEventCfg:
     )
     randomize_sunlight_angular_diameter: EventTermCfg | None = EventTermCfg(
         func=randomize_usd_prim_attribute_uniform,
-        mode="interval",
+        mode="reset",
         is_global_time=True,
         interval_range_s=(10.0, 60.0),
         params={
@@ -98,7 +98,7 @@ class BaseEventCfg:
     )
     randomize_sunlight_color_temperature: EventTermCfg | None = EventTermCfg(
         func=randomize_usd_prim_attribute_uniform,
-        mode="interval",
+        mode="reset",
         is_global_time=True,
         interval_range_s=(10.0, 60.0),
         params={

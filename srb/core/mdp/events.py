@@ -338,7 +338,7 @@ def randomize_usd_prim_attribute_uniform(
     else:
         dist_len = 1
     for i, prim in enumerate(asset.prims):
-        if env_ids and i not in env_ids:
+        if env_ids is not None and i not in env_ids:
             continue
         value = sample_uniform(
             distribution_params[0],  # type: ignore

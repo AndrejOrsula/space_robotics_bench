@@ -11,9 +11,7 @@ from srb.core.asset import (
     RigidObject,
 )
 from srb.core.env import BaseEventCfg, BaseSceneCfg, DirectEnv, DirectEnvCfg, ViewerCfg
-from srb.core.manager import EventTermCfg, SceneEntityCfg
 from srb.core.marker import FRAME_MARKER_SMALL_CFG
-from srb.core.mdp import reset_joints_by_offset
 from srb.core.sensor import (
     ContactSensor,
     ContactSensorCfg,
@@ -21,7 +19,7 @@ from srb.core.sensor import (
     FrameTransformerCfg,
 )
 from srb.utils.cfg import configclass
-from srb.utils.math import combine_frame_transforms_tuple, deg_to_rad
+from srb.utils.math import combine_frame_transforms_tuple
 
 
 @configclass
@@ -50,15 +48,16 @@ class ManipulationSceneCfg(BaseSceneCfg):
 
 @configclass
 class ManipulationEventCfg(BaseEventCfg):
-    randomize_robot_joints: EventTermCfg = EventTermCfg(
-        func=reset_joints_by_offset,
-        mode="reset",
-        params={
-            "asset_cfg": SceneEntityCfg("robot"),
-            "position_range": (-deg_to_rad(5.0), deg_to_rad(5.0)),
-            "velocity_range": (0.0, 0.0),
-        },
-    )
+    pass
+    # randomize_robot_joints: EventTermCfg = EventTermCfg(
+    #     func=reset_joints_by_offset,
+    #     mode="reset",
+    #     params={
+    #         "asset_cfg": SceneEntityCfg("robot"),
+    #         "position_range": (-deg_to_rad(5.0), deg_to_rad(5.0)),
+    #         "velocity_range": (0.0, 0.0),
+    #     },
+    # )
 
 
 @configclass
@@ -80,7 +79,7 @@ class ManipulationEnvCfg(DirectEnvCfg):
 
     ## Viewer
     viewer: ViewerCfg = ViewerCfg(
-        eye=(1.5, 0.0, 1.25), lookat=(0.0, 0.0, 0.0), origin_type="env"
+        eye=(1.5, 0.0, 1.75), lookat=(0.0, 0.0, 0.5), origin_type="env"
     )
 
     def __post_init__(self):

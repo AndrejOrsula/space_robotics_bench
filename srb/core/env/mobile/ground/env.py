@@ -20,7 +20,7 @@ from srb.utils.math import deg_to_rad
 
 @configclass
 class GroundSceneCfg(MobileSceneCfg):
-    env_spacing = 32.0
+    env_spacing: float = 32.0
 
 
 @configclass
@@ -61,7 +61,7 @@ class GroundEnvCfg(MobileEnvCfg):
     events: GroundEventCfg = GroundEventCfg()
 
     ## Time
-    env_rate: float = 1.0 / 50.0
+    env_rate: float = 1.0 / 500.0
     agent_rate: float = 1.0 / 25.0
 
     ## Viewer

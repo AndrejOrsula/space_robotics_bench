@@ -3311,6 +3311,7 @@ dependencies = [
  "egui",
  "egui_commonmark",
  "egui_extras",
+ "glob",
  "home",
  "image",
  "itertools 0.14.0",

@@ -31,8 +31,8 @@ def select_sample(
     **kwargs,
 ) -> SampleCfg:
     pose_range = {
-        "x": (-0.2, 0.2),
-        "y": (-0.3, 0.3),
+        "x": (-0.2, 0.1),
+        "y": (-0.25, 0.25),
         "z": (0.1, 0.1),
         "roll": (-torch.pi, torch.pi),
         "pitch": (-torch.pi, torch.pi),

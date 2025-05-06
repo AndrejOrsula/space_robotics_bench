@@ -25,7 +25,7 @@ from srb.utils.math import deg_to_rad, matrix_from_quat, rotmat_to_rot6d
 
 @configclass
 class SceneCfg(OrbitalSceneCfg):
-    env_spacing = 256.0
+    env_spacing: float = 256.0
 
     ## Sensors
     contacts_robot: ContactSensorCfg = ContactSensorCfg(

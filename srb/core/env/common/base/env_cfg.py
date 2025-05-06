@@ -369,11 +369,11 @@ class BaseEnvCfg:
                 ),
             )
             texture_resolution = {
-                BakeType.ALBEDO: _dyn_res * 1024,
-                BakeType.EMISSION: _dyn_res * 128,
-                BakeType.METALLIC: _dyn_res * 256,
-                BakeType.NORMAL: _dyn_res * 1024,
-                BakeType.ROUGHNESS: _dyn_res * 512,
+                BakeType.ALBEDO: _dyn_res * 2048,
+                BakeType.EMISSION: _dyn_res * 512,
+                BakeType.METALLIC: _dyn_res * 512,
+                BakeType.NORMAL: _dyn_res * 2048,
+                BakeType.ROUGHNESS: _dyn_res * 1024,
             }
             density = 0.01 * (_dyn_res**2)
             flat_area_size = 0.8 * (_dyn_res**1.2)

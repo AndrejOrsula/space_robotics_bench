@@ -594,6 +594,7 @@ def _teleop_agent_direct(
     sim_app: "SimulationApp",
     teleop_interface: "CombinedTeleopInterface",
     invert_controls: bool,
+    ft_feedback_use_contacts: bool = True,
     **kwargs,
 ):
     import torch
@@ -605,7 +606,7 @@ def _teleop_agent_direct(
     if invert_controls:
         invert_controls = isinstance(env.unwrapped, ManipulationEnv)
     if teleop_interface.ft_feedback_interfaces:
-        ft_feedback_use_contacts = False
+        ft_feedback_use_contacts = ft_feedback_use_contacts
 
     ## Run the environment
     with torch.inference_mode():

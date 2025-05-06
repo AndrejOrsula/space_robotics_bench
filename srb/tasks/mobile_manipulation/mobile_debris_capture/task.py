@@ -41,7 +41,7 @@ from srb.utils.math import (
 
 @configclass
 class SceneCfg(OrbitalManipulationSceneCfg):
-    env_spacing = 8.0
+    env_spacing: float = 8.0
     debris: RigidObjectCfg = MISSING  # type: ignore
 
 

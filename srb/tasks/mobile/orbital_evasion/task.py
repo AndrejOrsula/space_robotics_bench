@@ -23,7 +23,7 @@ from .asset import select_obstacle
 
 @configclass
 class SceneCfg(OrbitalSceneCfg):
-    env_spacing = 25.0
+    env_spacing: float = 25.0
 
     ## Assets
     objs: RigidObjectCollectionCfg = RigidObjectCollectionCfg(

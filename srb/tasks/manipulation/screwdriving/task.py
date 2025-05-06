@@ -101,7 +101,7 @@ class TaskCfg(ManipulationEnvCfg):
     events: EventCfg = EventCfg()
 
     ## Time
-    env_rate: float = 1.0 / 400.0
+    env_rate: float = 1.0 / 750.0
     episode_length_s: float = 15.0
     is_finite_horizon: bool = True
 

@@ -26,7 +26,7 @@ from srb.utils.math import combine_frame_transforms_tuple, deg_to_rad
 
 @configclass
 class ManipulationSceneCfg(BaseSceneCfg):
-    env_spacing = 4.0
+    env_spacing: float = 12.0
 
     ## Assets
     pedestal: AssetBaseCfg | None = None
@@ -75,12 +75,12 @@ class ManipulationEnvCfg(DirectEnvCfg):
     events: ManipulationEventCfg = ManipulationEventCfg()
 
     ## Time
-    env_rate: float = 1.0 / 150.0
+    env_rate: float = 1.0 / 500.0
     agent_rate: float = 1.0 / 50.0
 
     ## Viewer
     viewer: ViewerCfg = ViewerCfg(
-        eye=(1.5, 0.0, 1.75), lookat=(0.0, 0.0, 0.0), origin_type="env"
+        eye=(1.5, 0.0, 1.25), lookat=(0.0, 0.0, 0.0), origin_type="env"
     )
 
     def __post_init__(self):

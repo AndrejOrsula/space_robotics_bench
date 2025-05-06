@@ -93,7 +93,7 @@ class TaskCfg(ManipulationEnvCfg):
         # Scene: Sample
         sample = select_sample(
             self,
-            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.55, 0.0, 0.0)),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 0.0)),
             activate_contact_sensors=True,
         )
         self.scene.sample = sample.asset_cfg

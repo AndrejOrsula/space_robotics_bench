@@ -55,6 +55,9 @@ class EventCfg(ManipulationEventCfg):
         },
     )
 
+    # TODO: Remove
+    randomize_sunlight_orientation: EventTermCfg | None = None
+
 
 @configclass
 class TaskCfg(ManipulationEnvCfg):

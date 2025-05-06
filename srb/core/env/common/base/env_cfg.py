@@ -235,8 +235,8 @@ class BaseEnvCfg:
             ),
             init_state=AssetBaseCfg.InitialStateCfg(
                 rot=rpy_to_quat(
-                    -15.0,
-                    -30.0,
+                    45.0,
+                    30.0,
                     0.0,
                 ),
             ),
@@ -382,7 +382,7 @@ class BaseEnvCfg:
                 BakeType.NORMAL: _dyn_res * 2048,
                 BakeType.ROUGHNESS: _dyn_res * 1024,
             }
-            density = 0.005 * (_dyn_res**2)
+            density = 0.0075 * (_dyn_res**2)
             flat_area_size = 0.8 * (_dyn_res**1.2)
 
             if isinstance(type_hints, types.UnionType):

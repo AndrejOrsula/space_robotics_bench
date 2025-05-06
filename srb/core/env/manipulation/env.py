@@ -24,7 +24,7 @@ from srb.utils.math import combine_frame_transforms_tuple
 
 @configclass
 class ManipulationSceneCfg(BaseSceneCfg):
-    env_spacing: float = 12.0
+    env_spacing: float = 8.0
 
     ## Assets
     pedestal: AssetBaseCfg | None = None
@@ -79,7 +79,7 @@ class ManipulationEnvCfg(DirectEnvCfg):
 
     ## Viewer
     viewer: ViewerCfg = ViewerCfg(
-        eye=(1.5, 0.0, 1.75), lookat=(0.0, 0.0, 0.5), origin_type="env"
+        eye=(1.75, 0.0, 1.75), lookat=(0.125, 0.0, 0.25), origin_type="env"
     )
 
     def __post_init__(self):

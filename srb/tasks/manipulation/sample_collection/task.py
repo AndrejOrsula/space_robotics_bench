@@ -6,7 +6,6 @@ import torch
 from srb._typing import StepReturn
 from srb.core.asset import (
     Articulation,
-    ArticulationCfg,
     AssetVariant,
     Object,
     RigidObject,
@@ -26,7 +25,6 @@ from srb.core.sensor import ContactSensor, ContactSensorCfg
 from srb.core.sim import PreviewSurfaceCfg, SphereCfg
 from srb.utils.cfg import configclass
 from srb.utils.math import (
-    deg_to_rad,
     matrix_from_quat,
     rotmat_to_rot6d,
     scale_transform,
@@ -94,19 +92,6 @@ class TaskCfg(ManipulationEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
-
-        # TODO: Remove
-        self.robot.asset_cfg.init_state = ArticulationCfg.InitialStateCfg(
-            joint_pos={
-                "panda_joint1": 0.0,
-                "panda_joint2": deg_to_rad(20.0),
-                "panda_joint3": 0.0,
-                "panda_joint4": deg_to_rad(-120.0),
-                "panda_joint5": 0.0,
-                "panda_joint6": deg_to_rad(140.0),
-                "panda_joint7": deg_to_rad(45.0),
-            },
-        )
 
         # Scene: Sample
         sample = select_sample(

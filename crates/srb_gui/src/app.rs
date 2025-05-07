@@ -521,7 +521,7 @@ impl App {
                     .build(),
             ),
             (
-                egui::Theme::Light,
+                egui::Theme::Dark,
                 "Debris Capture",
                 crate::utils::Difficulty::Medium,
                 crate::macros::include_content_image!("_images/debris_capture_orbit.jpg"),
@@ -556,7 +556,7 @@ impl App {
                     .build(),
             ),
             (
-                egui::Theme::Light,
+                egui::Theme::Dark,
                 "Screwdriving",
                 crate::utils::Difficulty::Challenging,
                 crate::macros::include_content_image!("_images/screwdriving.jpg"),
@@ -590,7 +590,7 @@ impl App {
                     .build(),
             ),
             (
-                egui::Theme::Light,
+                egui::Theme::Dark,
                 "Gateway with Canadarm3",
                 crate::utils::Difficulty::Demo,
                 crate::macros::include_content_image!("_images/gateway.jpg"),
@@ -633,7 +633,7 @@ impl App {
                                     self.task_config = config;
                                     self.gravity = self.task_config.domain.gravity_magnitude();
                                     self.start_subprocess();
-                                    self.current_page = Page::Interface;
+                                    // self.current_page = Page::Interface;
                                 }
                                 if button.hovered() {
                                     hovered_task = Some(i);
@@ -1242,7 +1242,7 @@ impl App {
                                 {
                                     self.gravity = self.task_config.domain.gravity_magnitude();
                                     self.start_subprocess();
-                                    self.current_page = Page::Interface;
+                                    // self.current_page = Page::Interface;
                                 }
                             },
                         );

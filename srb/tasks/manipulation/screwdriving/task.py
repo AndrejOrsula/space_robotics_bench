@@ -56,7 +56,7 @@ class SceneCfg(ManipulationSceneCfg):
         prim_path="{ENV_REGEX_NS}/decor",
         spawn=UsdFileCfg(
             usd_path=assets.Ingenuity().asset_cfg.spawn.usd_path,  # type: ignore
-            collision_props=CollisionPropertiesCfg(collision_enabled=False),
+            collision_props=CollisionPropertiesCfg(collision_enabled=True),
             mesh_collision_props=MeshCollisionPropertiesCfg(mesh_approximation="none"),
             articulation_props=ArticulationRootPropertiesCfg(
                 articulation_enabled=False

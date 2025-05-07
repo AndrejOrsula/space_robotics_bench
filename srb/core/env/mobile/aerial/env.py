@@ -61,7 +61,7 @@ class AerialEnvCfg(MobileEnvCfg):
 
     ## Viewer
     viewer: ViewerCfg = ViewerCfg(
-        eye=(10.0, -10.0, 20.0), lookat=(0.0, 0.0, 0.0), origin_type="env"
+        eye=(-10.0, 0.0, 20.0), lookat=(0.0, 0.0, 0.0), origin_type="env"
     )
 
     def __post_init__(self):

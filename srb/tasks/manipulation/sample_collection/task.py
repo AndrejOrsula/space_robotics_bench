@@ -96,18 +96,16 @@ class TaskCfg(ManipulationEnvCfg):
         super().__post_init__()
 
         # TODO: Remove
-        self.robot.asset_cfg.init_state = (
-            ArticulationCfg.InitialStateCfg(
-                joint_pos={
-                    "panda_joint1": 0.0,
-                    "panda_joint2": deg_to_rad(20.0),
-                    "panda_joint3": 0.0,
-                    "panda_joint4": deg_to_rad(-120.0),
-                    "panda_joint5": 0.0,
-                    "panda_joint6": deg_to_rad(140.0),
-                    "panda_joint7": deg_to_rad(45.0),
-                },
-            ),
+        self.robot.asset_cfg.init_state = ArticulationCfg.InitialStateCfg(
+            joint_pos={
+                "panda_joint1": 0.0,
+                "panda_joint2": deg_to_rad(20.0),
+                "panda_joint3": 0.0,
+                "panda_joint4": deg_to_rad(-120.0),
+                "panda_joint5": 0.0,
+                "panda_joint6": deg_to_rad(140.0),
+                "panda_joint7": deg_to_rad(45.0),
+            },
         )
 
         # Scene: Sample

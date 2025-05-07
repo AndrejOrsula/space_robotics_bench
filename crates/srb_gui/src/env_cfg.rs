@@ -33,6 +33,8 @@ pub struct TaskConfig {
     pub teleop_devices: Vec<TeleopDevice>,
     #[builder(default = vec![InterfaceType::Gui])]
     pub interfaces: Vec<InterfaceType>,
+    #[builder(default = vec![])]
+    pub extras: Vec<String>,
 }
 
 impl TaskConfig {
@@ -80,6 +82,11 @@ impl TaskConfig {
             "env.stack={}",
             self.stack_envs.to_string().to_lowercase()
         ));
+
+        // --- Extra Environment Configuration ---
+        if !self.extras.is_empty() {
+            exec = exec.args(&self.extras);
+        }
 
         // --- Scenery Configuration ---
         if let Some(scenery) = &self.scenery {

@@ -498,24 +498,26 @@ impl App {
         ); 9] = [
             (
                 egui::Theme::Dark,
-                "Lunar Sample Collection",
+                "Rock Sample Collection",
                 crate::utils::Difficulty::Easy,
                 crate::macros::include_content_image!("_images/sample_collection_moon.jpg"),
                 TaskConfig::builder()
                     .task("sample_collection".to_owned())
                     .domain(Domain::Moon)
                     .robot("franka".to_owned())
+                    .extras(vec!["env.sample=procedural".to_owned()])
                     .build(),
             ),
             (
                 egui::Theme::Dark,
-                "Mars Sample Tube Collection",
+                "Sample Tube Collection",
                 crate::utils::Difficulty::Easy,
                 crate::macros::include_content_image!("_images/sample_collection_mars.jpg"),
                 TaskConfig::builder()
                     .task("sample_collection".to_owned())
                     .domain(Domain::Mars)
                     .robot("franka".to_owned())
+                    .seed(89)
                     .build(),
             ),
             (
@@ -531,52 +533,54 @@ impl App {
             ),
             (
                 egui::Theme::Dark,
-                "Lunar Peg-in-Hole Assembly",
-                crate::utils::Difficulty::Medium,
+                "Peg-in-Hole Assembly",
+                crate::utils::Difficulty::Challenging,
                 crate::macros::include_content_image!("_images/peg_in_hole_moon.jpg"),
                 TaskConfig::builder()
                     .task("peg_in_hole_assembly".to_owned())
                     .domain(Domain::Moon)
                     .robot("franka".to_owned())
+                    .seed(9)
                     .build(),
             ),
             (
                 egui::Theme::Dark,
-                "Mars Perseverance Rover",
-                crate::utils::Difficulty::Demo,
-                crate::macros::include_content_image!("_images/perseverance.jpg"),
+                "Perseverance Navigation",
+                crate::utils::Difficulty::Easy,
+                crate::macros::include_content_image!("_images/waypoint_navigation.jpg"),
                 TaskConfig::builder()
-                    .task("_ground".to_owned())
+                    .task("waypoint_navigation".to_owned())
                     .domain(Domain::Mars)
                     .robot("perseverance".to_owned())
+                    .extras(vec!["env.debug_vis=true".to_owned()])
                     .build(),
             ),
             (
                 egui::Theme::Light,
-                "Peg-in-Hole Assembly",
+                "Screwdriving",
                 crate::utils::Difficulty::Challenging,
-                crate::macros::include_content_image!("_images/peg_in_hole_orbit.jpg"),
+                crate::macros::include_content_image!("_images/screwdriving.jpg"),
                 TaskConfig::builder()
-                    .task("peg_in_hole_assembly".to_owned())
-                    .domain(Domain::Orbit)
-                    .robot("franka".to_owned())
+                    .task("screwdriving".to_owned())
+                    .domain(Domain::Mars)
+                    .robot("franka+electric_screwdriver_m5".to_owned())
                     .build(),
             ),
             (
                 egui::Theme::Dark,
-                "Locomotion",
-                crate::utils::Difficulty::Demo,
-                // TODO[low]: Update locomotion task in GUI with the proper image
-                crate::macros::include_content_image!("_images/peg_in_hole_moon.jpg"),
+                "Excavation",
+                crate::utils::Difficulty::Challenging,
+                crate::macros::include_content_image!("_images/excavation.jpg"),
                 TaskConfig::builder()
                     .task("excavation".to_owned())
                     .domain(Domain::Moon)
-                    .robot("franka+".to_owned())
+                    .robot("franka+scoop_rectangular".to_owned())
+                    .extras(vec!["env.spacing=5.0".to_owned()])
                     .build(),
             ),
             (
                 egui::Theme::Dark,
-                "Ingenuity Mars Helicopter",
+                "Ingenuity Flight",
                 crate::utils::Difficulty::Demo,
                 crate::macros::include_content_image!("_images/ingenuity.jpg"),
                 TaskConfig::builder()
@@ -587,7 +591,7 @@ impl App {
             ),
             (
                 egui::Theme::Light,
-                "Canadarm3",
+                "Gateway with Canadarm3",
                 crate::utils::Difficulty::Demo,
                 crate::macros::include_content_image!("_images/gateway.jpg"),
                 TaskConfig::builder()
@@ -595,6 +599,7 @@ impl App {
                     .domain(Domain::Orbit)
                     .robot("canadarm3".to_owned())
                     .scenery(Some("static_gateway".to_owned()))
+                    .extras(vec!["env.lunar_orbit=true".to_owned()])
                     .build(),
             ),
         ];
@@ -1261,7 +1266,7 @@ impl App {
         let exec = self.task_config.set_exec_env(exec);
 
         // Start the subprocess
-        info!("Starting subprocess...");
+        info!("Starting subprocess: {:?}", exec);
         let mut popen = exec.popen().unwrap();
 
         popen

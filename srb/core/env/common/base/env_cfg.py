@@ -66,13 +66,14 @@ class BaseEnvCfg:
     ## Scenario
     seed: int = 0
     domain: Domain = Domain.MOON
+    lunar_orbit: bool = False
 
     ## Assets
     scenery: Scenery | AssetVariant | None = AssetVariant.PROCEDURAL
     _scenery: Scenery | None = MISSING  # type: ignore
     robot: Robot | AssetVariant = AssetVariant.DATASET
     _robot: Robot = MISSING  # type: ignore
-    skydome: Literal["low_res", "high_res"] | bool | None = "low_res"
+    skydome: Literal["low_res", "high_res"] | bool | None = "high_res"
 
     ## Assemblies (dynamic joints)
     joint_assemblies: Dict[str, RobotAssemblerCfg] = {}
@@ -310,8 +311,9 @@ class BaseEnvCfg:
                     spawn=DomeLightCfg(
                         intensity=0.25 * self.domain.light_intensity,
                         texture_file=skydome_dir.joinpath(
-                            "low_earth_orbit.exr"
-                            # "low_lunar_orbit.jpg"
+                            "low_lunar_orbit.jpg"
+                            if self.lunar_orbit
+                            else "low_earth_orbit.exr"
                         ).as_posix(),
                         **kwargs,
                     ),

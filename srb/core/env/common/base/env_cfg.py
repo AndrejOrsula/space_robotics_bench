@@ -170,7 +170,7 @@ class BaseEnvCfg:
         self._update_debug_vis()
 
     def _update_memory_allocation(self):
-        _pow = min(math.floor(self.scene.num_envs ** (1.0 / 3.0)) - 1, 8)
+        _pow = 3 + min(math.floor(self.scene.num_envs ** (1.0 / 3.0)) - 1, 8)
 
         self.sim.physx.gpu_max_rigid_contact_count = math.floor(
             self.malloc_scale * 2 ** (13 + _pow),

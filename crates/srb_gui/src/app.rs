@@ -521,7 +521,7 @@ impl App {
                     .build(),
             ),
             (
-                egui::Theme::Dark,
+                egui::Theme::Light,
                 "Debris Capture",
                 crate::utils::Difficulty::Medium,
                 crate::macros::include_content_image!("_images/debris_capture_orbit.jpg"),
@@ -590,7 +590,7 @@ impl App {
                     .build(),
             ),
             (
-                egui::Theme::Dark,
+                egui::Theme::Light,
                 "Gateway with Canadarm3",
                 crate::utils::Difficulty::Demo,
                 crate::macros::include_content_image!("_images/gateway.jpg"),

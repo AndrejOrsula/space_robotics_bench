@@ -548,7 +548,7 @@ impl App {
                 egui::Theme::Dark,
                 "Perseverance Navigation",
                 crate::utils::Difficulty::Easy,
-                crate::macros::include_content_image!("_images/perseverance.jpg"),
+                crate::macros::include_content_image!("_images/waypoint_navigation.jpg"),
                 TaskConfig::builder()
                     .task("waypoint_navigation".to_owned())
                     .domain(Domain::Mars)
@@ -560,7 +560,7 @@ impl App {
                 egui::Theme::Dark,
                 "Screwdriving",
                 crate::utils::Difficulty::Challenging,
-                crate::macros::include_content_image!("../../../docs/theme/favicon.png"),
+                crate::macros::include_content_image!("_images/screwdriving.jpg"),
                 TaskConfig::builder()
                     .task("screwdriving".to_owned())
                     .domain(Domain::Mars)
@@ -571,7 +571,7 @@ impl App {
                 egui::Theme::Dark,
                 "Excavation",
                 crate::utils::Difficulty::Challenging,
-                crate::macros::include_content_image!("../../../docs/theme/favicon.png"),
+                crate::macros::include_content_image!("_images/excavation.jpg"),
                 TaskConfig::builder()
                     .task("excavation".to_owned())
                     .domain(Domain::Moon)
@@ -600,6 +600,7 @@ impl App {
                     .domain(Domain::Orbit)
                     .robot("canadarm3".to_owned())
                     .scenery(Some("static_gateway".to_owned()))
+                    .extras(vec!["env.lunar_orbit=true".to_owned()])
                     .build(),
             ),
         ];

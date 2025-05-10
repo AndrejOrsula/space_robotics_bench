@@ -21,7 +21,8 @@ class SampleTube(Object):
             ),
             collision_props=CollisionPropertiesCfg(),
             mesh_collision_props=MeshCollisionPropertiesCfg(
-                mesh_approximation="convexDecomposition"
+                mesh_approximation="sdf",
+                sdf_resolution=512,
             ),
             rigid_props=RigidBodyPropertiesCfg(),
             mass_props=MassPropertiesCfg(density=1500.0),

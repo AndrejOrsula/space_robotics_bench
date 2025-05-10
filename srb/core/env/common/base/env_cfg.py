@@ -66,13 +66,14 @@ class BaseEnvCfg:
     ## Scenario
     seed: int = 0
     domain: Domain = Domain.MOON
+    lunar_orbit: bool = False
 
     ## Assets
     scenery: Scenery | AssetVariant | None = AssetVariant.PROCEDURAL
     _scenery: Scenery | None = MISSING  # type: ignore
     robot: Robot | AssetVariant = AssetVariant.DATASET
     _robot: Robot = MISSING  # type: ignore
-    skydome: Literal["low_res", "high_res"] | bool | None = "low_res"
+    skydome: Literal["low_res", "high_res"] | bool | None = "high_res"
 
     ## Assemblies (dynamic joints)
     joint_assemblies: Dict[str, RobotAssemblerCfg] = {}
@@ -169,7 +170,7 @@ class BaseEnvCfg:
         self._update_debug_vis()
 
     def _update_memory_allocation(self):
-        _pow = min(math.floor(self.scene.num_envs ** (1.0 / 3.0)) - 1, 8)
+        _pow = 3 + min(math.floor(self.scene.num_envs ** (1.0 / 3.0)) - 1, 8)
 
         self.sim.physx.gpu_max_rigid_contact_count = math.floor(
             self.malloc_scale * 2 ** (13 + _pow),
@@ -310,8 +311,9 @@ class BaseEnvCfg:
                     spawn=DomeLightCfg(
                         intensity=0.25 * self.domain.light_intensity,
                         texture_file=skydome_dir.joinpath(
-                            "low_earth_orbit.exr"
-                            # "low_lunar_orbit.jpg"
+                            "low_lunar_orbit.jpg"
+                            if self.lunar_orbit
+                            else "low_earth_orbit.exr"
                         ).as_posix(),
                         **kwargs,
                     ),
@@ -376,13 +378,13 @@ class BaseEnvCfg:
                 ),
             )
             texture_resolution = {
-                BakeType.ALBEDO: _dyn_res * 1024,
-                BakeType.EMISSION: _dyn_res * 128,
-                BakeType.METALLIC: _dyn_res * 256,
-                BakeType.NORMAL: _dyn_res * 1024,
-                BakeType.ROUGHNESS: _dyn_res * 512,
+                BakeType.ALBEDO: _dyn_res * 2048,
+                BakeType.EMISSION: _dyn_res * 512,
+                BakeType.METALLIC: _dyn_res * 512,
+                BakeType.NORMAL: _dyn_res * 2048,
+                BakeType.ROUGHNESS: _dyn_res * 1024,
             }
-            density = 0.01 * (_dyn_res**2)
+            density = 0.0075 * (_dyn_res**2)
             flat_area_size = 0.8 * (_dyn_res**1.2)
 
             if isinstance(type_hints, types.UnionType):

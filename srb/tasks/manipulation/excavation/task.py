@@ -67,7 +67,7 @@ class TaskCfg(ManipulationEnvCfg):
     events: EventCfg = EventCfg()
 
     ## Time
-    env_rate: float = 1.0 / 200.0
+    env_rate: float = 1.0 / 350.0
     episode_length_s: float = 20.0
     is_finite_horizon: bool = True
 
@@ -79,7 +79,7 @@ class TaskCfg(ManipulationEnvCfg):
     particles_settle_step_time: float = 2.0
     particles_settle_extra_time: float = 10.0
     particles_settle_vel_threshold: float = 0.01
-    particles_update_interval: float = 2.0
+    particles_update_interval: float = 10000.0
 
     def __post_init__(self):
         super().__post_init__()

@@ -53,7 +53,7 @@ impl TaskConfig {
                     .collect::<Vec<String>>(),
             );
         } else {
-            // TODO: Support teleop via policy
+            // TODO[gui]: Support teleop via policy
             exec = exec.arg("rand");
         }
         if self.hide_ui {
@@ -114,7 +114,7 @@ impl TaskConfig {
         exec
     }
 
-    /// TODO: Review function
+    /// TODO[gui]: Review robot arg building logic
     fn build_robot_arg(&self) -> String {
         let mut final_robot_arg = String::new();
         let has_base = !self.robot.is_empty() && self.robot != "default";

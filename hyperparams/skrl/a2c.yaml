@@ -10,12 +10,7 @@ models:
     initial_log_std: -2.0
     network:
       - name: net
-        input: 'concatenate((
-          STATES["state_dyn"],
-          STATES["proprio"],
-          STATES["proprio_dyn"],
-          STATES["command"]
-          ))'
+        input: 'concatenate((STATES["state_dyn"], STATES["proprio"], STATES["proprio_dyn"], STATES["command"]))'
         layers: [384, 384]
         activations: elu
     output: ACTIONS
@@ -24,32 +19,25 @@ models:
     clip_actions: False
     network:
       - name: net
-        input: 'concatenate((
-          STATES["state_dyn"],
-          STATES["proprio"],
-          STATES["proprio_dyn"],
-          STATES["command"]
-          ))'
+        input: 'concatenate((STATES["state_dyn"], STATES["proprio"], STATES["proprio_dyn"], STATES["command"]))'
         layers: [384, 384]
         activations: elu
     output: ONE
 
-# https://skrl.readthedocs.io/en/latest/api/memories/sequential.html
+# https://skrl.readthedocs.io/en/latest/api/memories/random.html
 memory:
-  class: SequencedMemory
-  memory_size: 256
-  num_sequences: 16
-  sequence_length: 256
+  class: RandomMemory
+  memory_size: 64
 
-# https://skrl.readthedocs.io/en/latest/api/agents/ppo_rnn.html
+# https://skrl.readthedocs.io/en/latest/api/agents/a2c.html
 agent:
-  class: PPO_RNN
-  rollouts: 64
-  learning_epochs: 16
-  mini_batches: 8
+  class: A2C
+  rollouts: 8
+  learning_epochs: 1
+  mini_batches: 1
   discount_factor: 0.997
   lambda: 0.9
-  learning_rate: 1.0e-4
+  learning_rate: 3.0e-4
   learning_rate_scheduler: null
   learning_rate_scheduler_kwargs: {}
   state_preprocessor: RunningStandardScaler
@@ -59,14 +47,9 @@ agent:
   random_timesteps: 0
   learning_starts: 0
   grad_norm_clip: 0.5
-  ratio_clip: 0.1
-  value_clip: 0.1
-  clip_predicted_values: True
   entropy_loss_scale: 0.01
-  value_loss_scale: 0.5
-  kl_threshold: 0.0
+  value_loss_scale: 0.4
   rewards_shaper_scale: 1.0
-  time_limit_bootstrap: False
   experiment:
     directory: "MISSING"
     experiment_name: "MISSING"
@@ -77,5 +60,5 @@ agent:
 # https://skrl.readthedocs.io/en/latest/api/trainers/sequential.html
 trainer:
   class: SequentialTrainer
-  timesteps: 50000000
+  timesteps: 100000000
   environment_info: log

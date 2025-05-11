@@ -189,7 +189,6 @@ impl Default for App {
         let last_message_pub = std::time::Instant::now();
 
         // --- Log File Initialization (Keep as is) ---
-        // TODO: Create parent directory if it doesn't exist
         let logfile_path = PathBuf::from(LOGFILE_PATH);
         if let Some(parent) = logfile_path.parent() {
             if !parent.exists() {

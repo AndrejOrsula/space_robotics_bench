@@ -1,4 +1,4 @@
-n_timesteps: 50000000
+n_timesteps: 100000000
 policy: "MultiInputPolicy"
 batch_size: 512
 cg_damping: 0.1

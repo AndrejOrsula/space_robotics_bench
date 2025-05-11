@@ -9,13 +9,15 @@ models:
     max_log_std: 2.0
     initial_log_std: -2.0
     network:
-      - name: net
-        input: 'concatenate((
-          STATES["state_dyn"],
-          STATES["proprio"],
-          STATES["proprio_dyn"],
-          STATES["command"]
-          ))'
+      - name: rnn_layer
+        input: 'concatenate((STATES["state_dyn"], STATES["proprio"], STATES["proprio_dyn"], STATES["command"]))'
+        type: lstm
+        units: 256
+        num_layers: 1
+        bidirectional: False
+        sequenced: True
+      - name: net_after_rnn
+        input: rnn_layer
         layers: [384, 384]
         activations: elu
     output: ACTIONS
@@ -23,13 +25,15 @@ models:
     class: DeterministicMixin
     clip_actions: False
     network:
-      - name: net
-        input: 'concatenate((
-          STATES["state_dyn"],
-          STATES["proprio"],
-          STATES["proprio_dyn"],
-          STATES["command"]
-          ))'
+      - name: rnn_layer
+        input: 'concatenate((STATES["state_dyn"], STATES["proprio"], STATES["proprio_dyn"], STATES["command"]))'
+        type: lstm
+        units: 256
+        num_layers: 1
+        bidirectional: False
+        sequenced: True
+      - name: net_after_rnn
+        input: rnn_layer
         layers: [384, 384]
         activations: elu
     output: ONE
@@ -37,16 +41,15 @@ models:
 # https://skrl.readthedocs.io/en/latest/api/memories/sequential.html
 memory:
   class: SequencedMemory
-  memory_size: 256
-  num_sequences: 16
-  sequence_length: 256
+  memory_size: 128
+  num_sequences: 4
 
-# https://skrl.readthedocs.io/en/latest/api/agents/ppo_rnn.html
+# https://skrl.readthedocs.io/en/latest/api/agents/rpo.html
 agent:
-  class: PPO_RNN
-  rollouts: 64
+  class: RPO
+  rollouts: 128
   learning_epochs: 16
-  mini_batches: 8
+  mini_batches: 1
   discount_factor: 0.997
   lambda: 0.9
   learning_rate: 1.0e-4
@@ -61,12 +64,11 @@ agent:
   grad_norm_clip: 0.5
   ratio_clip: 0.1
   value_clip: 0.1
-  clip_predicted_values: True
+  clip_predicted_values: False
   entropy_loss_scale: 0.01
   value_loss_scale: 0.5
   kl_threshold: 0.0
   rewards_shaper_scale: 1.0
-  time_limit_bootstrap: False
   experiment:
     directory: "MISSING"
     experiment_name: "MISSING"
@@ -77,5 +79,5 @@ agent:
 # https://skrl.readthedocs.io/en/latest/api/trainers/sequential.html
 trainer:
   class: SequentialTrainer
-  timesteps: 50000000
+  timesteps: 100000000
   environment_info: log

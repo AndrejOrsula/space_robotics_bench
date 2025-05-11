@@ -1,0 +1,89 @@
+# https://skrl.readthedocs.io/en/latest/api/utils/model_instantiators.html
+models:
+  separate: True
+  policy:
+    class: DeterministicMixin
+    clip_actions: True
+    network:
+      - name: net
+        input: 'concatenate((STATES["state_dyn"], STATES["proprio"], STATES["proprio_dyn"], STATES["command"]))'
+        layers: [384, 384]
+        activations: elu
+        output_activation: tanh
+    output: ACTIONS
+  value:
+    class: DeterministicMixin
+    clip_actions: False
+    network_1:
+      - name: net1
+        input: 'concatenate((
+          STATES["state_dyn"],
+          STATES["proprio"],
+          STATES["proprio_dyn"],
+          STATES["command"],
+          ACTIONS["actions"]
+          ))'
+        layers: [384, 384]
+        activations: elu
+    network_2:
+      - name: net2
+        input: 'concatenate((
+          STATES["state_dyn"],
+          STATES["proprio"],
+          STATES["proprio_dyn"],
+          STATES["command"],
+          ACTIONS["actions"]
+          ))'
+        layers: [384, 384]
+        activations: elu
+    output: (ONE, ONE)
+
+# https://skrl.readthedocs.io/en/latest/api/memories/random.html
+memory:
+  class: RandomMemory
+  memory_size: 5000000
+
+# https://skrl.readthedocs.io/en/latest/api/agents/td3.html
+agent:
+  class: TD3
+  batch_size: 512
+  discount_factor: 0.997
+  polyak_factor: 0.005
+  learning_rate_policy: 3.0e-4
+  learning_rate_value: 3.0e-4
+  learning_rate_scheduler_policy: null
+  learning_rate_scheduler_value: null
+  learning_rate_scheduler_kwargs_policy: {}
+  learning_rate_scheduler_kwargs_value: {}
+  state_preprocessor: RunningStandardScaler
+  state_preprocessor_kwargs: null
+  value_preprocessor: null
+  random_timesteps: 50000
+  learning_starts: 50000
+  grad_norm_clip: 0.0
+  policy_noise: 0.2
+  noise_clip: 0.5
+  policy_update_frequency: 2
+  learn_once: False
+  rollouts: 1
+  learning_epochs: 4
+  mini_batches: 1
+  exploration:
+    noise: GaussianNoise
+    noise_kwargs:
+      mean: 0.0
+      stddev: 0.1
+      clip: null
+  rewards_shaper_scale: 1.0
+  experiment:
+    directory: "MISSING"
+    experiment_name: "MISSING"
+    write_interval: auto
+    checkpoint_interval: 1000
+    wandb: True
+
+# https://skrl.readthedocs.io/en/latest/api/trainers/sequential.html
+trainer:
+  class: SequentialTrainer
+  timesteps: 100000000
+  environment_info: log

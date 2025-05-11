@@ -169,37 +169,37 @@ class BaseEnvCfg:
         self._update_debug_vis()
 
     def _update_memory_allocation(self):
-        _pow = min(math.floor(self.scene.num_envs**0.375) - 1, 14)
+        _pow = math.floor(self.scene.num_envs**0.375) - 1
 
         self.sim.physx.gpu_max_rigid_contact_count = math.floor(
-            self.malloc_scale * 2 ** (13 + _pow),
+            self.malloc_scale * 2 ** min(13 + _pow, 31),
         )
         self.sim.physx.gpu_max_rigid_patch_count = math.floor(
-            self.malloc_scale * 2 ** (12 + _pow),
+            self.malloc_scale * 2 ** min(12 + _pow, 31),
         )
         self.sim.physx.gpu_found_lost_pairs_capacity = math.floor(
-            self.malloc_scale * 2 ** (12 + _pow),
+            self.malloc_scale * 2 ** min(12 + _pow, 31),
         )
         self.sim.physx.gpu_found_lost_aggregate_pairs_capacity = math.floor(
-            self.malloc_scale * 2 ** (13 + _pow),
+            self.malloc_scale * 2 ** min(13 + _pow, 31),
         )
         self.sim.physx.gpu_total_aggregate_pairs_capacity = math.floor(
-            self.malloc_scale * 2 ** (12 + _pow),
+            self.malloc_scale * 2 ** min(12 + _pow, 31),
         )
         self.sim.physx.gpu_collision_stack_size = math.floor(
-            self.malloc_scale * 2 ** (17 + _pow),
+            self.malloc_scale * 2 ** min(18 + _pow, 31),
         )
         self.sim.physx.gpu_heap_capacity = math.floor(
-            self.malloc_scale * 2 ** (14 + _pow),
+            self.malloc_scale * 2 ** min(18 + _pow, 31),
         )
         self.sim.physx.gpu_temp_buffer_capacity = math.floor(
-            self.malloc_scale * 2 ** (10 + _pow),
+            self.malloc_scale * 2 ** min(10 + _pow, 31),
         )
         self.sim.physx.gpu_max_soft_body_contacts = math.floor(
-            self.malloc_scale * 2 ** (10 + _pow),
+            self.malloc_scale * 2 ** min(10 + _pow, 31),
         )
         self.sim.physx.gpu_max_particle_contacts = math.floor(
-            self.malloc_scale * 2 ** (10 + _pow),
+            self.malloc_scale * 2 ** min(10 + _pow, 31),
         )
 
         self.sim.physx.gpu_max_num_partitions = 1 << bisect.bisect_left(

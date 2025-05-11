@@ -1792,45 +1792,40 @@ class EntityToList(str, Enum):
 
 
 class SupportedAlgo(str, Enum):
-    # Dreamer
+    # DreamerV3
     DREAMER = auto()
-    # SB3
+
+    # Stable-Baselines3
     SB3_A2C = auto()
-    SB3_DDPG = auto()
-    SB3_DQN = auto()
-    SB3_PPO = auto()
-    SB3_SAC = auto()
-    SB3_TD3 = auto()
-    # SB3 Contrib
     SB3_ARS = auto()
     SB3_CROSSQ = auto()
-    SB3_QRDQN = auto()
+    SB3_DDPG = auto()
+    SB3_PPO = auto()
+    SB3_PPO_LSTM = auto()
+    SB3_SAC = auto()
+    SB3_TD3 = auto()
     SB3_TQC = auto()
     SB3_TRPO = auto()
-    SB3_PPO_LSTM = auto()
+
     # SBX
+    SBX_CROSSQ = auto()
     SBX_DDPG = auto()
-    SBX_DQN = auto()
     SBX_PPO = auto()
     SBX_SAC = auto()
     SBX_TD3 = auto()
     SBX_TQC = auto()
-    SBX_CrossQ = auto()
-    # SKRL
+
+    # skrl
     SKRL_A2C = auto()
     SKRL_AMP = auto()
     SKRL_CEM = auto()
     SKRL_DDPG = auto()
-    SKRL_DDQN = auto()
-    SKRL_DQN = auto()
     SKRL_PPO = auto()
     SKRL_PPO_RNN = auto()
     SKRL_RPO = auto()
     SKRL_SAC = auto()
     SKRL_TD3 = auto()
     SKRL_TRPO = auto()
-    SKRL_IPPO = auto()
-    SKRL_MAPPO = auto()
 
     def __str__(self) -> str:
         return self.name.lower()

@@ -14,15 +14,15 @@ Reinforcement Learning (RL) is one of the primary focus areas of the Space Robot
 
 The fastest way to get started with training an RL agent is by using the `srb agent train` command, which provides a streamlined interface for all integrated RL frameworks. In general, you want to specify the RL algorithm to use, the environment to train on, and the number of parallel environment instances used for rollout collection.
 
-Let's start with a simple `TODO_ENV` environment using the `TODO_ALGO` algorithm. For now, omit the `--headless` flag so that you can observe the convergence in real time:
+Let's start with a simple `landing` environment using the `sbx_ppo` algorithm ([PPO](https://arxiv.org/abs/1707.06347) implementation of [SBX](https://github.com/araffin/sbx)). For now, omit the `--headless` flag so that you can observe the convergence in real time:
 
 ```bash
-srb agent train --algo TODO_ALGO --env TODO_ENV env.num_envs=512
+srb agent train --algo sbx_ppo --env landing env.num_envs=512
 ```
 
 <!-- TODO[docs]: Video of training -->
 
-As you begin to observe the training process, you can also monitor the progress in your terminal. After about TODO_CONVERGENCE timesteps, you will see that the agent found a stable policy that successfully solves the task. Checkpoints are saved regularly, so you are free to stop the training process at any point by sending an interrupt signal (Ctrl+C in most terminals).
+As you begin to observe the training process, you can also monitor the progress in your terminal. After about 25M timesteps, you will see that the agent found a stable policy that successfully solves the task. Checkpoints are saved regularly, so you are free to stop the training process at any point by sending an interrupt signal (Ctrl+C in most terminals).
 
 ## 2. Evaluate your Agent
 
@@ -31,7 +31,7 @@ As you begin to observe the training process, you can also monitor the progress 
 Once training is complete, you can evaluate your agent with the `srb agent eval` command:
 
 ```bash
-srb agent eval --algo TODO_ALGO --env TODO_ENV env.num_envs=16
+srb agent eval --algo sbx_ppo --env landing env.num_envs=16
 ```
 
 <!-- TODO[docs]: Video of evaluation -->
@@ -39,7 +39,7 @@ srb agent eval --algo TODO_ALGO --env TODO_ENV env.num_envs=16
 By default, the latest checkpoint from the training run is loaded for evaluation. However, you might want to run the evaluation for a checkpoint specified via `--model`:
 
 ```bash
-srb agent eval --algo TODO_ALGO --env TODO_ENV env.num_envs=16 --model space_robotics_bench/logs/TODO_ENV/TODO_ALGO/TODO_CHECKPOINT
+srb agent eval --algo sbx_ppo --env landing env.num_envs=16 --model space_robotics_bench/logs/landing/sbx_ppo/ckpt/${CHECKPOINT}
 ```
 
 ## 3. Try a Different Algorithm
@@ -50,32 +50,27 @@ SRB directly supports several popular RL algorithms from different frameworks:
 | ------------------- | --------- | ----------------- | ---------- | ------------ |
 | **Model-based**     | dreamer   |                   |            |              |
 |                     |           |                   |            |              |
-| **Value-based**     |           | sb3_dqn           | sbx_dqn    | skrl_dqn     |
-|                     |           | sb3_qrdqn         |            | skrl_ddqn    |
-|                     |           | sb3_crossq        | sbx_crossq |              |
-|                     |           |                   |            |              |
-| **Policy Gradient** |           | sb3_ppo           | sbx_ppo    | skrl_ppo     |
+| **On-Policy**       |           | sb3_a2c           |            | skrl_a2c     |
+|                     |           | sb3_ppo           | sbx_ppo    | skrl_ppo     |
 |                     |           | sb3_ppo_lstm      |            | skrl_ppo_rnn |
-|                     |           | sb3_trpo          |            | skrl_trpo    |
-|                     |           | sb3_a2c           |            | skrl_a2c     |
 |                     |           |                   |            | skrl_rpo     |
+|                     |           | sb3_trpo          |            | skrl_trpo    |
 |                     |           |                   |            |              |
-| **Actor-Critic**    |           | sb3_ddpg          | sbx_ddpg   | skrl_ddpg    |
+| **Off-Policy**      |           | sb3_ddpg          | sbx_ddpg   | skrl_ddpg    |
 |                     |           | sb3_td3           | sbx_td3    | skrl_td3     |
 |                     |           | sb3_sac           | sbx_sac    | skrl_sac     |
+|                     |           | sb3_crossq        | sbx_crossq |              |
 |                     |           | sb3_tqc           | sbx_tqc    |              |
+|                     |           |                   |            |              |
 | **Evolutionary**    |           | sb3_ars           |            |              |
-|                     |           |                   |            |              |
 |                     |           |                   |            | skrl_cem     |
-| **Imitation-based** |           |                   |            | skrl_amp     |
 |                     |           |                   |            |              |
-| **Multi-agent**     |           |                   |            | skrl_ippo    |
-|                     |           |                   |            | skrl_mappo   |
+| **Imitation-based** |           |                   |            | skrl_amp     |
 
 This time, you can train another agent using an algorithm of your choice:
 
 ```bash
-srb agent train --headless --algo <ALGO> --env TODO_ENV env.num_envs=1024
+srb agent train --headless --algo <ALGO> --env landing env.num_envs=1024
 ```
 
 > **Hint:** Use `--headless` mode with more parallel environments for faster convergence.

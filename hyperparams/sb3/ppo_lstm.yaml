@@ -1,6 +1,6 @@
-n_timesteps: 50000000
+n_timesteps: 100000000
 policy: "MultiInputLstmPolicy"
-batch_size: 512
+batch_size: 1024
 clip_range: 0.1
 ent_coef: 0.01
 gae_lambda: 0.9

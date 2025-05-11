@@ -184,7 +184,7 @@ class BaseEnvCfg:
             self.malloc_scale * 2 ** (13 + _pow),
         )
         self.sim.physx.gpu_total_aggregate_pairs_capacity = math.floor(
-            self.malloc_scale * 2 ** (11 + _pow),
+            self.malloc_scale * 2 ** (12 + _pow),
         )
         self.sim.physx.gpu_collision_stack_size = math.floor(
             self.malloc_scale * 2 ** (17 + _pow),

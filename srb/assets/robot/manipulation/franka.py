@@ -112,7 +112,6 @@ class Franka(SerialManipulator):
     #         controller_cfg=OperationalSpaceControllerCfg(
     #             target_types=["pose_rel"],
     #             impedance_mode="fixed",
-    #             inertial_dynamics_decoupling=True,
     #             motion_stiffness_task=100.0,
     #             motion_damping_ratio_task=1.0,
     #             # motion_stiffness_task=250.0,
@@ -133,7 +132,6 @@ class Franka(SerialManipulator):
             controller_cfg=OperationalSpaceControllerCfg(
                 target_types=["pose_rel"],
                 impedance_mode="variable_kp",
-                inertial_dynamics_decoupling=True,
                 motion_stiffness_limits_task=(10.0, 250.0),
                 motion_damping_ratio_task=1.0,
                 # motion_damping_ratio_task=1.5,
@@ -155,7 +153,6 @@ class Franka(SerialManipulator):
     #         controller_cfg=OperationalSpaceControllerCfg(
     #             target_types=["pose_rel"],
     #             impedance_mode="variable",
-    #             inertial_dynamics_decoupling=True,
     #             motion_stiffness_limits_task=(10.0, 250.0),
     #             motion_damping_ratio_limits_task=(0.5, 2.5),
     #             nullspace_control="position",

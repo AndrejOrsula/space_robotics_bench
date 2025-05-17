@@ -21,7 +21,7 @@ class BoltM8(Object):
             collision_props=CollisionPropertiesCfg(),
             mesh_collision_props=MeshCollisionPropertiesCfg(
                 mesh_approximation="sdf",
-                sdf_resolution=400,
+                sdf_resolution=512,
             ),
             rigid_props=RigidBodyPropertiesCfg(),
             mass_props=MassPropertiesCfg(mass=0.1),
@@ -44,7 +44,7 @@ class NutM8(Object):
             collision_props=CollisionPropertiesCfg(),
             mesh_collision_props=MeshCollisionPropertiesCfg(
                 mesh_approximation="sdf",
-                sdf_resolution=400,
+                sdf_resolution=512,
             ),
             rigid_props=RigidBodyPropertiesCfg(kinematic_enabled=True),
             mass_props=MassPropertiesCfg(mass=0.05),

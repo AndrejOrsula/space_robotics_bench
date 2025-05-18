@@ -54,7 +54,7 @@ class EventCfg(ManipulationEventCfg):
             "pose_range": {
                 "x": (-0.25, 0.25),
                 "y": (-0.25, 0.25),
-                "z": (-0.25, 0.25),
+                "z": (-0.05, 0.05),
                 "roll": (-torch.pi, torch.pi),
                 "pitch": (-torch.pi, torch.pi),
                 "yaw": (-torch.pi, torch.pi),

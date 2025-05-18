@@ -56,7 +56,7 @@ class SceneCfg(ManipulationSceneCfg):
         prim_path="{ENV_REGEX_NS}/decor",
         spawn=UsdFileCfg(
             usd_path=assets.Ingenuity().asset_cfg.spawn.usd_path,  # type: ignore
-            collision_props=CollisionPropertiesCfg(collision_enabled=False),
+            collision_props=CollisionPropertiesCfg(collision_enabled=True),
             mesh_collision_props=MeshCollisionPropertiesCfg(mesh_approximation="none"),
             articulation_props=ArticulationRootPropertiesCfg(
                 articulation_enabled=False
@@ -101,7 +101,7 @@ class TaskCfg(ManipulationEnvCfg):
     events: EventCfg = EventCfg()
 
     ## Time
-    env_rate: float = 1.0 / 500.0
+    env_rate: float = 1.0 / 250.0
     episode_length_s: float = 15.0
     is_finite_horizon: bool = True
 

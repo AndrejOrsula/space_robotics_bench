@@ -100,7 +100,8 @@ impl TaskConfig {
         // --- Pass through other necessary env vars ---
         exec = exec.env(
             "DISPLAY",
-            std::env::var("SRB_DISPLAY").unwrap_or(":0".to_string()),
+            std::env::var("SRB_DISPLAY")
+                .unwrap_or(std::env::var("DISPLAY").unwrap_or(":0".to_string())),
         );
         exec = exec.env(
             "ROS_DOMAIN_ID",

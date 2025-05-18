@@ -40,7 +40,7 @@ class Canadarm3(SerialManipulator):
                 max_depenetration_velocity=5.0,
             ),
             articulation_props=ArticulationRootPropertiesCfg(
-                enabled_self_collisions=False,
+                enabled_self_collisions=True,
                 solver_position_iteration_count=12,
                 solver_velocity_iteration_count=1,
             ),
@@ -79,7 +79,7 @@ class Canadarm3(SerialManipulator):
                 use_relative_mode=True,
                 ik_method="svd",
             ),
-            scale=0.1,
+            scale=0.25,
             body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(
                 pos=(0.0, 0.0, -0.45),
             ),

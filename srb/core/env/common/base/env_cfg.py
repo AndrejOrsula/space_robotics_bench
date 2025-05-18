@@ -66,6 +66,7 @@ class BaseEnvCfg:
     ## Scenario
     seed: int = 0
     domain: Domain = Domain.MOON
+    lunar_orbit: bool = False
 
     ## Assets
     scenery: Scenery | AssetVariant | None = AssetVariant.PROCEDURAL
@@ -187,7 +188,7 @@ class BaseEnvCfg:
             self.malloc_scale * 2 ** min(12 + _pow, 31),
         )
         self.sim.physx.gpu_collision_stack_size = math.floor(
-            self.malloc_scale * 2 ** min(19 + _pow, 31),
+            self.malloc_scale * 2 ** min(20 + _pow, 31),
         )
         self.sim.physx.gpu_heap_capacity = math.floor(
             self.malloc_scale * 2 ** min(19 + _pow, 31),
@@ -295,8 +296,9 @@ class BaseEnvCfg:
                     spawn=DomeLightCfg(
                         intensity=0.25 * self.domain.light_intensity,
                         texture_file=skydome_dir.joinpath(
-                            "low_earth_orbit.exr"
-                            # "low_lunar_orbit.jpg"
+                            "low_lunar_orbit.jpg"
+                            if self.lunar_orbit
+                            else "low_earth_orbit.exr"
                         ).as_posix(),
                         **kwargs,
                     ),
@@ -367,7 +369,7 @@ class BaseEnvCfg:
                 BakeType.NORMAL: _dyn_res * 1024,
                 BakeType.ROUGHNESS: _dyn_res * 512,
             }
-            density = 0.01 * (_dyn_res**2)
+            density = 0.0075 * (_dyn_res**2)
             flat_area_size = 0.8 * (_dyn_res**1.2)
 
             if isinstance(type_hints, types.UnionType):

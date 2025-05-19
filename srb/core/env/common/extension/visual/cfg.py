@@ -13,6 +13,8 @@ class VisualExtCfg:
     ## Extension overrides
     # Never stack visual environments
     stack: bool = False
+    # Use a skydome for the environment
+    skydome: Literal["low_res", "high_res"] | bool | None = True
     # Re-render frames on reset for visual observations
     rerender_on_reset: bool = True
     # Always disable debug visualization

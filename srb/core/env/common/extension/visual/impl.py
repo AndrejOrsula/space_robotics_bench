@@ -41,25 +41,42 @@ def construct_observation(
     image_basename: str,
     data_types: Sequence[str],
     clipping_range: Tuple[float, float],
+    merge_channels: bool = True,
+    as_u8: bool = True,
     **kwargs,
 ) -> Dict[str, torch.Tensor]:
-    return {
-        f"{image_basename}_{data_type}": _PROCESSORS[data_type](
+    processors = _PROCESSORS_U8 if as_u8 else _PROCESSORS_F32
+    images = {
+        f"{image_basename}_{data_type}": processors[data_type](
             kwargs[data_type], clipping_range
         )
         if data_type == "depth"
-        else _PROCESSORS[data_type](kwargs[data_type])
+        else processors[data_type](kwargs[data_type])
         for data_type in data_types
     }
+    if merge_channels:
+        return {
+            image_basename: torch.cat(
+                [images[image_key] for image_key in images.keys()],
+                dim=-1,
+            )
+        }
+    else:
+        return images
 
 
 @torch.jit.script
-def process_rgb(image: torch.Tensor) -> torch.Tensor:
-    return image[..., :3].to(torch.float32) / 255.0
+def process_rgb_u8(image: torch.Tensor) -> torch.Tensor:
+    return image[..., :3]
 
 
 @torch.jit.script
-def process_depth(
+def process_rgb_f32(image: torch.Tensor) -> torch.Tensor:
+    return process_rgb_u8(image).to(torch.float32) / 255.0
+
+
+@torch.jit.script
+def process_depth_f32(
     image: torch.Tensor,
     clipping_range: Tuple[float, float],
 ) -> torch.Tensor:
@@ -71,7 +88,20 @@ def process_depth(
     ) / (clipping_range[1] - clipping_range[0])
 
 
-_PROCESSORS = {
-    "rgb": process_rgb,
-    "depth": process_depth,
+@torch.jit.script
+def process_depth_u8(
+    image: torch.Tensor,
+    clipping_range: Tuple[float, float],
+) -> torch.Tensor:
+    return (255.0 * process_depth_f32(image, clipping_range)).to(torch.uint8)
+
+
+_PROCESSORS_U8 = {
+    "rgb": process_rgb_u8,
+    "depth": process_depth_u8,
+}
+
+_PROCESSORS_F32 = {
+    "rgb": process_rgb_f32,
+    "depth": process_depth_f32,
 }

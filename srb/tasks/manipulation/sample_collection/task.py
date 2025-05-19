@@ -11,6 +11,7 @@ from srb.core.asset import (
     RigidObject,
     RigidObjectCfg,
 )
+from srb.core.domain import Domain
 from srb.core.env import (
     ManipulationEnv,
     ManipulationEnvCfg,
@@ -57,8 +58,11 @@ class EventCfg(ManipulationEventCfg):
 
 @configclass
 class TaskCfg(ManipulationEnvCfg):
+    ## Scenario
+    domain: Domain = Domain.MARS
+
     ## Assets
-    sample: Object | AssetVariant = AssetVariant.PROCEDURAL
+    sample: Object | AssetVariant = AssetVariant.DATASET
 
     ## Scene
     scene: SceneCfg = SceneCfg()
@@ -89,7 +93,7 @@ class TaskCfg(ManipulationEnvCfg):
         # Scene: Sample
         sample = select_sample(
             self,
-            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.55, 0.0, 0.0)),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 0.0)),
             activate_contact_sensors=True,
         )
         self.scene.sample = sample.asset_cfg
@@ -172,6 +176,8 @@ class Task(ManipulationEnv):
                 )
                 else None
             ),
+            joint_acc_robot=self._robot.data.joint_acc,
+            joint_applied_torque_robot=self._robot.data.applied_torque,
             # Kinematics
             fk_pos_end_effector=self._tf_end_effector.data.target_pos_source[:, 0, :],
             fk_quat_end_effector=self._tf_end_effector.data.target_quat_source[:, 0, :],
@@ -210,6 +216,8 @@ def _compute_step_return(
     joint_pos_limits_robot: torch.Tensor | None,
     joint_pos_end_effector: torch.Tensor | None,
     joint_pos_limits_end_effector: torch.Tensor | None,
+    joint_acc_robot: torch.Tensor,
+    joint_applied_torque_robot: torch.Tensor,
     # Kinematics
     fk_pos_end_effector: torch.Tensor,
     fk_quat_end_effector: torch.Tensor,
@@ -306,17 +314,48 @@ def _compute_step_return(
         torch.square(act_current - act_previous), dim=1
     )
 
+    # Penalty: Joint torque
+    WEIGHT_JOINT_TORQUE = -0.000025
+    MAX_JOINT_TORQUE_PENALTY = -4.0
+    penalty_joint_torque = torch.clamp_min(
+        WEIGHT_JOINT_TORQUE
+        * torch.sum(torch.square(joint_applied_torque_robot), dim=1),
+        min=MAX_JOINT_TORQUE_PENALTY,
+    )
+
+    # Penalty: Joint acceleration
+    WEIGHT_JOINT_ACCELERATION = -0.0005
+    MAX_JOINT_ACCELERATION_PENALTY = -4.0
+    penalty_joint_acceleration = torch.clamp_min(
+        WEIGHT_JOINT_ACCELERATION * torch.sum(torch.square(joint_acc_robot), dim=1),
+        min=MAX_JOINT_ACCELERATION_PENALTY,
+    )
+
     # Penalty: Undesired robot contacts
-    WEIGHT_UNDESIRED_ROBOT_CONTACTS = -0.1
+    WEIGHT_UNDESIRED_ROBOT_CONTACTS = -1.0
     THRESHOLD_UNDESIRED_ROBOT_CONTACTS = 10.0
     penalty_undesired_robot_contacts = WEIGHT_UNDESIRED_ROBOT_CONTACTS * (
         torch.max(torch.norm(contact_forces_robot, dim=-1), dim=1)[0]
         > THRESHOLD_UNDESIRED_ROBOT_CONTACTS
     )
 
+    # Reward: End-effector top-down orientation
+    WEIGHT_TOP_DOWN_ORIENTATION = 1.0
+    TANH_STD_TOP_DOWN_ORIENTATION = 0.15
+    top_down_alignment = torch.sum(
+        fk_rotmat_end_effector[:, :, 2]
+        * torch.tensor((0.0, 0.0, -1.0), device=device)
+        .unsqueeze(0)
+        .expand(num_envs, 3),
+        dim=1,
+    )
+    reward_top_down_orientation = WEIGHT_TOP_DOWN_ORIENTATION * (
+        1.0 - torch.tanh((1.0 - top_down_alignment) / TANH_STD_TOP_DOWN_ORIENTATION)
+    )
+
     # Reward: Distance | End-effector <--> Object
-    WEIGHT_DISTANCE_END_EFFECTOR_TO_OBJ = 1.0
-    TANH_STD_DISTANCE_END_EFFECTOR_TO_OBJ = 0.25
+    WEIGHT_DISTANCE_END_EFFECTOR_TO_OBJ = 2.5
+    TANH_STD_DISTANCE_END_EFFECTOR_TO_OBJ = 0.2
     reward_distance_end_effector_to_obj = WEIGHT_DISTANCE_END_EFFECTOR_TO_OBJ * (
         1.0
         - torch.tanh(
@@ -344,7 +383,7 @@ def _compute_step_return(
     )
 
     # Reward: Lift object
-    WEIGHT_LIFT = 16.0
+    WEIGHT_LIFT = 8.0
     HEIGHT_OFFSET_LIFT = 0.5
     HEIGHT_SPAN_LIFT = 0.25
     TANH_STD_HEIGHT_LIFT = 0.1
@@ -363,7 +402,7 @@ def _compute_step_return(
 
     # Reward: Distance | Object <--> Target
     WEIGHT_DISTANCE_OBJ_TO_TARGET = 32.0
-    TANH_STD_DISTANCE_OBJ_TO_TARGET = 0.333
+    TANH_STD_DISTANCE_OBJ_TO_TARGET = 0.2
     reward_distance_obj_to_target = WEIGHT_DISTANCE_OBJ_TO_TARGET * (
         1.0
         - torch.tanh(
@@ -404,11 +443,16 @@ def _compute_step_return(
             "proprio_dyn": {
                 "joint_pos_robot_normalized": joint_pos_robot_normalized,
                 "joint_pos_end_effector_normalized": joint_pos_end_effector_normalized,
+                "joint_acc_robot": joint_acc_robot,
+                "joint_applied_torque_robot": joint_applied_torque_robot,
             },
         },
         {
             "penalty_action_rate": penalty_action_rate,
+            "penalty_joint_torque": penalty_joint_torque,
+            "penalty_joint_acceleration": penalty_joint_acceleration,
             "penalty_undesired_robot_contacts": penalty_undesired_robot_contacts,
+            "reward_top_down_orientation": reward_top_down_orientation,
             "reward_distance_end_effector_to_obj": reward_distance_end_effector_to_obj,
             "reward_grasp": reward_grasp,
             "reward_lift": reward_lift,

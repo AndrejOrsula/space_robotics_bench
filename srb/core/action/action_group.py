@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from functools import cache
 from typing import ClassVar, Iterable, List, Sequence, Type
 
 import torch
@@ -10,6 +11,11 @@ from srb.utils.str import convert_to_snake_case
 
 @configclass
 class ActionGroup:
+    @classmethod
+    @cache
+    def name(cls) -> str:
+        return convert_to_snake_case(cls.__name__).removesuffix("_action_group")
+
     def map_cmd_to_action(self, twist: torch.Tensor, event: bool) -> torch.Tensor:
         raise NotImplementedError()
 
@@ -17,11 +23,10 @@ class ActionGroup:
         super().__init_subclass__(**kwargs)
         if action_group_metaclass:
             return
-        assert canonicalize_action_group_name(cls.__name__) not in (
-            canonicalize_action_group_name(action_group.__name__)
-            for action_group in ActionGroupRegistry.registry
+        assert cls.name() not in (
+            action_group.name() for action_group in ActionGroupRegistry.registry
         ), (
-            f"Cannot register multiple action groups with an identical name: '{cls.__module__}:{cls.__name__}' already exists as '{next(robot for robot in ActionGroupRegistry.registry if canonicalize_action_group_name(cls.__name__) == canonicalize_action_group_name(robot.__name__)).__module__}:{cls.__name__}'"
+            f"Cannot register multiple action groups with an identical name: '{cls.__module__}:{cls.__name__}' already exists as '{next(robot for robot in ActionGroupRegistry.registry if cls.name() == robot.name()).__module__}:{cls.__name__}'"
         )
         ActionGroupRegistry.registry.append(cls)
 
@@ -48,10 +53,6 @@ class ActionGroupRegistry:
     @classmethod
     def get_by_name(cls, name: str) -> Type[ActionGroup] | None:
         for action_group in cls.registry:
-            if canonicalize_action_group_name(action_group.__name__) == name:
+            if action_group.name() == name:
                 return action_group
         return None
-
-
-def canonicalize_action_group_name(input: str) -> str:
-    return convert_to_snake_case(input).removesuffix("_action_group")

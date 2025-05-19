@@ -1,0 +1,12 @@
+n_timesteps: 100000000
+policy: "MultiInputPolicy"
+alive_bonus_offset: 0
+delta_std: 0.05
+learning_rate: lin_0.025
+n_delta: 8
+n_top: 8
+normalize: "dict(norm_obs=True, norm_reward=False)"
+zero_policy: False
+policy_kwargs: "dict(
+  net_arch=[384, 384],
+  )"

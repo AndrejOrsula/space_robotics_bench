@@ -33,8 +33,6 @@ class Crazyflie(Multicopter):
                 enabled_self_collisions=False,
                 solver_position_iteration_count=4,
                 solver_velocity_iteration_count=0,
-                sleep_threshold=0.005,
-                stabilization_threshold=0.001,
             ),
         ),
         init_state=ArticulationCfg.InitialStateCfg(
@@ -91,8 +89,8 @@ class Crazyflie(Multicopter):
             rot=rpy_to_quat(0.0, 180.0, 0.0),
         ),
     )
-    frame_downward_camera: Frame = Frame(
-        prim_relpath="body/camera_bottom",
+    frame_onboard_camera: Frame = Frame(
+        prim_relpath="body/camera_onboard",
         offset=Transform(
             pos=(0.045, 0.0, 0.1275),
             rot=rpy_to_quat(0.0, 90.0, 0.0),

@@ -1,4 +1,15 @@
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, serde::Deserialize, serde::Serialize)]
+#[derive(
+    Copy,
+    Clone,
+    Debug,
+    Eq,
+    PartialEq,
+    Hash,
+    serde::Deserialize,
+    serde::Serialize,
+    strum::Display,
+    strum::EnumIter,
+)]
 pub enum Page {
     QuickStart,
     Interface,
@@ -10,16 +21,10 @@ impl Default for Page {
     }
 }
 
-impl std::fmt::Display for Page {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{self:?}")
-    }
-}
-
 impl Page {
     pub fn title(&self) -> &str {
         match self {
-            Self::QuickStart => "Quick Start",
+            Self::QuickStart => "Quickstart",
             Self::Interface => "Interface",
         }
     }

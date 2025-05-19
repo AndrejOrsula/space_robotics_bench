@@ -9,7 +9,6 @@ from srb.core.asset import AssetBaseCfg
 from srb.core.asset.asset import Asset, AssetRegistry
 from srb.core.asset.asset_type import AssetType
 from srb.core.asset.scenery.scenery_type import SceneryType
-from srb.utils.str import convert_to_snake_case
 
 
 class Scenery(Asset, asset_entrypoint=AssetType.SCENERY):
@@ -50,11 +49,11 @@ class Scenery(Asset, asset_entrypoint=AssetType.SCENERY):
                     if scenery_type not in SceneryRegistry.registry.keys():
                         SceneryRegistry.registry[scenery_type] = []
                     else:
-                        assert convert_to_snake_case(cls.__name__) not in (
-                            convert_to_snake_case(scenery.__name__)
+                        assert cls.name() not in (
+                            scenery.name()
                             for scenery in SceneryRegistry.registry[scenery_type]
                         ), (
-                            f"Cannot register multiple sceneries with an identical name: '{cls.__module__}:{cls.__name__}' already exists as '{next(scenery for scenery in SceneryRegistry.registry[scenery_type] if convert_to_snake_case(cls.__name__) == convert_to_snake_case(scenery.__name__)).__module__}:{cls.__name__}'"
+                            f"Cannot register multiple sceneries with an identical name: '{cls.__module__}:{cls.__name__}' already exists as '{next(scenery for scenery in SceneryRegistry.registry[scenery_type] if cls.name() == scenery.name()).__module__}:{cls.__name__}'"
                         )
                     SceneryRegistry.registry[scenery_type].append(cls)
                     break
@@ -115,6 +114,6 @@ class SceneryRegistry:
     @classmethod
     def get_by_name(cls, name: str) -> Type[Scenery] | None:
         for scenery in cls.values_inner():
-            if convert_to_snake_case(scenery.__name__) == name:
+            if scenery.name() == name:
                 return scenery
         return None

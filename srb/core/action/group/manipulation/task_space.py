@@ -29,13 +29,30 @@ class OperationalSpaceControlActionGroup(ActionGroup):
     delta_twist: OperationalSpaceControllerActionCfg = MISSING  # type: ignore
 
     def map_cmd_to_action(self, twist: torch.Tensor, event: bool) -> torch.Tensor:
-        assert len(self.delta_twist.controller_cfg.target_types) == 1, (
-            "Only one target type is supported"
-        )
-        assert "pose_rel" in self.delta_twist.controller_cfg.target_types, (
-            "Only pose_rel is supported"
-        )
-        assert self.delta_twist.controller_cfg.impedance_mode == "fixed", (
-            "Only fixed impedance mode is supported"
-        )
-        return twist
+        assert (
+            len(self.delta_twist.controller_cfg.target_types) == 1
+            and "pose_rel" in self.delta_twist.controller_cfg.target_types
+        ), "Only pose_rel OSC target type is supported for teleoperation"
+        match self.delta_twist.controller_cfg.impedance_mode:
+            case "fixed":
+                return twist
+            case "variable_kp":
+                return torch.cat(
+                    (
+                        twist,
+                        torch.ones(6, dtype=twist.dtype, device=twist.device),
+                    ),
+                    dim=-1,
+                )
+            case "variable":
+                return torch.cat(
+                    (
+                        twist,
+                        torch.ones(12, dtype=twist.dtype, device=twist.device),
+                    ),
+                    dim=-1,
+                )
+            case _:
+                raise ValueError(
+                    f"Unknown impedance mode: {self.delta_twist.controller_cfg.impedance_mode}"
+                )

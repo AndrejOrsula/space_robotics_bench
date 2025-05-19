@@ -11,7 +11,8 @@ from srb.core.domain import Domain
 from srb.core.env import OrbitalEnv, OrbitalEnvCfg, OrbitalEventCfg, OrbitalSceneCfg
 from srb.core.manager import EventTermCfg, SceneEntityCfg
 from srb.core.marker import VisualizationMarkers, VisualizationMarkersCfg
-from srb.core.mdp import push_by_setting_velocity, reset_root_state_uniform
+from srb.core.mdp import push_by_setting_velocity  # noqa: F401
+from srb.core.mdp import reset_root_state_uniform
 from srb.core.sensor import ContactSensor, ContactSensorCfg
 from srb.core.sim import PreviewSurfaceCfg, SphereCfg
 from srb.utils.cfg import configclass
@@ -24,7 +25,7 @@ from srb.utils.math import deg_to_rad, matrix_from_quat, rotmat_to_rot6d
 
 @configclass
 class SceneCfg(OrbitalSceneCfg):
-    env_spacing = 256.0
+    env_spacing: float = 256.0
 
     ## Sensors
     contacts_robot: ContactSensorCfg = ContactSensorCfg(
@@ -58,22 +59,22 @@ class EventCfg(OrbitalEventCfg):
             },
         },
     )
-    push_robot: EventTermCfg = EventTermCfg(
-        func=push_by_setting_velocity,
-        mode="interval",
-        interval_range_s=(2.5, 10.0),
-        params={
-            "asset_cfg": SceneEntityCfg("robot"),
-            "velocity_range": {
-                "x": (-1.0, 1.0),
-                "y": (-1.0, 1.0),
-                "z": (-1.0, 1.0),
-                "roll": (-deg_to_rad(5.0), deg_to_rad(5.0)),
-                "pitch": (-deg_to_rad(5.0), deg_to_rad(5.0)),
-                "yaw": (-deg_to_rad(5.0), deg_to_rad(5.0)),
-            },
-        },
-    )
+    # push_robot: EventTermCfg = EventTermCfg(
+    #     func=push_by_setting_velocity,
+    #     mode="interval",
+    #     interval_range_s=(2.5, 10.0),
+    #     params={
+    #         "asset_cfg": SceneEntityCfg("robot"),
+    #         "velocity_range": {
+    #             "x": (-1.0, 1.0),
+    #             "y": (-1.0, 1.0),
+    #             "z": (-1.0, 1.0),
+    #             "roll": (-deg_to_rad(10.0), deg_to_rad(10.0)),
+    #             "pitch": (-deg_to_rad(10.0), deg_to_rad(10.0)),
+    #             "yaw": (-deg_to_rad(10.0), deg_to_rad(10.0)),
+    #         },
+    #     },
+    # )
 
 
 @configclass
@@ -143,17 +144,6 @@ class Task(OrbitalEnv):
 
         ## Visualize target
         self._target_marker.visualize(self._tf_pos_target, self._tf_quat_target)
-
-        ## Check if thrust action is used (fuel tracking)
-        self._thrust_action_term_key = next(
-            filter(
-                lambda term_key: isinstance(
-                    self.action_manager._terms[term_key], ThrustAction
-                ),
-                self.action_manager._terms.keys(),
-            ),
-            None,
-        )
 
     def _reset_idx(self, env_ids: Sequence[int]):
         super()._reset_idx(env_ids)
@@ -276,8 +266,10 @@ def _compute_step_return(
 
     # Penalty: Angular velocity
     WEIGHT_ANGULAR_VELOCITY = -0.25
-    penalty_angular_velocity = WEIGHT_ANGULAR_VELOCITY * torch.sum(
-        torch.square(vel_ang_robot), dim=1
+    MAX_ANGULAR_VELOCITY_PENALTY = -5.0
+    penalty_angular_velocity = torch.clamp_min(
+        WEIGHT_ANGULAR_VELOCITY * torch.sum(torch.square(vel_ang_robot), dim=1),
+        min=MAX_ANGULAR_VELOCITY_PENALTY,
     )
 
     # Penalty: Alignment with gravity

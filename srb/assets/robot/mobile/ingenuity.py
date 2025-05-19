@@ -43,7 +43,6 @@ class Ingenuity(Multicopter):
                 max_depenetration_velocity=5.0,
             ),
         ),
-        init_state=ArticulationCfg.InitialStateCfg(),
         actuators={
             "rotors": ImplicitActuatorCfg(
                 joint_names_expr=["rotor_joint_[1-2]"],
@@ -86,8 +85,8 @@ class Ingenuity(Multicopter):
             rot=rpy_to_quat(0.0, 180.0, 0.0),
         ),
     )
-    frame_downward_camera: Frame = Frame(
-        prim_relpath="body/camera_bottom",
+    frame_onboard_camera: Frame = Frame(
+        prim_relpath="body/camera_onboard",
         offset=Transform(
             pos=(0.045, 0.0, 0.1275),
             rot=rpy_to_quat(0.0, 90.0, 0.0),

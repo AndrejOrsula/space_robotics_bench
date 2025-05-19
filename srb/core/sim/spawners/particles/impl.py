@@ -25,7 +25,7 @@ def spawn_particles_grid(
     orientation: Tuple[float, float, float, float] | None = None,
 ) -> Usd.Prim:
     # Ratio
-    if cfg.ratio != 1.0:
+    if cfg.ratio < 1.0:
         ratio_cbrt = math.pow(cfg.ratio, 1.0 / 3.0)
         dim_x, dim_y, dim_z = (
             math.floor(ratio_cbrt * cfg.dim_x),
@@ -36,7 +36,7 @@ def spawn_particles_grid(
             cfg.particle_spacing + (1.0 / ratio_cbrt - 1.0) * cfg.particle_size
         )
     else:
-        dim_x, dim_y = cfg.dim_x, cfg.dim_y
+        dim_x, dim_y, dim_z = cfg.dim_x, cfg.dim_y, cfg.dim_z
         particle_spacing = cfg.particle_spacing
 
     # Distribution
@@ -88,7 +88,7 @@ def spawn_particles_pyramid(
     orientation: Tuple[float, float, float, float] | None = None,
 ) -> Usd.Prim:
     # Ratio
-    if cfg.ratio != 1.0:
+    if cfg.ratio < 1.0:
         ratio_cbrt = math.pow(cfg.ratio, 1.0 / 3.0)
         dim_x, dim_y, dim_z = (
             math.floor(ratio_cbrt * cfg.dim_x),
@@ -99,7 +99,7 @@ def spawn_particles_pyramid(
             cfg.particle_spacing + (1.0 / ratio_cbrt - 1.0) * cfg.particle_size
         )
     else:
-        dim_x, dim_y = cfg.dim_x, cfg.dim_y
+        dim_x, dim_y, dim_z = cfg.dim_x, cfg.dim_y, cfg.dim_z
         particle_spacing = cfg.particle_spacing
 
     # Distribution

@@ -393,7 +393,7 @@ def _compute_step_return(
     )
 
     # Penalty: Undesired robot contacts
-    WEIGHT_UNDESIRED_ROBOT_CONTACTS = -10.0
+    WEIGHT_UNDESIRED_ROBOT_CONTACTS = -1.0
     THRESHOLD_UNDESIRED_ROBOT_CONTACTS = 10.0
     penalty_undesired_robot_contacts = WEIGHT_UNDESIRED_ROBOT_CONTACTS * (
         torch.max(torch.norm(contact_forces_robot, dim=-1), dim=1)[0]
@@ -401,7 +401,7 @@ def _compute_step_return(
     )
 
     # Reward: End-effector top-down orientation
-    WEIGHT_TOP_DOWN_ORIENTATION = 5.0
+    WEIGHT_TOP_DOWN_ORIENTATION = 1.0
     TANH_STD_TOP_DOWN_ORIENTATION = 0.15
     top_down_alignment = torch.sum(
         fk_rotmat_end_effector[:, :, 2]
@@ -415,8 +415,8 @@ def _compute_step_return(
     )
 
     # Reward: Distance | End-effector <--> Object
-    WEIGHT_DISTANCE_END_EFFECTOR_TO_OBJ = 2.5
-    TANH_STD_DISTANCE_END_EFFECTOR_TO_OBJ = 0.2
+    WEIGHT_DISTANCE_END_EFFECTOR_TO_OBJ = 4.0
+    TANH_STD_DISTANCE_END_EFFECTOR_TO_OBJ = 0.25
     reward_distance_end_effector_to_obj = WEIGHT_DISTANCE_END_EFFECTOR_TO_OBJ * (
         1.0
         - torch.tanh(

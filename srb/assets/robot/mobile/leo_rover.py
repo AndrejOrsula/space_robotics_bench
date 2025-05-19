@@ -34,7 +34,6 @@ class LeoRover(WheeledRobot):
                 solver_velocity_iteration_count=4,
             ),
         ),
-        init_state=ArticulationCfg.InitialStateCfg(),
         actuators={
             "drive": ImplicitActuatorCfg(
                 joint_names_expr=["wheel_joint_.*"],

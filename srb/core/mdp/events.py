@@ -72,6 +72,184 @@ def reset_deformable_objects_default(env: "AnyEnv", env_ids: torch.Tensor | None
         deformable_object.write_nodal_state_to_sim(nodal_state, env_ids=env_ids)  # type: ignore
 
 
+def randomize_pose(
+    env: "AnyEnv",
+    env_ids: torch.Tensor | None,
+    env_attr_name: str,
+    pose_range: Dict[str, Tuple[float, float]],
+):
+    _env: "AnyEnv" = env.unwrapped  # type: ignore
+    if env_ids is None:
+        env_ids = torch.arange(
+            _env.num_envs,
+            device=_env.device,
+        )
+
+    range_list = [
+        pose_range.get(key, (0.0, 0.0))
+        for key in ["x", "y", "z", "roll", "pitch", "yaw"]
+    ]
+    ranges = torch.tensor(range_list, dtype=torch.float32, device=_env.device)
+    rand_samples = sample_uniform(
+        ranges[:, 0],
+        ranges[:, 1],
+        (len(env_ids), 6),
+        device=_env.device,
+    )
+    positions = env.scene.env_origins[env_ids] + rand_samples[:, 0:3]
+    orientations = quat_from_euler_xyz(
+        rand_samples[:, 3], rand_samples[:, 4], rand_samples[:, 5]
+    )
+
+    pose_attr = getattr(env, env_attr_name)
+    pose_attr[env_ids] = torch.cat([positions, orientations], dim=-1)
+
+
+def randomize_pos(
+    env: "AnyEnv",
+    env_ids: torch.Tensor | None,
+    env_attr_name: str,
+    pos_range: Dict[str, Tuple[float, float]],
+):
+    _env: "AnyEnv" = env.unwrapped  # type: ignore
+    if env_ids is None:
+        env_ids = torch.arange(
+            _env.num_envs,
+            device=_env.device,
+        )
+
+    range_list = [pos_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z"]]
+    ranges = torch.tensor(range_list, dtype=torch.float32, device=_env.device)
+    rand_samples = sample_uniform(
+        ranges[:, 0],
+        ranges[:, 1],
+        (len(env_ids), 3),
+        device=_env.device,
+    )
+    positions = env.scene.env_origins[env_ids] + rand_samples[:, 0:3]
+
+    pos_attr = getattr(env, env_attr_name)
+    pos_attr[env_ids] = positions
+
+
+# Global dictionary to store velocity vectors for natural movement
+_natural_movement_velocities = {}
+
+
+def offset_pos_natural(
+    env: "AnyEnv",
+    env_ids: torch.Tensor | None,
+    env_attr_name: str,
+    axes: Sequence[str],
+    step_range: Tuple[float, float],
+    smoothness: float,
+    pos_bounds: Dict[str, Tuple[float, float]],
+):
+    """Move the target position naturally with smoothed random changes in direction.
+
+    Args:
+        env: Environment instance
+        env_ids: Indices of environments to update
+        env_attr_name: Name of the attribute to modify
+        axes: Which axes to apply movement to (e.g., ["x", "y"])
+        step_range: Range of step sizes per update
+        smoothness: Value between 0-1 controlling continuity of movement (higher = smoother)
+        pos_bounds: Dictionary of position bounds for each axis
+    """
+    _env: "AnyEnv" = env.unwrapped  # type: ignore
+    if env_ids is None:
+        env_ids = torch.arange(
+            _env.num_envs,
+            device=_env.device,
+        )
+
+    # Create a state key for this specific environment and attribute
+    state_key = f"{id(env)}:{env_attr_name}"
+
+    # Get or initialize velocity vectors
+    if state_key not in _natural_movement_velocities:
+        # Initialize with random velocities
+        _natural_movement_velocities[state_key] = torch.zeros(
+            (_env.num_envs, 3), device=_env.device
+        )
+        # Set initial random direction for each environment
+        for i in range(_env.num_envs):
+            _natural_movement_velocities[state_key][i] = torch.randn(
+                3, device=_env.device
+            )
+            # Normalize to ensure we start with unit vector
+            _natural_movement_velocities[state_key][i] /= (
+                torch.norm(_natural_movement_velocities[state_key][i]) + 1e-8
+            )
+
+    # Get the velocities for the current environments
+    velocities = _natural_movement_velocities[state_key][env_ids]
+
+    # Apply random perturbation with smoothing
+    random_direction = torch.randn_like(velocities)
+    # Normalize random direction
+    random_direction /= torch.norm(random_direction, dim=1, keepdim=True) + 1e-8
+
+    # Update velocity with smoothed random changes
+    velocities = smoothness * velocities + (1 - smoothness) * random_direction
+    # Normalize velocities to prevent acceleration
+    velocities /= torch.norm(velocities, dim=1, keepdim=True) + 1e-8
+
+    # Sample step sizes from step_range
+    step_sizes = sample_uniform(
+        step_range[0], step_range[1], (len(env_ids),), device=_env.device
+    )
+
+    # Apply step sizes to velocities
+    delta_pos = velocities * step_sizes.unsqueeze(1)
+
+    # Get current positions
+    pos_attr = getattr(env, env_attr_name)
+    current_positions = pos_attr[env_ids].clone()
+
+    # Apply movement only to specified axes
+    axis_indices = {"x": 0, "y": 1, "z": 2}
+    active_axes = [axis_indices[axis] for axis in axes if axis in axis_indices]
+
+    # Calculate new positions
+    new_positions = current_positions.clone()
+    for axis_idx in active_axes:
+        new_positions[:, axis_idx] += delta_pos[:, axis_idx]
+
+    # Handle boundaries by reflecting velocities when hitting bounds
+    for axis in axes:
+        if axis in pos_bounds:
+            axis_idx = axis_indices[axis]
+            min_bound, max_bound = pos_bounds[axis]
+
+            # Calculate bounds relative to environment origins
+            actual_min = min_bound + env.scene.env_origins[env_ids, axis_idx]
+            actual_max = max_bound + env.scene.env_origins[env_ids, axis_idx]
+
+            # Check if any positions exceed bounds
+            below_min = new_positions[:, axis_idx] < actual_min
+            above_max = new_positions[:, axis_idx] > actual_max
+
+            # Reflect positions and velocities at boundaries
+            if below_min.any():
+                new_positions[below_min, axis_idx] = (
+                    2 * actual_min[below_min] - new_positions[below_min, axis_idx]
+                )
+                velocities[below_min, axis_idx] *= -1.0
+
+            if above_max.any():
+                new_positions[above_max, axis_idx] = (
+                    2 * actual_max[above_max] - new_positions[above_max, axis_idx]
+                )
+                velocities[above_max, axis_idx] *= -1.0
+
+    # Save updated velocities back to the state dictionary
+    _natural_movement_velocities[state_key][env_ids] = velocities
+
+    # Update the positions in the environment
+    pos_attr[env_ids] = new_positions
+
+
 def randomize_command(
     env: "AnyEnv",
     env_ids: torch.Tensor | None,
@@ -88,7 +266,7 @@ def randomize_command(
     cmd_attr[env_ids] = sample_uniform(
         -magnitude,
         magnitude,
-        cmd_attr.shape,
+        (len(env_ids), *cmd_attr.shape[1:]),
         device=_env.device,
     )
 
@@ -160,7 +338,7 @@ def randomize_usd_prim_attribute_uniform(
     else:
         dist_len = 1
     for i, prim in enumerate(asset.prims):
-        if env_ids and i not in env_ids:
+        if env_ids is not None and i not in env_ids:
             continue
         value = sample_uniform(
             distribution_params[0],  # type: ignore

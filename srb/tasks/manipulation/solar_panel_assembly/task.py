@@ -152,10 +152,10 @@ class TaskCfg(ManipulationEnvCfg):
             )
             for i, (init_pos, short_peg) in enumerate(
                 [
-                    ((0.55 + 0.1, 0.2, 0.015), True),
-                    ((0.55 + 0.1, -0.2, 0.015), True),
-                    ((0.55 - 0.1, 0.2, 0.015), False),
-                    ((0.55 - 0.1, -0.2, 0.015), False),
+                    ((0.55 + 0.1, 0.2, 0.04), True),
+                    ((0.55 + 0.1, -0.2, 0.04), True),
+                    ((0.55 - 0.1, 0.2, 0.04), False),
+                    ((0.55 - 0.1, -0.2, 0.04), False),
                 ]
             )
         ]
@@ -176,13 +176,13 @@ class TaskCfg(ManipulationEnvCfg):
         # Scene: Panel
         self.panel_cfg = select_solar_panel(
             self,
-            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.55, 0.0, 0.015)),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.55, 0.0, 0.04)),
         )
         self.scene.panel = self.panel_cfg.asset_cfg
         self.panel_tf_pos_target = (
             self.panel_tf_pos_target[0] + self.panel_cfg.offset_pos[0],
             self.panel_tf_pos_target[1] + self.panel_cfg.offset_pos[1],
-            self.panel_tf_pos_target[2] + self.panel_cfg.offset_pos[2] + 0.015,
+            self.panel_tf_pos_target[2] + self.panel_cfg.offset_pos[2] + 0.04,
         )
 
         # Sensor: End-effector contacts
@@ -250,12 +250,9 @@ class Task(ManipulationEnv):
         self._tf_pos_panel_initial = torch.zeros(
             (self.num_envs, 3), dtype=torch.float32, device=self.device
         )
-        self._tf_pos_panel_target = (
-            torch.tensor(
-                self.cfg.panel_tf_pos_target, dtype=torch.float32, device=self.device
-            ).repeat(self.num_envs, 1)
-            + self.scene.env_origins
-        )
+        self._tf_pos_panel_target = self.scene.env_origins + torch.tensor(
+            self.cfg.panel_tf_pos_target, dtype=torch.float32, device=self.device
+        ).repeat(self.num_envs, 1)
         self._tf_quat_panel_target = torch.tensor(
             self.cfg.panel_tf_quat_target, dtype=torch.float32, device=self.device
         ).repeat(self.num_envs, 1)
@@ -298,6 +295,8 @@ class Task(ManipulationEnv):
                 )
                 else None
             ),
+            joint_acc_robot=self._robot.data.joint_acc,
+            joint_applied_torque_robot=self._robot.data.applied_torque,
             # Kinematics
             fk_pos_end_effector=self._tf_end_effector.data.target_pos_source[:, 0, :],
             fk_quat_end_effector=self._tf_end_effector.data.target_quat_source[:, 0, :],
@@ -346,6 +345,8 @@ def _compute_step_return(
     joint_pos_limits_robot: torch.Tensor | None,
     joint_pos_end_effector: torch.Tensor | None,
     joint_pos_limits_end_effector: torch.Tensor | None,
+    joint_acc_robot: torch.Tensor,
+    joint_applied_torque_robot: torch.Tensor,
     # Kinematics
     fk_pos_end_effector: torch.Tensor,
     fk_quat_end_effector: torch.Tensor,
@@ -526,17 +527,48 @@ def _compute_step_return(
         torch.square(act_current - act_previous), dim=1
     )
 
+    # Penalty: Joint torque
+    WEIGHT_JOINT_TORQUE = -0.000025
+    MAX_JOINT_TORQUE_PENALTY = -4.0
+    penalty_joint_torque = torch.clamp_min(
+        WEIGHT_JOINT_TORQUE
+        * torch.sum(torch.square(joint_applied_torque_robot), dim=1),
+        min=MAX_JOINT_TORQUE_PENALTY,
+    )
+
+    # Penalty: Joint acceleration
+    WEIGHT_JOINT_ACCELERATION = -0.0005
+    MAX_JOINT_ACCELERATION_PENALTY = -4.0
+    penalty_joint_acceleration = torch.clamp_min(
+        WEIGHT_JOINT_ACCELERATION * torch.sum(torch.square(joint_acc_robot), dim=1),
+        min=MAX_JOINT_ACCELERATION_PENALTY,
+    )
+
     # Penalty: Undesired robot contacts
-    WEIGHT_UNDESIRED_ROBOT_CONTACTS = -0.1
+    WEIGHT_UNDESIRED_ROBOT_CONTACTS = -1.0
     THRESHOLD_UNDESIRED_ROBOT_CONTACTS = 10.0
     penalty_undesired_robot_contacts = WEIGHT_UNDESIRED_ROBOT_CONTACTS * (
         torch.max(torch.norm(contact_forces_robot, dim=-1), dim=1)[0]
         > THRESHOLD_UNDESIRED_ROBOT_CONTACTS
     )
 
+    # Reward: End-effector top-down orientation
+    WEIGHT_TOP_DOWN_ORIENTATION = 1.0
+    TANH_STD_TOP_DOWN_ORIENTATION = 0.15
+    top_down_alignment = torch.sum(
+        fk_rotmat_end_effector[:, :, 2]
+        * torch.tensor((0.0, 0.0, -1.0), device=device)
+        .unsqueeze(0)
+        .expand(num_envs, 3),
+        dim=1,
+    )
+    reward_top_down_orientation = WEIGHT_TOP_DOWN_ORIENTATION * (
+        1.0 - torch.tanh((1.0 - top_down_alignment) / TANH_STD_TOP_DOWN_ORIENTATION)
+    )
+
     # Reward: Distance | End-effector <--> Object
-    WEIGHT_DISTANCE_END_EFFECTOR_TO_OBJ = 1.0
-    TANH_STD_DISTANCE_END_EFFECTOR_TO_OBJ = 0.25
+    WEIGHT_DISTANCE_END_EFFECTOR_TO_OBJ = 2.5
+    TANH_STD_DISTANCE_END_EFFECTOR_TO_OBJ = 0.2
     reward_distance_end_effector_to_objs = WEIGHT_DISTANCE_END_EFFECTOR_TO_OBJ * (
         1.0
         - torch.tanh(
@@ -546,7 +578,7 @@ def _compute_step_return(
     ).sum(dim=-1)
 
     # Reward: Grasp object
-    WEIGHT_GRASP = 4.0
+    WEIGHT_GRASP = 8.0
     THRESHOLD_GRASP = 5.0
     reward_grasp = (
         WEIGHT_GRASP
@@ -564,10 +596,10 @@ def _compute_step_return(
     )
 
     # Reward: Lift object
-    WEIGHT_LIFT = 16.0
-    HEIGHT_OFFSET_LIFT = 0.5
-    HEIGHT_SPAN_LIFT = 0.25
-    TANH_STD_HEIGHT_LIFT = 0.1
+    WEIGHT_LIFT = 4.0
+    HEIGHT_OFFSET_LIFT = 0.2
+    HEIGHT_SPAN_LIFT = 0.1
+    TANH_STD_HEIGHT_LIFT = 0.05
     reward_lift = WEIGHT_LIFT * (
         1.0
         - torch.tanh(
@@ -626,9 +658,25 @@ def _compute_step_return(
         )
     ).sum(dim=-1)
 
+    # Reward: Distance | Peg -> Hole entrance (gradual)
+    WEIGHT_DISTANCE_PEG_TO_HOLE_ENTRANCE_GRADUAL = 8.0
+    TANH_STD_DISTANCE_PEG_TO_HOLE_ENTRANCE_GRADUAL = 0.16
+    reward_distance_pegs_to_holes_entrance_gradual = (
+        WEIGHT_DISTANCE_PEG_TO_HOLE_ENTRANCE_GRADUAL
+        * (
+            1.0
+            - torch.tanh(
+                torch.min(
+                    torch.norm(tf_pos_pegs_ends_to_holes_entrance, dim=-1), dim=1
+                )[0]
+                / TANH_STD_DISTANCE_PEG_TO_HOLE_ENTRANCE_GRADUAL
+            )
+        )
+    ).sum(dim=-1)
+
     # Reward: Distance | Peg -> Hole entrance
-    WEIGHT_DISTANCE_PEG_TO_HOLE_ENTRANCE = 16.0
-    TANH_STD_DISTANCE_PEG_TO_HOLE_ENTRANCE = 0.05
+    WEIGHT_DISTANCE_PEG_TO_HOLE_ENTRANCE = 32.0
+    TANH_STD_DISTANCE_PEG_TO_HOLE_ENTRANCE = 0.04
     reward_distance_pegs_to_holes_entrance = WEIGHT_DISTANCE_PEG_TO_HOLE_ENTRANCE * (
         1.0
         - torch.tanh(
@@ -638,8 +686,8 @@ def _compute_step_return(
     ).sum(dim=-1)
 
     # Reward: Distance | Peg -> Hole bottom
-    WEIGHT_DISTANCE_PEG_TO_HOLE_BOTTOM = 128.0
-    TANH_STD_DISTANCE_PEG_TO_HOLE_BOTTOM = 0.005
+    WEIGHT_DISTANCE_PEG_TO_HOLE_BOTTOM = 256.0
+    TANH_STD_DISTANCE_PEG_TO_HOLE_BOTTOM = 0.002
     reward_distance_pegs_to_holes_bottom = WEIGHT_DISTANCE_PEG_TO_HOLE_BOTTOM * (
         1.0
         - torch.tanh(
@@ -658,24 +706,40 @@ def _compute_step_return(
         )
     )
 
-    # Reward: Panel lifted
-    WEIGHT_PANEL_LIFTED = 2 * WEIGHT_LIFT
-    HEIGHT_OFFSET_PANEL_LIFTED = 0.5
-    HEIGHT_SPAN_PANEL_LIFTED = 0.25
-    TANH_STD_HEIGHT_PANEL_LIFTED = 0.1
+    # Reward: Panel lift
+    WEIGHT_PANEL_LIFT = 4.0 * WEIGHT_LIFT
+    HEIGHT_OFFSET_PANEL_LIFT = 0.3
+    HEIGHT_SPAN_PANEL_LIFT = 0.15
+    TANH_STD_HEIGHT_PANEL_LIFT = 0.075
     panel_target_height_offset = (
         torch.abs(
-            tf_pos_panel[:, 2] - tf_pos_panel_initial[:, 2] - HEIGHT_OFFSET_PANEL_LIFTED
+            tf_pos_panel[:, 2] - tf_pos_panel_initial[:, 2] - HEIGHT_OFFSET_PANEL_LIFT
         )
-        - HEIGHT_SPAN_PANEL_LIFTED
+        - HEIGHT_SPAN_PANEL_LIFT
     ).clamp(min=0.0)
-    reward_panel_lifted = WEIGHT_PANEL_LIFTED * (
-        1.0 - torch.tanh(panel_target_height_offset / TANH_STD_HEIGHT_PANEL_LIFTED)
+    reward_panel_lift = WEIGHT_PANEL_LIFT * (
+        1.0 - torch.tanh(panel_target_height_offset / TANH_STD_HEIGHT_PANEL_LIFT)
+    )
+
+    # Reward: Distance | Panel <--> Panel Target (gra`dual)
+    WEIGHT_DISTANCE_PANEL_TO_TARGET_GRADUAL = (
+        4.0 * WEIGHT_DISTANCE_PEG_TO_HOLE_ENTRANCE_GRADUAL
+    )
+    TANH_STD_DISTANCE_PANEL_TO_TARGET_GRADUAL = 0.1
+    reward_distance_panel_to_target_gradual = (
+        WEIGHT_DISTANCE_PANEL_TO_TARGET_GRADUAL
+        * (
+            1.0
+            - torch.tanh(
+                torch.norm(pos_panel_to_panel_target, dim=-1)
+                / TANH_STD_DISTANCE_PANEL_TO_TARGET_GRADUAL
+            )
+        )
     )
 
     # Reward: Distance | Panel <--> Panel Target
     WEIGHT_DISTANCE_PANEL_TO_TARGET = 4.0 * WEIGHT_DISTANCE_PEG_TO_HOLE_BOTTOM
-    TANH_STD_DISTANCE_PANEL_TO_TARGET = 0.05
+    TANH_STD_DISTANCE_PANEL_TO_TARGET = 0.01
     reward_distance_panel_to_target = WEIGHT_DISTANCE_PANEL_TO_TARGET * (
         1.0
         - torch.tanh(
@@ -724,20 +788,27 @@ def _compute_step_return(
             "proprio_dyn": {
                 "joint_pos_robot_normalized": joint_pos_robot_normalized,
                 "joint_pos_end_effector_normalized": joint_pos_end_effector_normalized,
+                "joint_acc_robot": joint_acc_robot,
+                "joint_applied_torque_robot": joint_applied_torque_robot,
             },
         },
         {
             "penalty_action_rate": penalty_action_rate,
+            "penalty_joint_torque": penalty_joint_torque,
+            "penalty_joint_acceleration": penalty_joint_acceleration,
             "penalty_undesired_robot_contacts": penalty_undesired_robot_contacts,
+            "reward_top_down_orientation": reward_top_down_orientation,
             "reward_distance_end_effector_to_objs": reward_distance_end_effector_to_objs,
             "reward_grasp": reward_grasp,
             "reward_lift": reward_lift,
             "reward_align_pegs_to_holes_primary": reward_align_pegs_to_holes_primary,
             "reward_align_pegs_to_holes_secondary": reward_align_pegs_to_holes_secondary,
+            "reward_distance_pegs_to_holes_entrance_gradual": reward_distance_pegs_to_holes_entrance_gradual,
             "reward_distance_pegs_to_holes_entrance": reward_distance_pegs_to_holes_entrance,
             "reward_distance_pegs_to_holes_bottom": reward_distance_pegs_to_holes_bottom,
             "reward_distance_ee_to_panel": reward_distance_ee_to_panel,
-            "reward_panel_lifted": reward_panel_lifted,
+            "reward_panel_lift": reward_panel_lift,
+            "reward_distance_panel_to_target_gradual": reward_distance_panel_to_target_gradual,
             "reward_distance_panel_to_target": reward_distance_panel_to_target,
         },
         termination,

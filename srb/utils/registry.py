@@ -5,8 +5,6 @@ import gymnasium
 from srb.utils.cfg import parse_algo_configs
 from srb.utils.path import SRB_HYPERPARAMS_DIR
 
-SRB_NAMESPACE: str = "srb"
-
 
 def register_srb_tasks(
     tasks: Mapping[
@@ -24,7 +22,7 @@ def register_srb_tasks(
     for id, cfg in tasks.items():
         entry_point: gymnasium.Env = cfg.get("entry_point", default_entry_point)  # type: ignore
         gymnasium.register(
-            id=f"{SRB_NAMESPACE}/{id}",
+            id=f"srb/{id}",
             entry_point=f"{entry_point.__module__}:{entry_point.__name__}",  # type: ignore
             kwargs={
                 "task_cfg": cfg.get("task_cfg", default_task_cfg),
@@ -35,8 +33,4 @@ def register_srb_tasks(
 
 
 def get_srb_tasks() -> List[str]:
-    return [
-        env_id
-        for env_id in gymnasium.registry.keys()
-        if env_id.startswith(f"{SRB_NAMESPACE}/")
-    ]
+    return [env_id for env_id in gymnasium.registry.keys() if env_id.startswith("srb/")]

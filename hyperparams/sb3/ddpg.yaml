@@ -1,0 +1,16 @@
+n_timesteps: 100000000
+policy: "MultiInputPolicy"
+batch_size: 512
+buffer_size: 5000000
+gamma: 0.997
+gradient_steps: 4
+learning_rate: lin_0.0003
+learning_starts: 50000
+noise_std: 0.1
+noise_type: "normal"
+normalize: true
+tau: 0.005
+train_freq: 1
+policy_kwargs: "dict(
+  net_arch=[384, 384],
+  )"

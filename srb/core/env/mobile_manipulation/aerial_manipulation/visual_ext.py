@@ -21,12 +21,12 @@ class AerialManipulationEnvVisualExtCfg(VisualExtCfg):
                     clipping_range=(0.05, 75.0 - 0.05),
                 ),
             ),
-            "cam_bottom": CameraCfg(
-                prim_path=f"{env_cfg._robot.asset_cfg.prim_path}/{env_cfg._robot.frame_downward_camera.prim_relpath}",
+            "cam_onboard": CameraCfg(
+                prim_path=f"{env_cfg._robot.asset_cfg.prim_path}/{env_cfg._robot.frame_onboard_camera.prim_relpath}",
                 offset=CameraCfg.OffsetCfg(
                     convention="world",
-                    pos=env_cfg._robot.frame_downward_camera.offset.pos,
-                    rot=env_cfg._robot.frame_downward_camera.offset.rot,
+                    pos=env_cfg._robot.frame_onboard_camera.offset.pos,
+                    rot=env_cfg._robot.frame_onboard_camera.offset.rot,
                 ),
                 spawn=PinholeCameraCfg(
                     focal_length=5.0,

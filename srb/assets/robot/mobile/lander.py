@@ -30,7 +30,6 @@ class ApolloLander(Lander):
             ),
             mass_props=MassPropertiesCfg(mass=4280.0),  # Dry mass
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(),
     )
 
     ## Actions
@@ -147,6 +146,13 @@ class ApolloLander(Lander):
             rot=rpy_to_quat(0.0, 0.0, 0.0),
         ),
     )
+    frame_onboard_camera: Frame = Frame(
+        prim_relpath="base/camera_onboard",
+        offset=Transform(
+            pos=(0.0, -1.6, 1.1),
+            rot=rpy_to_quat(0.0, 90.0, 0.0),
+        ),
+    )
 
 
 class PeregrineLander(Lander):
@@ -167,7 +173,6 @@ class PeregrineLander(Lander):
             ),
             mass_props=MassPropertiesCfg(mass=825.0),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(),
     )
 
     ## Actions
@@ -279,6 +284,13 @@ class PeregrineLander(Lander):
             rot=rpy_to_quat(0.0, 0.0, 0.0),
         ),
     )
+    frame_onboard_camera: Frame = Frame(
+        prim_relpath="base/camera_onboard",
+        offset=Transform(
+            pos=(-0.685, 0.0, 0.55),
+            rot=rpy_to_quat(0.0, 90.0, 0.0),
+        ),
+    )
 
 
 class VikramLander(Lander):
@@ -299,7 +311,6 @@ class VikramLander(Lander):
             ),
             mass_props=MassPropertiesCfg(mass=626.0),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(),
     )
 
     ## Actions
@@ -391,6 +402,13 @@ class VikramLander(Lander):
             rot=rpy_to_quat(0.0, 0.0, 0.0),
         ),
     )
+    frame_onboard_camera: Frame = Frame(
+        prim_relpath="base/camera_onboard",
+        offset=Transform(
+            pos=(0.0, 0.0, 0.0),
+            rot=rpy_to_quat(0.0, 90.0, 0.0),
+        ),
+    )
 
 
 class RandomLander(Lander):
@@ -436,5 +454,12 @@ class RandomLander(Lander):
         offset=Transform(
             pos=(0.0, 0.0, 0.0),
             rot=rpy_to_quat(0.0, 0.0, 0.0),
+        ),
+    )
+    frame_onboard_camera: Frame = Frame(
+        prim_relpath="base/camera_onboard",
+        offset=Transform(
+            pos=(0.0, 0.0, 0.0),
+            rot=rpy_to_quat(0.0, 90.0, 0.0),
         ),
     )

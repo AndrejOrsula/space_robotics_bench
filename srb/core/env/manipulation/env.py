@@ -1,7 +1,15 @@
 from dataclasses import MISSING
 
 from srb import assets
-from srb.core.asset import Articulation, AssetVariant, Manipulator, RigidObject
+from srb.core.asset import (
+    Articulation,
+    AssetBaseCfg,
+    AssetVariant,
+    Manipulator,
+    MobileRobot,
+    Pedestal,
+    RigidObject,
+)
 from srb.core.env import BaseEventCfg, BaseSceneCfg, DirectEnv, DirectEnvCfg, ViewerCfg
 from srb.core.manager import EventTermCfg, SceneEntityCfg
 from srb.core.marker import FRAME_MARKER_SMALL_CFG
@@ -18,7 +26,10 @@ from srb.utils.math import combine_frame_transforms_tuple, deg_to_rad
 
 @configclass
 class ManipulationSceneCfg(BaseSceneCfg):
-    env_spacing = 4.0
+    env_spacing: float = 4.0
+
+    ## Assets
+    pedestal: AssetBaseCfg | None = None
 
     ## Sensors
     tf_end_effector: FrameTransformerCfg = FrameTransformerCfg(
@@ -55,6 +66,7 @@ class ManipulationEnvCfg(DirectEnvCfg):
     ## Assets
     robot: Manipulator | AssetVariant = assets.Franka()
     _robot: Manipulator = MISSING  # type: ignore
+    pedestal: Pedestal | MobileRobot | None = assets.IndustrialPedestal25()
 
     ## Scene
     scene: ManipulationSceneCfg = ManipulationSceneCfg()
@@ -68,11 +80,42 @@ class ManipulationEnvCfg(DirectEnvCfg):
 
     ## Viewer
     viewer: ViewerCfg = ViewerCfg(
-        eye=(1.5, 0.0, 1.75), lookat=(0.25, 0.0, 0.0), origin_type="env"
+        eye=(1.85, 0.0, 1.85), lookat=(0.125, 0.0, 0.25), origin_type="env"
     )
 
     def __post_init__(self):
         super().__post_init__()
+
+        ## Add pedestal and offset the robot
+        if self.pedestal is not None:
+            if isinstance(self.pedestal.asset_cfg, AssetBaseCfg):
+                self.scene.pedestal = self.pedestal.asset_cfg
+            else:
+                self.scene.pedestal = AssetBaseCfg(
+                    prim_path=self.pedestal.asset_cfg.prim_path,
+                    spawn=self.pedestal.asset_cfg.spawn,
+                    init_state=self.pedestal.asset_cfg.init_state,
+                )
+                for props in (
+                    "articulation_props",
+                    "deformable_props",
+                    "fixed_tendons_props",
+                    "joint_drive_props",
+                    "mass_props",
+                    "rigid_props",
+                ):
+                    setattr(self.scene.pedestal.spawn, props, None)
+            self.scene.robot.init_state.pos, self.scene.robot.init_state.rot = (
+                combine_frame_transforms_tuple(
+                    self._robot.asset_cfg.init_state.pos,
+                    self._robot.asset_cfg.init_state.rot,
+                    self.pedestal.frame_manipulator_mount.offset.pos,
+                    self.pedestal.frame_manipulator_mount.offset.rot,
+                )
+            )
+            self.scene.pedestal.prim_path = (
+                "/World/pedestal" if self.stack else "{ENV_REGEX_NS}/pedestal"
+            )
 
         # Sensor: End-effector transform
         self.scene.tf_end_effector.prim_path = (

@@ -58,13 +58,13 @@ class JointVelocityActionGroup(ActionGroup):
         asset_name="robot", joint_names=[".*"]
     )
 
-    def map_cmd_to_action(self, twist: torch.Tensor, event: bool) -> torch.Tensor:
-        return torch.Tensor((-1.0 if event else 1.0,)).to(device=twist.device)
-
 
 @configclass
 class JointVelocityBinaryActionGroup(ActionGroup):
     joint_vel: BinaryJointVelocityActionCfg = MISSING  # type: ignore
+
+    def map_cmd_to_action(self, twist: torch.Tensor, event: bool) -> torch.Tensor:
+        return torch.Tensor((-1.0 if event else 1.0,)).to(device=twist.device)
 
 
 @configclass

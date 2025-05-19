@@ -403,6 +403,7 @@ class WheeledDriveActionCfg(ActionTermCfg):
     class_type: Type = WheeledDriveAction
 
     # Scaling factors
+    # TODO: Separate linear and angular scaling
     scale: float = 1.0
 
     # Drive configuration (auto-detected if None)

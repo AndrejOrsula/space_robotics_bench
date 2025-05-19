@@ -1,11 +1,14 @@
-from srb.core.action import (
+from srb.core.action import (  # noqa: F401
     ActionGroup,
+    DifferentialIKControllerCfg,
     DifferentialInverseKinematicsActionCfg,
     InverseKinematicsActionGroup,
+    OperationalSpaceControlActionGroup,
+    OperationalSpaceControllerActionCfg,
+    OperationalSpaceControllerCfg,
 )
 from srb.core.actuator import ImplicitActuatorCfg
 from srb.core.asset import ArticulationCfg, Frame, SerialManipulator, Transform
-from srb.core.controller import DifferentialIKControllerCfg
 from srb.core.sim import (
     ArticulationRootPropertiesCfg,
     CollisionPropertiesCfg,
@@ -69,6 +72,7 @@ class Canadarm3(SerialManipulator):
         DifferentialInverseKinematicsActionCfg(
             asset_name="robot",
             joint_names=["canadarm3_large_joint_[1-7]"],
+            base_name="canadarm3_large_0",
             body_name="canadarm3_large_7",
             controller=DifferentialIKControllerCfg(
                 command_type="pose",

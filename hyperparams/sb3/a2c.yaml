@@ -1,0 +1,16 @@
+n_timesteps: 100000000
+policy: "MultiInputPolicy"
+ent_coef: 0.01
+gae_lambda: 0.9
+gamma: 0.997
+learning_rate: lin_0.0003
+max_grad_norm: 0.5
+n_steps: 8
+normalize_advantage: true
+normalize: true
+use_rms_prop: True
+vf_coef: 0.4
+policy_kwargs: "dict(
+  log_std_init=-2,
+  net_arch=[384, 384],
+  )"

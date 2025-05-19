@@ -3,6 +3,7 @@ from typing import Sequence
 import torch
 
 from srb._typing import StepReturn
+from srb.core.action import ThrustAction
 from srb.core.env import OrbitalEnv, OrbitalEnvCfg, OrbitalEventCfg, OrbitalSceneCfg
 from srb.utils.cfg import configclass
 from srb.utils.math import matrix_from_quat, rotmat_to_rot6d
@@ -53,6 +54,17 @@ class Task(OrbitalEnv):
         super()._reset_idx(env_ids)
 
     def extract_step_return(self) -> StepReturn:
+        ## Get remaining fuel (if applicable)
+        if self._thrust_action_term_key:
+            thrust_action_term: ThrustAction = self.action_manager._terms[  # type: ignore
+                self._thrust_action_term_key
+            ]
+            remaining_fuel = (
+                thrust_action_term.remaining_fuel / thrust_action_term.cfg.fuel_capacity
+            ).unsqueeze(-1)
+        else:
+            remaining_fuel = None
+
         return _compute_step_return(
             ## Time
             episode_length=self.episode_length_buf,
@@ -70,6 +82,8 @@ class Task(OrbitalEnv):
             # IMU
             imu_lin_acc=self._imu_robot.data.lin_acc_b,
             imu_ang_vel=self._imu_robot.data.ang_vel_b,
+            # Fuel
+            remaining_fuel=remaining_fuel,
         )
 
 
@@ -92,9 +106,11 @@ def _compute_step_return(
     # IMU
     imu_lin_acc: torch.Tensor,
     imu_ang_vel: torch.Tensor,
+    # Fuel
+    remaining_fuel: torch.Tensor | None,
 ) -> StepReturn:
     num_envs = episode_length.size(0)
-    # dtype = episode_length.dtype
+    dtype = episode_length.dtype
     device = episode_length.device
 
     ############
@@ -104,6 +120,13 @@ def _compute_step_return(
     tf_rotmat_robot = matrix_from_quat(tf_quat_robot)
     tf_rot6d_robot = rotmat_to_rot6d(tf_rotmat_robot)
 
+    ## Fuel
+    remaining_fuel = (
+        remaining_fuel
+        if remaining_fuel is not None
+        else torch.ones((num_envs, 1), dtype=dtype, device=device)
+    )
+
     #############
     ## Rewards ##
     #############
@@ -111,6 +134,12 @@ def _compute_step_return(
     WEIGHT_ACTION_RATE = -0.05
     penalty_action_rate = WEIGHT_ACTION_RATE * torch.sum(
         torch.square(act_current - act_previous), dim=1
+    )
+
+    # Penalty: Fuel consumption
+    WEIGHT_FUEL_CONSUMPTION = -2.0
+    penalty_fuel_consumption = WEIGHT_FUEL_CONSUMPTION * torch.square(
+        1.0 - remaining_fuel.squeeze(-1)
     )
 
     ##################
@@ -137,11 +166,13 @@ def _compute_step_return(
             "proprio": {
                 "imu_lin_acc": imu_lin_acc,
                 "imu_ang_vel": imu_ang_vel,
+                "remaining_fuel": remaining_fuel,
             },
             # "proprio_dyn": {},
         },
         {
             "penalty_action_rate": penalty_action_rate,
+            "penalty_fuel_consumption": penalty_fuel_consumption,
         },
         termination,
         truncation,

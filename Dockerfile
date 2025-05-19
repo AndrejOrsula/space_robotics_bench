@@ -128,7 +128,7 @@ RUN apt-get update && \
 RUN "${ISAAC_SIM_PYTHON}" -m pip install --no-input --no-cache-dir --upgrade pip
 
 ## Install Rust
-ARG RUST_VERSION="1.84"
+ARG RUST_VERSION="1.86"
 RUN echo -e "\n# Rust ${RUST_VERSION}" >> /entrypoint.bash && \
     echo "export PATH=\"${HOME}/.cargo/bin\${PATH:+:\${PATH}}\"" >> /entrypoint.bash && \
     echo "export CARGO_TARGET_DIR=\"${HOME}/.cargo/target\"" >> /entrypoint.bash && \
@@ -231,7 +231,7 @@ ARG ISAACLAB_DEV=true
 ARG ISAACLAB_PATH="/root/isaaclab"
 ARG ISAACLAB_REMOTE="https://github.com/isaac-sim/IsaacLab.git"
 ARG ISAACLAB_BRANCH="main"
-ARG ISAACLAB_COMMIT_SHA="d7da02da62b46153da3dc3e54585eea078e0d9cb" # 2025-03-20
+ARG ISAACLAB_COMMIT_SHA="7de6d6fef9424c95fc68dc767af67ffbe0da6832" # 2025-04-11
 # hadolint ignore=SC2044
 RUN if [[ "${DEV,,}" = true && "${ISAACLAB_DEV,,}" = true ]]; then \
     echo -e "\n# Isaac Lab ${ISAACLAB_COMMIT_SHA}" >> /entrypoint.bash && \
@@ -279,19 +279,29 @@ RUN if [[ "${DEV,,}" = true && "${SIMFORGE_FOUNDRY_DEV,,}" = true ]]; then \
 ## Reinforcement Learning
 ARG DREAMER_DEV=true
 ARG DREAMER_PATH="/root/dreamerv3"
-ARG DREAMER_REMOTE="https://github.com/danijar/dreamerv3.git"
+ARG DREAMER_REMOTE="https://github.com/AndrejOrsula/dreamerv3.git"
 ARG DREAMER_BRANCH="main"
-ARG DREAMER_COMMIT_SHA="bfcdfc183d2c1543a3bf3cdda6edb7fae29b6a01" # 2025-02-22
+ARG DREAMER_COMMIT_SHA="45c3955afb6ee26310fc5bce65102320b8d98b18" # 2025-04-11
 RUN if [[ "${DEV,,}" = true && "${DREAMER_DEV,,}" = true ]]; then \
     git clone "${DREAMER_REMOTE}" "${DREAMER_PATH}" --branch "${DREAMER_BRANCH}" && \
     git -C "${DREAMER_PATH}" reset --hard "${DREAMER_COMMIT_SHA}" && \
     "${ISAAC_SIM_PYTHON}" -m pip install --no-input --no-cache-dir --editable "${DREAMER_PATH}" ; \
     fi
+ARG RL_ZOO3_DEV=true
+ARG RL_ZOO3_PATH="/root/rl_zoo3"
+ARG RL_ZOO3_REMOTE="https://github.com/AndrejOrsula/rl-baselines3-zoo.git"
+ARG RL_ZOO3_BRANCH="master"
+ARG RL_ZOO3_COMMIT_SHA="e04921b4ccbadbc9f6bcc46cc1787ffc1d2c8963" # 2025-01-18
+RUN if [[ "${DEV,,}" = true && "${RL_ZOO3_DEV,,}" = true ]]; then \
+    git clone "${RL_ZOO3_REMOTE}" "${RL_ZOO3_PATH}" --branch "${RL_ZOO3_BRANCH}" && \
+    git -C "${RL_ZOO3_PATH}" reset --hard "${RL_ZOO3_COMMIT_SHA}" && \
+    "${ISAAC_SIM_PYTHON}" -m pip install --no-input --no-cache-dir --editable "${RL_ZOO3_PATH}" ; \
+    fi
 ARG SKRL_DEV=false
 ARG SKRL_PATH="/root/skrl"
 ARG SKRL_REMOTE="https://github.com/Toni-SM/skrl.git"
 ARG SKRL_BRANCH="main"
-ARG SKRL_COMMIT_SHA="bfcdfc183d2c1543a3bf3cdda6edb7fae29b6a01" # 2025-03-18
+ARG SKRL_COMMIT_SHA="cdf570902b1eaba193cc8ef69426cd4edde1b0bc" # 2025-04-06
 RUN if [[ "${DEV,,}" = true && "${SKRL_DEV,,}" = true ]]; then \
     git clone "${SKRL_REMOTE}" "${SKRL_PATH}" --branch "${SKRL_BRANCH}" && \
     git -C "${SKRL_PATH}" reset --hard "${SKRL_COMMIT_SHA}" && \

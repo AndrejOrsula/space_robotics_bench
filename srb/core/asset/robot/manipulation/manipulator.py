@@ -9,7 +9,6 @@ from srb.core.asset.object import Tool
 from srb.core.asset.robot.manipulation.manipulator_type import ManipulatorType
 from srb.core.asset.robot.robot import Robot, RobotRegistry
 from srb.core.asset.robot.robot_type import RobotType
-from srb.utils.str import convert_to_snake_case
 
 
 class Manipulator(Robot, robot_entrypoint=RobotType.MANIPULATOR):
@@ -55,13 +54,13 @@ class Manipulator(Robot, robot_entrypoint=RobotType.MANIPULATOR):
                     if manipulator_type not in ManipulatorRegistry.registry.keys():
                         ManipulatorRegistry.registry[manipulator_type] = []
                     else:
-                        assert convert_to_snake_case(cls.__name__) not in (
-                            convert_to_snake_case(manipulator.__name__)
+                        assert cls.name() not in (
+                            manipulator.name()
                             for manipulator in ManipulatorRegistry.registry[
                                 manipulator_type
                             ]
                         ), (
-                            f"Cannot register multiple manipulators with an identical name: '{cls.__module__}:{cls.__name__}' already exists as '{next(manipulator for manipulator in ManipulatorRegistry.registry[manipulator_type] if convert_to_snake_case(cls.__name__) == convert_to_snake_case(manipulator.__name__)).__module__}:{cls.__name__}'"
+                            f"Cannot register multiple manipulators with an identical name: '{cls.__module__}:{cls.__name__}' already exists as '{next(manipulator for manipulator in ManipulatorRegistry.registry[manipulator_type] if cls.name() == manipulator.name()).__module__}:{cls.__name__}'"
                         )
                     ManipulatorRegistry.registry[manipulator_type].append(cls)
                     break
@@ -128,6 +127,6 @@ class ManipulatorRegistry:
     @classmethod
     def get_by_name(cls, name: str) -> Type[Manipulator] | None:
         for manipulator in cls.values_inner():
-            if convert_to_snake_case(manipulator.__name__) == name:
+            if manipulator.name() == name:
                 return manipulator
         return None

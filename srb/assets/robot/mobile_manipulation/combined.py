@@ -28,7 +28,7 @@ class GenericAerialManipulator(AerialManipulator, arbitrary_types_allowed=True):
     frame_base: Frame | _MISSING_TYPE = MISSING_MOBILE_BASE
     frame_payload_mount: Frame | _MISSING_TYPE = MISSING_MOBILE_BASE
     frame_manipulator_mount: Frame | _MISSING_TYPE = MISSING_MOBILE_BASE
-    frame_downward_camera: Frame | _MISSING_TYPE = MISSING_MOBILE_BASE
+    frame_onboard_camera: Frame | _MISSING_TYPE = MISSING_MOBILE_BASE
 
 
 class GenericGroundManipulator(GroundManipulator, arbitrary_types_allowed=True):
@@ -56,3 +56,4 @@ class GenericOrbitalManipulator(OrbitalManipulator, arbitrary_types_allowed=True
     frame_base: Frame | _MISSING_TYPE = MISSING_MOBILE_BASE
     frame_payload_mount: Frame | _MISSING_TYPE = MISSING_MOBILE_BASE
     frame_manipulator_mount: Frame | _MISSING_TYPE = MISSING_MOBILE_BASE
+    frame_onboard_camera: Frame | _MISSING_TYPE = MISSING_MOBILE_BASE

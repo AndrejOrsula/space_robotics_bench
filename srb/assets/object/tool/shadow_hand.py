@@ -31,8 +31,6 @@ class ShadowHand(ActiveTool):
                 enabled_self_collisions=True,
                 solver_position_iteration_count=8,
                 solver_velocity_iteration_count=0,
-                sleep_threshold=0.005,
-                stabilization_threshold=0.0005,
             ),
             joint_drive_props=JointDrivePropertiesCfg(drive_type="force"),
             fixed_tendons_props=FixedTendonPropertiesCfg(

@@ -20,6 +20,10 @@ The Space Robotics Bench provides a variety of robotic arms for simulating manip
 
 #### Kinova Gen3 — 7 DoF (`kinova_gen3n7`)
 
+#### SO-ARM100 — 5 DoF (`so_arm100_d5`)
+
+#### SO-ARM100 — 7 DoF (`so_arm100_d7`)
+
 #### UR3 (`ur3`)
 
 #### UR3e (`ur3e`)
@@ -56,4 +60,8 @@ The Space Robotics Bench provides a variety of robotic arms for simulating manip
 
 #### Kinova Jaco 2 3-Finger Gripper (`kinova300`)
 
+#### Robotiq Hand-E (`robotiq_hand_e`)
+
 #### Shadow Hand (`shadow_hand`)
+
+#### SO-ARM100 Gripper (`so_arm100_gripper`)

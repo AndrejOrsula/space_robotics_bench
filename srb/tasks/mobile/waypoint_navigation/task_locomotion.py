@@ -6,18 +6,14 @@ import torch
 from srb import assets
 from srb._typing import StepReturn
 from srb.core.asset import AssetVariant, Humanoid, LeggedRobot
-from srb.core.env import GroundEnv, GroundEnvCfg, GroundEventCfg, GroundSceneCfg
 from srb.core.manager import EventTermCfg, SceneEntityCfg
-from srb.core.marker import ARROW_CFG, VisualizationMarkers
-from srb.core.mdp import (
-    push_by_setting_velocity,
-    randomize_command,
-    reset_joints_by_scale,
-)
+from srb.core.mdp import push_by_setting_velocity  # noqa: F401
+from srb.core.mdp import reset_joints_by_scale
 from srb.core.sensor import ContactSensor, ContactSensorCfg
-from srb.core.sim import PreviewSurfaceCfg
 from srb.utils.cfg import configclass
 from srb.utils.math import matrix_from_quat, rotmat_to_rot6d, scale_transform
+
+from .task import EventCfg, SceneCfg, Task, TaskCfg
 
 ##############
 ### Config ###
@@ -25,9 +21,7 @@ from srb.utils.math import matrix_from_quat, rotmat_to_rot6d, scale_transform
 
 
 @configclass
-class SceneCfg(GroundSceneCfg):
-    env_spacing = 32.0
-
+class LocomotionSceneCfg(SceneCfg):
     contacts_robot: ContactSensorCfg = ContactSensorCfg(
         prim_path=MISSING,  # type: ignore
         update_period=0.0,
@@ -37,16 +31,7 @@ class SceneCfg(GroundSceneCfg):
 
 
 @configclass
-class EventCfg(GroundEventCfg):
-    command = EventTermCfg(
-        func=randomize_command,
-        mode="interval",
-        interval_range_s=(0.5, 5.0),
-        params={
-            "env_attr_name": "_command",
-            # "magnitude": 1.0,
-        },
-    )
+class LocomotionEventCfg(EventCfg):
     randomize_robot_joints: EventTermCfg = EventTermCfg(
         func=reset_joints_by_scale,
         mode="reset",
@@ -56,38 +41,34 @@ class EventCfg(GroundEventCfg):
             "velocity_range": (0.0, 0.0),
         },
     )
-    push_robot: EventTermCfg = EventTermCfg(
-        func=push_by_setting_velocity,
-        mode="interval",
-        interval_range_s=(10.0, 15.0),
-        params={
-            "asset_cfg": SceneEntityCfg("robot"),
-            "velocity_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5)},
-        },
-    )
+    # push_robot: EventTermCfg = EventTermCfg(
+    #     func=push_by_setting_velocity,
+    #     mode="interval",
+    #     interval_range_s=(10.0, 15.0),
+    #     params={
+    #         "asset_cfg": SceneEntityCfg("robot"),
+    #         "velocity_range": {
+    #             "x": (-0.5, 0.5),
+    #             "y": (-0.5, 0.5),
+    #         },
+    #     },
+    # )
 
 
 @configclass
-class TaskCfg(GroundEnvCfg):
+class LocomotionTaskCfg(TaskCfg):
     ## Assets
     robot: LeggedRobot | Humanoid | AssetVariant = assets.Spot()
     _robot: LeggedRobot = MISSING  # type: ignore
 
     ## Scene
-    scene: SceneCfg = SceneCfg()
-    stack: bool = True
+    scene: LocomotionSceneCfg = LocomotionSceneCfg()
 
     ## Events
-    events: EventCfg = EventCfg()
+    events: LocomotionEventCfg = LocomotionEventCfg()
 
     ## Time
-    env_rate: float = 1.0 / 100.0
-    agent_rate: float = 1.0 / 50.0
-    episode_length_s: float = 20.0
-    is_finite_horizon: bool = False
-
-    ## Visualization
-    command_vis: bool = True
+    env_rate: float = 1.0 / 125.0
 
     def __post_init__(self):
         super().__post_init__()
@@ -101,17 +82,14 @@ class TaskCfg(GroundEnvCfg):
 ############
 
 
-class Task(GroundEnv):
-    cfg: TaskCfg
+class LocomotionTask(Task):
+    cfg: LocomotionTaskCfg
 
-    def __init__(self, cfg: TaskCfg, **kwargs):
+    def __init__(self, cfg: LocomotionTaskCfg, **kwargs):
         super().__init__(cfg, **kwargs)
 
         ## Get scene assets
         self._contacts_robot: ContactSensor = self.scene["contacts_robot"]
-
-        ## Initialize buffers
-        self._command = torch.zeros(self.num_envs, 3, device=self.device)
 
         ## Cache metrics
         self._feet_indices, _ = self._robot.find_bodies(
@@ -122,16 +100,12 @@ class Task(GroundEnv):
             idx for idx in _all_body_indices if idx not in self._feet_indices
         ]
 
-        ## Visualization
-        if self.cfg.command_vis:
-            self._setup_visualization_markers()
-
     def _reset_idx(self, env_ids: Sequence[int]):
         super()._reset_idx(env_ids)
 
     def extract_step_return(self) -> StepReturn:
-        if self.cfg.command_vis or self.cfg.debug_vis:
-            self._update_visualization_markers()
+        ## Visualize target
+        self._target_marker.visualize(self._goal)
 
         return _compute_step_return(
             ## Time
@@ -143,11 +117,13 @@ class Task(GroundEnv):
             act_previous=self.action_manager.prev_action,
             ## States
             # Root
-            # tf_pos_robot=self._robot.data.root_pos_w,
+            tf_pos_robot=self._robot.data.root_pos_w,
             tf_quat_robot=self._robot.data.root_quat_w,
             vel_lin_robot=self._robot.data.root_lin_vel_b,
             vel_ang_robot=self._robot.data.root_ang_vel_b,
             projected_gravity_robot=self._robot.data.projected_gravity_b,
+            # Transforms (world frame)
+            tf_pos_target=self._goal,
             # Joints
             joint_pos_robot=self._robot.data.joint_pos,
             joint_pos_limits_robot=(
@@ -167,134 +143,6 @@ class Task(GroundEnv):
             ## Robot descriptors
             robot_feet_indices=self._feet_indices,
             robot_undesired_contact_body_indices=self._undesired_contact_body_indices,
-            ## Command
-            command=self._command,
-        )
-
-    def _setup_visualization_markers(self):
-        ## Linear velocity
-        cfg = ARROW_CFG.copy().replace(  # type: ignore
-            prim_path="/Visuals/command/target_linvel"
-        )
-        cfg.markers["arrow"].tail_radius = 0.01
-        cfg.markers["arrow"].tail_length = 0.5
-        cfg.markers["arrow"].head_radius = 0.02
-        cfg.markers["arrow"].head_length = 0.1
-        cfg.markers["arrow"].visual_material = PreviewSurfaceCfg(
-            emissive_color=(0.0, 1.0, 0.0)
-        )
-        self._marker_target_linvel = VisualizationMarkers(cfg)
-        cfg = ARROW_CFG.copy().replace(  # type: ignore
-            prim_path="/Visuals/command/robot_linvel"
-        )
-        cfg.markers["arrow"].tail_radius = 0.01
-        cfg.markers["arrow"].tail_length = 0.5
-        cfg.markers["arrow"].head_radius = 0.02
-        cfg.markers["arrow"].head_length = 0.1
-        cfg.markers["arrow"].visual_material = PreviewSurfaceCfg(
-            emissive_color=(0.2, 0.8, 0.2)
-        )
-        self._marker_robot_linvel = VisualizationMarkers(cfg)
-
-        ## Angular velocity
-        cfg = ARROW_CFG.copy().replace(  # type: ignore
-            prim_path="/Visuals/command/target_angvel"
-        )
-        cfg.markers["arrow"].tail_length = 0.0
-        cfg.markers["arrow"].tail_radius = 0.0
-        cfg.markers["arrow"].head_radius = 0.025
-        cfg.markers["arrow"].head_length = 0.15
-        cfg.markers["arrow"].visual_material = PreviewSurfaceCfg(
-            emissive_color=(0.2, 0.2, 0.8)
-        )
-        self._marker_target_angvel = VisualizationMarkers(cfg)
-        cfg = ARROW_CFG.copy().replace(  # type: ignore
-            prim_path="/Visuals/command/robot_angvel"
-        )
-        cfg.markers["arrow"].tail_length = 0.0
-        cfg.markers["arrow"].tail_radius = 0.0
-        cfg.markers["arrow"].head_radius = 0.025
-        cfg.markers["arrow"].head_length = 0.15
-        cfg.markers["arrow"].visual_material = PreviewSurfaceCfg(
-            emissive_color=(0.2, 0.2, 0.8)
-        )
-        self._marker_robot_angvel = VisualizationMarkers(cfg)
-
-    def _update_visualization_markers(self):
-        MARKER_OFFSET_Z_LINVEL = 0.2
-        MARKER_OFFSET_Z_ANGVEL = 0.175
-
-        ## Common
-        robot_pos_w = self._robot.data.root_link_pos_w
-        marker_pos = torch.zeros(
-            (self.cfg.scene.num_envs, 3), dtype=torch.float32, device=self.device
-        )
-        marker_orientation = torch.zeros(
-            (self.cfg.scene.num_envs, 4), dtype=torch.float32, device=self.device
-        )
-        marker_scale = torch.ones(
-            (self.cfg.scene.num_envs, 3), dtype=torch.float32, device=self.device
-        )
-        marker_pos[:, :2] = robot_pos_w[:, :2]
-
-        ## Target linear velocity
-        marker_pos[:, 2] = robot_pos_w[:, 2] + MARKER_OFFSET_Z_LINVEL
-        marker_heading = self._robot.data.heading_w + torch.atan2(
-            self._command[:, 1], self._command[:, 0]
-        )
-        marker_orientation[:, 0] = torch.cos(marker_heading * 0.5)
-        marker_orientation[:, 3] = torch.sin(marker_heading * 0.5)
-        marker_scale[:, 0] = torch.norm(
-            torch.stack(
-                (self._command[:, 0], self._command[:, 1]),
-                dim=-1,
-            ),
-            dim=-1,
-        )
-        self._marker_target_linvel.visualize(
-            marker_pos, marker_orientation, marker_scale
-        )
-
-        ## Robot linear velocity
-        marker_heading = self._robot.data.heading_w + torch.atan2(
-            self._robot.data.root_lin_vel_b[:, 1],
-            self._robot.data.root_lin_vel_b[:, 0],
-        )
-        marker_orientation[:, 0] = torch.cos(marker_heading * 0.5)
-        marker_orientation[:, 3] = torch.sin(marker_heading * 0.5)
-        marker_scale[:, 0] = torch.norm(self._robot.data.root_lin_vel_b[:, :2], dim=-1)
-        self._marker_robot_linvel.visualize(
-            marker_pos, marker_orientation, marker_scale
-        )
-
-        ## Target angular velocity
-        _target_angvel_abs = self._command[:, 2].abs()
-        normalization_fac = torch.where(
-            self._command[:, 2] != 0.0,
-            (torch.pi / 2.0) / self._command[:, 2].abs(),
-            torch.ones_like(self._command[:, 2]),
-        ).clamp(max=1.0)
-        marker_pos[:, 2] = robot_pos_w[:, 2] + MARKER_OFFSET_Z_ANGVEL
-        marker_heading = (
-            self._robot.data.heading_w + normalization_fac * self._command[:, 2]
-        )
-        marker_orientation[:, 0] = torch.cos(marker_heading * 0.5)
-        marker_orientation[:, 3] = torch.sin(marker_heading * 0.5)
-        marker_scale[:, 0] = 1.0
-        self._marker_target_angvel.visualize(
-            marker_pos, marker_orientation, marker_scale
-        )
-
-        ## Robot angular velocity
-        marker_heading = (
-            self._robot.data.heading_w
-            + normalization_fac * self._robot.data.root_ang_vel_w[:, -1]
-        )
-        marker_orientation[:, 0] = torch.cos(marker_heading * 0.5)
-        marker_orientation[:, 3] = torch.sin(marker_heading * 0.5)
-        marker_scale[:, 0] = 1.0
-        self._marker_robot_angvel.visualize(
-            marker_pos, marker_orientation, marker_scale
         )
 
 
@@ -310,11 +158,13 @@ def _compute_step_return(
     act_previous: torch.Tensor,
     ## States
     # Root
-    # tf_pos_robot: torch.Tensor,
+    tf_pos_robot: torch.Tensor,
     tf_quat_robot: torch.Tensor,
     vel_lin_robot: torch.Tensor,
     vel_ang_robot: torch.Tensor,
     projected_gravity_robot: torch.Tensor,
+    # Transforms (world frame)
+    tf_pos_target: torch.Tensor,
     # Joints
     joint_pos_robot: torch.Tensor,
     joint_pos_limits_robot: torch.Tensor | None,
@@ -330,8 +180,6 @@ def _compute_step_return(
     ## Robot descriptors
     robot_feet_indices: List[int],
     robot_undesired_contact_body_indices: List[int],
-    ## Command
-    command: torch.Tensor,
 ) -> StepReturn:
     num_envs = episode_length.size(0)
     # dtype = episode_length.dtype
@@ -343,6 +191,11 @@ def _compute_step_return(
     ## Root
     tf_rotmat_robot = matrix_from_quat(tf_quat_robot)
     tf_rot6d_robot = rotmat_to_rot6d(tf_rotmat_robot)
+
+    ## Transforms (world frame)
+    # Robot -> Target
+    tf_pos_robot_to_target = tf_pos_robot[:, :2] - tf_pos_target[:, :2]
+    dist_robot_to_target = torch.norm(tf_pos_robot_to_target, dim=-1)
 
     ## Joints
     joint_pos_robot_normalized = (
@@ -398,19 +251,17 @@ def _compute_step_return(
         > THRESHOLD_UNDESIRED_ROBOT_CONTACTS
     )
 
-    # Reward: Command tracking (linear)
-    WEIGHT_CMD_LIN_VEL_XY = 3.0
-    EXP_STD_CMD_LIN_VEL_XY = 0.5
-    reward_cmd_lin_vel_xy = WEIGHT_CMD_LIN_VEL_XY * torch.exp(
-        -torch.sum(torch.square(command[:, :2] - vel_lin_robot[:, :2]), dim=1)
-        / EXP_STD_CMD_LIN_VEL_XY
-    )
-
-    # Reward: Command tracking (angular)
-    WEIGHT_CMD_ANG_VEL_Z = 1.5
-    EXP_STD_CMD_ANG_VEL_Z = 0.25
-    reward_cmd_ang_vel_z = WEIGHT_CMD_ANG_VEL_Z * torch.exp(
-        -torch.square(command[:, 2] - vel_ang_robot[:, 2]) / EXP_STD_CMD_ANG_VEL_Z
+    # Reward: Distance | Robot <--> Target (precision)
+    WEIGHT_DISTANCE_ROBOT_TO_TARGET_PRECISION = 64.0
+    TANH_STD_DISTANCE_ROBOT_TO_TARGET_PRECISION = 0.05
+    reward_distance_robot_to_target_precision = (
+        WEIGHT_DISTANCE_ROBOT_TO_TARGET_PRECISION
+        * (
+            1.0
+            - torch.tanh(
+                dist_robot_to_target / TANH_STD_DISTANCE_ROBOT_TO_TARGET_PRECISION
+            )
+        )
     )
 
     # Reward: Feet air time
@@ -418,7 +269,7 @@ def _compute_step_return(
     THRESHOLD_FEET_AIR_TIME = 0.1
     reward_feet_air_time = (
         WEIGHT_FEET_AIR_TIME
-        * (torch.norm(command[:, :2], dim=1) > THRESHOLD_FEET_AIR_TIME)
+        * (dist_robot_to_target > THRESHOLD_FEET_AIR_TIME)
         * torch.sum(
             (contact_last_air_time[:, robot_feet_indices] - 0.5)
             * contact_robot[:, robot_feet_indices],
@@ -465,6 +316,7 @@ def _compute_step_return(
                 "vel_lin_robot": vel_lin_robot,
                 "vel_ang_robot": vel_ang_robot,
                 "projected_gravity_robot": projected_gravity_robot,
+                "tf_pos_robot_to_target": tf_pos_robot_to_target,
             },
             "state_dyn": {
                 "contact_forces_robot": contact_forces_robot,
@@ -478,17 +330,13 @@ def _compute_step_return(
                 "joint_acc_robot": joint_acc_robot,
                 "joint_applied_torque_robot": joint_applied_torque_robot,
             },
-            "command": {
-                "cmd_vel": command,
-            },
         },
         {
             "penalty_action_rate": penalty_action_rate,
             "penalty_joint_torque": penalty_joint_torque,
             "penalty_joint_acceleration": penalty_joint_acceleration,
             "penalty_undesired_robot_contacts": penalty_undesired_robot_contacts,
-            "reward_cmd_lin_vel_xy": reward_cmd_lin_vel_xy,
-            "reward_cmd_ang_vel_z": reward_cmd_ang_vel_z,
+            "reward_distance_robot_to_target_precision": reward_distance_robot_to_target_precision,
             "reward_feet_air_time": reward_feet_air_time,
             "penalty_undesired_lin_vel_z": penalty_undesired_lin_vel_z,
             "penalty_undesired_ang_vel_xy": penalty_undesired_ang_vel_xy,

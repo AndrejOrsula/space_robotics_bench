@@ -12,7 +12,7 @@ from srb.core.sim import (
     UsdFileCfg,
 )
 from srb.utils.math import rpy_to_quat
-from srb.utils.nucleus import ISAACLAB_NUCLEUS_DIR
+from srb.utils.path import SRB_ASSETS_DIR_SRB_ROBOT
 
 
 class Cassie(LeggedRobot):
@@ -20,7 +20,9 @@ class Cassie(LeggedRobot):
     asset_cfg: ArticulationCfg = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/cassie",
         spawn=UsdFileCfg(
-            usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Agility/Cassie/cassie.usd",
+            usd_path=SRB_ASSETS_DIR_SRB_ROBOT.joinpath("legged")
+            .joinpath("cassie.usdz")
+            .as_posix(),
             activate_contact_sensors=True,
             collision_props=CollisionPropertiesCfg(
                 contact_offset=0.005, rest_offset=0.0

@@ -1,0 +1,18 @@
+n_timesteps: 100000000
+policy: "MultiInputPolicy"
+batch_size: 512
+cg_damping: 0.1
+cg_max_steps: 25
+ent_coef: 0.01
+gae_lambda: 0.95
+gamma: 0.997
+learning_rate: lin_0.0001
+max_kl: 0.01
+n_critic_updates: 20
+n_steps: 1024
+normalize: true
+sub_sampling_factor: 1
+policy_kwargs: "dict(
+  log_std_init=-2,
+  net_arch=[384, 384],
+  )"

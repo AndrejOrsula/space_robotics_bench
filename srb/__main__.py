@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any, Dict, Literal, Mapping, Sequence, Tuple
 from typing_extensions import Self
 
 from srb.interfaces import InterfaceType, TeleopDeviceType
-from srb.utils.cache import read_env_list_cache, update_env_list_cache
+from srb.utils.cache import read_offline_srb_env_cache, update_offline_srb_cache
 from srb.utils.path import SRB_APPS_DIR, SRB_DIR, SRB_LOGS_DIR
 
 if TYPE_CHECKING:
@@ -64,11 +64,12 @@ def run_agent_with_env(
     ],
     env_id: str,
     logdir_path: str,
+    interface: Sequence[str],
     video_enable: bool,
-    video_length: int,
-    video_interval: int,
+    perf_enable: bool,
+    perf_output: str,
+    perf_duration: float,
     hide_ui: bool,
-    interface: Sequence[str] = (),
     forwarded_args: Sequence[str] = (),
     **kwargs,
 ):
@@ -83,13 +84,12 @@ def run_agent_with_env(
     # Launch Isaac Sim
     launcher = AppLauncher(launcher_args=kwargs)
 
-    # Update the offline environment registry
-    update_env_list_cache()
+    # Update the offline registry cache
+    update_offline_srb_cache()
 
     from omni.physx import acquire_physx_interface
 
     from srb.interfaces.teleop import EventKeyboardTeleopInterface
-    from srb.utils import logging
     from srb.utils.cfg import hydra_task_config, last_logdir, new_logdir
     from srb.utils.isaacsim import hide_isaacsim_ui
 
@@ -145,14 +145,178 @@ def run_agent_with_env(
 
         # Add wrapper for video recording
         if video_enable:
-            video_kwargs = {
-                "video_folder": logdir.joinpath("videos"),
-                "step_trigger": lambda step: step % video_interval == 0,
-                "video_length": video_length,
-                "disable_logger": True,
-            }
-            logging.info(f"Recording videos: {video_kwargs}")
-            env = gymnasium.wrappers.RecordVideo(env, **video_kwargs)
+            env = gymnasium.wrappers.RecordVideo(
+                env,
+                video_folder=logdir.joinpath("videos").as_posix(),
+                name_prefix=env_id.removeprefix("srb/"),
+                disable_logger=True,
+            )
+
+        # Add wrapper for performance tests
+        if perf_enable:
+            import sys
+            import time
+            from collections import deque
+
+            import torch
+            from gymnasium.core import ActType, Env, ObsType, Wrapper
+
+            class PerformanceTestWrapper(Wrapper):
+                def __init__(
+                    self,
+                    env: Env[ObsType, ActType],
+                    output: str,
+                    duration: float,
+                    min_report_interval_fraction: float = 0.1,
+                    max_buffer_size: int = 1000000,
+                ):
+                    super().__init__(env)
+                    self.__perf_output = output
+                    self.__perf_duration = duration
+                    self.__perf_min_report_interval = (
+                        duration * min_report_interval_fraction
+                    )
+
+                    _env: "AnyEnv" = env.unwrapped  # type: ignore
+                    self.__num_envs = _env.num_envs
+                    self.__agent_rate = _env.cfg.agent_rate
+
+                    self._perf_num_steps = 0
+                    self._perf_num_episodes = 0
+                    self._perf_total_time = 0.0
+                    self._perf_step_timings = deque(maxlen=max_buffer_size)
+                    self._perf_start_time = time.perf_counter()
+                    self._perf_last_report_time = self._perf_start_time
+
+                    if self.__perf_output != "STDOUT":
+                        parent_dir = os.path.dirname(self.__perf_output)
+                        if not os.path.exists(parent_dir):
+                            os.makedirs(parent_dir, exist_ok=True)
+
+                def step(self, action):
+                    # Step timing
+                    t_start = time.perf_counter()
+                    obs, reward, terminated, truncated, info = super().step(action)
+                    t_end = time.perf_counter()
+                    step_timing = t_end - t_start
+                    self._perf_step_timings.append(step_timing)
+                    self._perf_num_steps += self.__num_envs
+                    self._perf_total_time += step_timing
+
+                    # Episode end detection
+                    done: torch.Tensor = terminated | truncated  # type: ignore
+                    num_done = torch.sum(done).item()
+                    self._perf_num_episodes += num_done
+                    episode_ended = num_done > 0.5 * self.__num_envs
+
+                    if episode_ended or (
+                        t_end - self._perf_last_report_time
+                        > self.__perf_min_report_interval
+                    ):
+                        self.__perf_report(episode_end=episode_ended)
+                        self._perf_last_report_time = t_end
+
+                    # Check for duration limit
+                    if self._perf_total_time >= self.__perf_duration:
+                        self.__perf_report(final=True)
+                        print(
+                            "The performance test has finished (duration limit reached)."
+                        )
+                        env.close()
+                        launcher.app.close()
+                        sys.exit(0)
+
+                    return obs, reward, terminated, truncated, info
+
+                def __perf_report(self, episode_end: bool = False, final: bool = False):
+                    steps = self._perf_num_steps
+                    episodes = self._perf_num_episodes
+                    total_time = self._perf_total_time
+                    timings = torch.tensor(list(self._perf_step_timings))
+                    steps_per_sec = steps / total_time if total_time > 0 else 0
+                    mean_step_time = (
+                        torch.mean(timings).item() if timings.numel() > 0 else 0
+                    )
+                    median_step_time = (
+                        torch.median(timings).item() if timings.numel() > 0 else 0
+                    )
+                    min_step_time = (
+                        torch.min(timings).item() if timings.numel() > 0 else 0
+                    )
+                    max_step_time = (
+                        torch.max(timings).item() if timings.numel() > 0 else 0
+                    )
+
+                    def torch_percentiles(t, percentiles):
+                        if t.numel() == 0:
+                            return [0 for _ in percentiles]
+                        t_sorted, _ = torch.sort(t)
+                        n = t.numel()
+                        result = []
+                        for p in percentiles:
+                            k = (n - 1) * (p / 100)
+                            f = torch.floor(torch.tensor(k)).long()
+                            c = torch.ceil(torch.tensor(k)).long()
+                            if f == c:
+                                val = t_sorted[f]
+                            else:
+                                d0 = t_sorted[f] * (c.float() - k)
+                                d1 = t_sorted[c] * (k - f.float())
+                                val = d0 + d1
+                            result.append(val.item())
+                        return result
+
+                    step_time_percentiles = torch_percentiles(timings, [10, 20, 80, 90])
+                    if not hasattr(self, "_perf_episode_lengths"):
+                        self._perf_episode_lengths = []
+                    if episode_end and self._perf_num_episodes > 0:
+                        last_episode_len = (
+                            self._perf_num_steps / self._perf_num_episodes
+                        )
+                        self._perf_episode_lengths.append(last_episode_len)
+                    episode_lengths = torch.tensor(self._perf_episode_lengths)
+                    mean_episode_len = (
+                        torch.mean(episode_lengths).item()
+                        if episode_lengths.numel() > 0
+                        else 0
+                    )
+                    median_episode_len = (
+                        torch.median(episode_lengths).item()
+                        if episode_lengths.numel() > 0
+                        else 0
+                    )
+                    min_episode_len = (
+                        torch.min(episode_lengths).item()
+                        if episode_lengths.numel() > 0
+                        else 0
+                    )
+                    max_episode_len = (
+                        torch.max(episode_lengths).item()
+                        if episode_lengths.numel() > 0
+                        else 0
+                    )
+                    episode_len_percentiles = torch_percentiles(
+                        episode_lengths, [10, 20, 80, 90]
+                    )
+                    report = (
+                        f"\nPerformance Report{' (final)' if final else ''}:\n"
+                        f"    Elapsed time (s)       : {total_time:.2f}\n"
+                        f"    Total steps (#)        : {steps}\n"
+                        f"    Total episodes (#)     : {episodes}\n"
+                        f"    Steps per second (#/s) : {steps_per_sec:.2f}\n"
+                        f"    Step time (ms)         : min={min_step_time * 1000:.3f}, p10={step_time_percentiles[0] * 1000:.3f}, p20={step_time_percentiles[1] * 1000:.3f}, mean={mean_step_time * 1000:.3f}, median={median_step_time * 1000:.3f}, p80={step_time_percentiles[2] * 1000:.3f}, p90={step_time_percentiles[3] * 1000:.3f}, max={max_step_time * 1000:.3f}\n"
+                        f"    Episode length (steps) : min={min_episode_len:.1f}, p10={episode_len_percentiles[0]:.1f}, p20={episode_len_percentiles[1]:.1f}, mean={mean_episode_len:.1f}, median={median_episode_len:.1f}, p80={episode_len_percentiles[2]:.1f}, p90={episode_len_percentiles[3]:.1f}, max={max_episode_len:.1f}\n"
+                        f"    Episode length (s)     : min={self.__agent_rate * min_episode_len:.1f}, p10={self.__agent_rate * episode_len_percentiles[0]:.1f}, p20={self.__agent_rate * episode_len_percentiles[1]:.1f}, mean={self.__agent_rate * mean_episode_len:.1f}, median={self.__agent_rate * median_episode_len:.1f}, p80={self.__agent_rate * episode_len_percentiles[2]:.1f}, p90={self.__agent_rate * episode_len_percentiles[3]:.1f}, max={self.__agent_rate * max_episode_len:.1f}\n"
+                    )
+                    if self.__perf_output == "STDOUT":
+                        print(report)
+                    else:
+                        with open(self.__perf_output, "a") as f:
+                            f.write(report + "\n")
+
+            env = PerformanceTestWrapper(
+                env, output=perf_output, duration=perf_duration
+            )
 
         # Add keyboard callbacks
         if not kwargs["headless"] and agent_subcommand not in [
@@ -303,9 +467,10 @@ def teleop_agent(
     pos_sensitivity: float,
     rot_sensitivity: float,
     algo: str,
+    recognized_cmd_keys: Sequence[str] = ("cmd", "command", "goal", "target"),
+    addititive_cmd_keys: Sequence[str] = ("goal", "target"),
     **kwargs,
 ):
-    import gymnasium
     import torch
 
     from srb.core.action import ActionGroup, ActionTermCfg
@@ -344,8 +509,6 @@ def teleop_agent(
         actions=env.unwrapped.cfg.actions,  # type: ignore
     )
 
-    # TODO[low]: Add force feedback for haptic teleoperation
-
     ## Set up reset callback
     def cb_reset():
         global should_reset
@@ -379,29 +542,42 @@ def teleop_agent(
         env_supports_direct_teleop = False
 
     ## Dispatch the appropriate implementation
-    if env_supports_direct_teleop:
+    env_supports_teleop_via_policy = (
+        next(
+            (
+                key
+                for key in (
+                    *recognized_cmd_keys,
+                    *map(lambda x: "_" + x, recognized_cmd_keys),
+                    *map(lambda x: "__" + x, recognized_cmd_keys),
+                )
+                if hasattr(env.unwrapped, key)
+            ),
+            None,
+        )
+        is not None
+    )
+    if algo and env_supports_teleop_via_policy:
+        _teleop_agent_via_policy(
+            env=env,
+            sim_app=sim_app,
+            teleop_interface=teleop_interface,
+            algo=algo,
+            recognized_cmd_keys=recognized_cmd_keys,
+            addititive_cmd_keys=addititive_cmd_keys,
+            **kwargs,
+        )
+    elif env_supports_direct_teleop:
         _teleop_agent_direct(
             env=env,
             sim_app=sim_app,
             teleop_interface=teleop_interface,
             **kwargs,
         )
-    elif (
-        isinstance(env.observation_space, gymnasium.spaces.Dict)
-        and "command" in env.observation_space.spaces.keys()
-    ):
-        if algo:
-            _teleop_agent_via_policy(
-                env=env,
-                sim_app=sim_app,
-                teleop_interface=teleop_interface,
-                algo=algo,
-                **kwargs,
-            )
-        else:
-            raise ValueError(
-                f'Environment "{env}" can only be teleoperated via policy. Please provide a policy via "--algo" and an optional "--model" argument.'
-            )
+    elif env_supports_teleop_via_policy:
+        raise ValueError(
+            f'Environment "{env}" can only be teleoperated via policy. Please provide a policy via "--algo" and an optional "--model" argument.'
+        )
     else:
         action_terms = {
             action_key: action_term.__class__.__name__
@@ -418,11 +594,19 @@ def _teleop_agent_direct(
     sim_app: "SimulationApp",
     teleop_interface: "CombinedTeleopInterface",
     invert_controls: bool,
+    ft_feedback_use_contacts: bool = True,
     **kwargs,
 ):
     import torch
 
+    from srb.core.env import ManipulationEnv
     from srb.utils import logging
+
+    # Invert only for manipulation environments
+    if invert_controls:
+        invert_controls = isinstance(env.unwrapped, ManipulationEnv)
+    if teleop_interface.ft_feedback_interfaces:
+        ft_feedback_use_contacts = ft_feedback_use_contacts
 
     ## Run the environment
     with torch.inference_mode():
@@ -453,6 +637,49 @@ def _teleop_agent_direct(
                 f"info: {info}\n"
             )
 
+            # Provide force feedback for teleop devices
+            if teleop_interface.ft_feedback_interfaces:
+                if isinstance(env.unwrapped, ManipulationEnv):
+                    if (
+                        not ft_feedback_use_contacts
+                        and env.unwrapped._end_effector is not None
+                    ):
+                        end_effector = env.unwrapped._end_effector
+                        try:
+                            incoming_ft = (
+                                end_effector.root_physx_view.get_link_incoming_joint_force()  # type: ignore
+                            )[0].mean(dim=0)
+                            ft_feedback: torch.Tensor = (
+                                torch.tensor([0.33, 0.33, 0.33, 0.0, 0.0, 0.0])
+                                * incoming_ft.cpu()
+                            )
+                            teleop_interface.set_ft_feedback(ft_feedback)
+                        except Exception:
+                            ft_feedback_use_contacts = True
+                    if (
+                        ft_feedback_use_contacts
+                        and env.unwrapped._contacts_end_effector is not None
+                    ):
+                        contacts_end_effector = env.unwrapped._contacts_end_effector
+                        contact_forces = (
+                            contacts_end_effector.data.net_forces_w  # type: ignore
+                        )[0].mean(dim=0)
+                        contact_ft = torch.cat(
+                            [
+                                contact_forces,
+                                torch.zeros(
+                                    3,
+                                    device=contact_forces.device,
+                                    dtype=contact_forces.dtype,
+                                ),
+                            ]
+                        )
+                        ft_feedback = (
+                            torch.tensor([0.33, 0.33, 0.33, 0.0, 0.0, 0.0])
+                            * contact_ft.cpu()
+                        )
+                        teleop_interface.set_ft_feedback(ft_feedback)
+
             ## Process reset request
             global should_reset
             if should_reset:
@@ -466,58 +693,53 @@ def _teleop_agent_via_policy(
     sim_app: "SimulationApp",
     teleop_interface: "CombinedTeleopInterface",
     invert_controls: bool,
-    recognized_cmd_keys: Sequence[str] = ("command", "_command", "cmd", "_cmd"),
+    recognized_cmd_keys: Sequence[str],
+    addititive_cmd_keys: Sequence[str],
     **kwargs,
 ):
     import torch
-    from gymnasium.core import (
-        ActType,
-        ObservationWrapper,
-        ObsType,
-        SupportsFloat,
-        WrapperObsType,
-    )
+    from gymnasium.core import ActType, SupportsFloat, Wrapper, WrapperObsType
 
     from srb.utils import logging
 
     ## Try disabling event for the command
     if hasattr(env.unwrapped, "event_manager"):
-        event_cmd: Tuple[str, int] | None = None
+        events_to_remove: Sequence[Tuple[str, str]] = []
         for (
             category,
             event_names,
         ) in env.unwrapped.event_manager._mode_term_names.items():  # type: ignore
-            for recognized_cmd_key in recognized_cmd_keys:
-                if recognized_cmd_key in event_names:
-                    event_cmd = (category, event_names.index(recognized_cmd_key))
-                    break
-            else:
-                continue
-            break
-        if event_cmd:
-            env.unwrapped.event_manager._mode_term_names[event_cmd[0]].pop(event_cmd[1])  # type: ignore
-            env.unwrapped.event_manager._mode_term_cfgs[event_cmd[0]].pop(event_cmd[1])  # type: ignore
+            for event_name in event_names:
+                for recognized_cmd_key in recognized_cmd_keys:
+                    if recognized_cmd_key in event_name:
+                        events_to_remove.append(
+                            (
+                                category,
+                                event_names.index(event_name),
+                            )
+                        )
+                        break
+        for category, event_id in reversed(events_to_remove):
+            env.unwrapped.event_manager._mode_term_names[category].pop(  # type: ignore
+                event_id
+            )
+            env.unwrapped.event_manager._mode_term_cfgs[category].pop(  # type: ignore
+                event_id
+            )
 
-    class InjectTeleopWrapper(ObservationWrapper):
+    class InjectTeleopWrapper(Wrapper):
         def __init__(self, env, *args, **kwargs):
             super().__init__(env, *args, **kwargs)
-            self._obs_cmd_key = next(
-                (
-                    key
-                    for key in recognized_cmd_keys
-                    if key in self.observation_space.spaces.keys()  # type: ignore
-                ),
-                None,
-            )
-            if not self._obs_cmd_key:
-                raise ValueError(
-                    f"Unable to find the command key in the observation space: {recognized_cmd_keys}"
-                )
 
+            ## Find the internal command attribute of the environment
             self._internal_cmd_attr_name = next(
                 (
                     key
-                    for key in recognized_cmd_keys
+                    for key in (
+                        *recognized_cmd_keys,
+                        *map(lambda x: "_" + x, recognized_cmd_keys),
+                        *map(lambda x: "__" + x, recognized_cmd_keys),
+                    )
                     if hasattr(self.env.unwrapped, key)
                 ),
                 None,
@@ -532,23 +754,31 @@ def _teleop_agent_via_policy(
             self._is_internal_cmd_attr_per_env = len(internal_cmd_attr_shape) == 2 and (
                 internal_cmd_attr_shape[0] == self.env.unwrapped.cfg.scene.num_envs  # type: ignore
             )
+            self._is_cmd_additive = any(
+                key in self._internal_cmd_attr_name for key in addititive_cmd_keys
+            )
 
-        def observation(self, observation: ObsType) -> WrapperObsType:  # type: ignore
+        def step(
+            self,
+            action: ActType,  # type: ignore
+        ) -> Tuple[WrapperObsType, SupportsFloat, bool, bool, Mapping[str, Any]]:  # type: ignore
+            ## Exit if the simulation is not running
+            if not sim_app.is_running():
+                exit()
+
             ## Get actions from the teleoperation interface and process them
             twist, event = teleop_interface.advance()
             if invert_controls:
                 twist[:2] *= -1.0
 
-            cmd_len = observation[self._obs_cmd_key].shape[-1]  # type: ignore
-
-            ## Map teleoperation actions to commands
+            ## Update internal command
+            cmd_len = getattr(env.unwrapped, self._internal_cmd_attr_name).shape[-1]  # type: ignore
             match cmd_len:
                 case _ if cmd_len < 7:
                     cmd = torch.from_numpy(twist[:cmd_len]).to(
                         device=env.unwrapped.device,  # type: ignore
                         dtype=torch.float32,
                     )
-                    observation[self._obs_cmd_key][:] = cmd  # type: ignore
                     setattr(
                         env.unwrapped,
                         self._internal_cmd_attr_name,  # type: ignore
@@ -559,6 +789,11 @@ def _teleop_agent_via_policy(
                             )
                             if self._is_internal_cmd_attr_per_env
                             else cmd
+                        )
+                        if not self._is_cmd_additive
+                        else (
+                            getattr(env.unwrapped, self._internal_cmd_attr_name)  # type: ignore
+                            + cmd
                         ),
                     )
                 case 7:
@@ -573,7 +808,6 @@ def _teleop_agent_via_policy(
                             ),
                         )
                     )
-                    observation[self._obs_cmd_key][:] = cmd  # type: ignore
                     setattr(
                         env.unwrapped,
                         self._internal_cmd_attr_name,  # type: ignore
@@ -584,6 +818,11 @@ def _teleop_agent_via_policy(
                             )
                             if self._is_internal_cmd_attr_per_env
                             else cmd
+                        )
+                        if not self._is_cmd_additive
+                        else (
+                            getattr(env.unwrapped, self._internal_cmd_attr_name)  # type: ignore
+                            + cmd
                         ),
                     )
                 case _:
@@ -591,16 +830,7 @@ def _teleop_agent_via_policy(
                         f"Unsupported command length for teleoperation: {cmd_len}"
                     )
 
-            return observation  # type: ignore
-
-        def step(
-            self,
-            action: ActType,  # type: ignore
-        ) -> Tuple[WrapperObsType, SupportsFloat, bool, bool, Mapping[str, Any]]:  # type: ignore
-            # Exit if the simulation is not running
-            if not sim_app.is_running():
-                exit()
-
+            ## Step the environment
             observation, reward, terminated, truncated, info = super().step(action)
             logging.trace(
                 f"action: {action}\n"
@@ -712,11 +942,11 @@ def train_agent(algo: str, **kwargs):
         case _sb3 if algo.startswith("sb3"):
             from srb.integrations.sb3 import main as sb3
 
-            sb3.run(workflow=WORKFLOW, algo=algo.strip("sb3_"), **kwargs)
+            sb3.run(workflow=WORKFLOW, algo=algo.removeprefix("sb3_"), **kwargs)
         case _sbx if algo.startswith("sbx"):
             from srb.integrations.sbx import main as sbx
 
-            sbx.run(workflow=WORKFLOW, algo=algo.strip("sbx_"), **kwargs)
+            sbx.run(workflow=WORKFLOW, algo=algo.removeprefix("sbx_"), **kwargs)
 
 
 def eval_agent(algo: str, **kwargs):
@@ -734,11 +964,11 @@ def eval_agent(algo: str, **kwargs):
         case _sb3 if algo.startswith("sb3"):
             from srb.integrations.sb3 import main as sb3
 
-            sb3.run(workflow=WORKFLOW, algo=algo.strip("sb3_"), **kwargs)
+            sb3.run(workflow=WORKFLOW, algo=algo.removeprefix("sb3_"), **kwargs)
         case _sbx if algo.startswith("sbx"):
             from srb.integrations.sbx import main as sbx
 
-            sbx.run(workflow=WORKFLOW, algo=algo.strip("sbx_"), **kwargs)
+            sbx.run(workflow=WORKFLOW, algo=algo.removeprefix("sbx_"), **kwargs)
 
 
 ### List ###
@@ -757,8 +987,8 @@ def list_registered(
         headless=True, experience=SRB_APPS_DIR.joinpath("srb.barebones.kit")
     )
 
-    # Update the offline environment registry
-    update_env_list_cache()
+    # Update the offline registry cache
+    update_offline_srb_cache()
 
     import importlib
     import inspect
@@ -767,8 +997,6 @@ def list_registered(
 
     from rich import print
     from rich.table import Table
-
-    from srb.utils.str import convert_to_snake_case
 
     # Standardize category
     category = (  # type: ignore
@@ -816,7 +1044,7 @@ def list_registered(
             for asset_subtype, asset_classes in SceneryRegistry.items():
                 for j, asset_class in enumerate(asset_classes):
                     i += 1
-                    asset_name = convert_to_snake_case(asset_class.__name__)
+                    asset_name = asset_class.name()
                     parent_class = asset_class.__bases__[0]
                     asset_cfg_class = asset_class().asset_cfg.__class__  # type: ignore
                     asset_module_path = Path(
@@ -848,7 +1076,7 @@ def list_registered(
             for asset_subtype, asset_classes in ObjectRegistry.items():
                 for j, asset_class in enumerate(asset_classes):
                     i += 1
-                    asset_name = convert_to_snake_case(asset_class.__name__)
+                    asset_name = asset_class.name()
                     parent_class = asset_class.__bases__[0]
                     asset_cfg_class = asset_class().asset_cfg.__class__  # type: ignore
                     asset_module_path = Path(
@@ -880,7 +1108,7 @@ def list_registered(
             for asset_subtype, asset_classes in RobotRegistry.items():
                 for j, asset_class in enumerate(asset_classes):
                     i += 1
-                    asset_name = convert_to_snake_case(asset_class.__name__)
+                    asset_name = asset_class.name()
                     parent_class = asset_class.__bases__[0]
                     asset_cfg_class = asset_class().asset_cfg.__class__  # type: ignore
                     asset_module_path = Path(
@@ -910,7 +1138,7 @@ def list_registered(
 
     # Print table for action groups
     if EntityToList.ACTION in category:
-        from srb.core.action import ActionGroupRegistry, canonicalize_action_group_name
+        from srb.core.action import ActionGroupRegistry
         from srb.core.action import group as srb_action_groups
 
         table = Table(title="Action Groups of the Space Robotics Bench")
@@ -919,9 +1147,7 @@ def list_registered(
         table.add_column("Path", justify="left", style="white")
 
         for i, action_group_class in enumerate(ActionGroupRegistry.registry, 1):
-            action_group_name = canonicalize_action_group_name(
-                action_group_class.__name__
-            )
+            action_group_name = action_group_class.name()
             action_group_path = Path(
                 inspect.getabsfile(
                     importlib.import_module(action_group_class.__module__)
@@ -1045,14 +1271,14 @@ def enter_repl(hide_ui: bool, forwarded_args: Sequence[str] = (), **kwargs):
     # Launch Isaac Sim
     launcher = AppLauncher(launcher_args=kwargs)
 
+    # Update the offline registry cache
+    update_offline_srb_cache()
+
     import ptpython
 
     import srb  # noqa: F401
     from srb.utils import logging  # noqa: F401
     from srb.utils.isaacsim import hide_isaacsim_ui
-
-    # Update the offline environment registry
-    update_env_list_cache()
 
     # Post-launch configuration
     if hide_ui:
@@ -1321,7 +1547,7 @@ def parse_cli_args() -> argparse.Namespace:
         )
 
     ## Environment args
-    _env_choices = read_env_list_cache()
+    _env_choices = read_offline_srb_env_cache()
     _interface_choices = sorted(map(str, InterfaceType))
     for _agent_parser in (
         zero_agent_parser,
@@ -1355,27 +1581,6 @@ def parse_cli_args() -> argparse.Namespace:
             default=SRB_LOGS_DIR,
         )
 
-        video_recording_group = _agent_parser.add_argument_group("Video Recording")
-        video_recording_group.add_argument(
-            "--video",
-            dest="video_enable",
-            help="Record videos",
-            action="store_true",
-            default=False,
-        )
-        video_recording_group.add_argument(
-            "--video_length",
-            help="Length of the recorded video (in steps)",
-            type=int,
-            default=1000,
-        )
-        video_recording_group.add_argument(
-            "--video_interval",
-            help="Interval between video recordings (in steps)",
-            type=int,
-            default=10000,
-        )
-
         interfaces_group = _agent_parser.add_argument_group("Interface")
         interfaces_group.add_argument(
             "--interface",
@@ -1384,6 +1589,36 @@ def parse_cli_args() -> argparse.Namespace:
             nargs="*",
             choices=_interface_choices,
             default=[],
+        )
+
+        video_recording_group = _agent_parser.add_argument_group("Video Recording")
+        video_recording_group.add_argument(
+            "--video",
+            dest="video_enable",
+            help="Record videos",
+            action="store_true",
+            default=False,
+        )
+
+        performance_group = _agent_parser.add_argument_group("Performance")
+        performance_group.add_argument(
+            "--perf",
+            dest="perf_enable",
+            help="Test the performance of the environment",
+            action="store_true",
+            default=False,
+        )
+        logging_group.add_argument(
+            "--perf_output",
+            help='Path to the output of the performance test (special keys: "STDOUT")',
+            type=str,
+            default="STDOUT",
+        )
+        logging_group.add_argument(
+            "--perf_duration",
+            help="Maximum duration of the performance test in seconds (0: No limit)",
+            type=float,
+            default=150.0,
         )
 
     ## Teleop args
@@ -1413,9 +1648,9 @@ def parse_cli_args() -> argparse.Namespace:
         teleop_group.add_argument(
             "--invert_controls",
             "--invert",
-            help="Flag to invert the controls for translation",
+            help="Flag to invert the controls for translation in manipulation environments",
             action="store_true",
-            default=False,
+            default=True,
         )
 
     ## Algorithm args
@@ -1533,8 +1768,7 @@ class AutoNamespaceTaskAction(argparse.Action):
         option_string: str | None = None,
     ):
         if "/" not in values:
-            DEFAULT_TASK_NAMESPACE: str = "srb"
-            values = f"{DEFAULT_TASK_NAMESPACE}/{values}"
+            values = f"srb/{values}"
         setattr(namespace, self.dest, values)
 
 
@@ -1558,45 +1792,40 @@ class EntityToList(str, Enum):
 
 
 class SupportedAlgo(str, Enum):
-    # Dreamer
+    # DreamerV3
     DREAMER = auto()
-    # SB3
+
+    # Stable-Baselines3
     SB3_A2C = auto()
-    SB3_DDPG = auto()
-    SB3_DQN = auto()
-    SB3_PPO = auto()
-    SB3_SAC = auto()
-    SB3_TD3 = auto()
-    # SB3 Contrib
     SB3_ARS = auto()
     SB3_CROSSQ = auto()
-    SB3_QRDQN = auto()
+    SB3_DDPG = auto()
+    SB3_PPO = auto()
+    SB3_PPO_LSTM = auto()
+    SB3_SAC = auto()
+    SB3_TD3 = auto()
     SB3_TQC = auto()
     SB3_TRPO = auto()
-    SB3_PPO_LSTM = auto()
+
     # SBX
+    SBX_CROSSQ = auto()
     SBX_DDPG = auto()
-    SBX_DQN = auto()
     SBX_PPO = auto()
     SBX_SAC = auto()
     SBX_TD3 = auto()
     SBX_TQC = auto()
-    SBX_CrossQ = auto()
-    # SKRL
+
+    # skrl
     SKRL_A2C = auto()
     SKRL_AMP = auto()
     SKRL_CEM = auto()
     SKRL_DDPG = auto()
-    SKRL_DDQN = auto()
-    SKRL_DQN = auto()
     SKRL_PPO = auto()
     SKRL_PPO_RNN = auto()
     SKRL_RPO = auto()
     SKRL_SAC = auto()
     SKRL_TD3 = auto()
     SKRL_TRPO = auto()
-    SKRL_IPPO = auto()
-    SKRL_MAPPO = auto()
 
     def __str__(self) -> str:
         return self.name.lower()

@@ -1,8 +1,9 @@
+import bisect
 import math
 import types
 from dataclasses import MISSING
 from os import environ
-from typing import Dict, get_type_hints
+from typing import Dict, Literal, get_type_hints
 
 import torch
 from simforge import BakeType
@@ -50,8 +51,11 @@ from srb.core.sim.robot_setup import RobotAssemblerCfg
 from srb.core.visuals import VisualsCfg
 from srb.utils import logging
 from srb.utils.cfg import configclass
-from srb.utils.math import combine_frame_transforms_tuple
-from srb.utils.path import SRB_ASSETS_DIR_SRB_SKYDOME
+from srb.utils.math import combine_frame_transforms_tuple, rpy_to_quat
+from srb.utils.path import (
+    SRB_ASSETS_DIR_SRB_SKYDOME_HIGH_RES,
+    SRB_ASSETS_DIR_SRB_SKYDOME_LOW_RES,
+)
 
 from .event_cfg import BaseEventCfg
 from .scene_cfg import BaseSceneCfg
@@ -68,6 +72,7 @@ class BaseEnvCfg:
     _scenery: Scenery | None = MISSING  # type: ignore
     robot: Robot | AssetVariant = AssetVariant.DATASET
     _robot: Robot = MISSING  # type: ignore
+    skydome: Literal["low_res", "high_res"] | bool | None = "low_res"
 
     ## Assemblies (dynamic joints)
     joint_assemblies: Dict[str, RobotAssemblerCfg] = {}
@@ -95,7 +100,7 @@ class BaseEnvCfg:
             min_position_iteration_count=2,
             min_velocity_iteration_count=1,
             enable_ccd=True,
-            enable_stabilization=True,
+            enable_stabilization=False,
             bounce_threshold_velocity=0.0,
             friction_offset_threshold=0.01,
             friction_correlation_distance=0.005,
@@ -112,6 +117,7 @@ class BaseEnvCfg:
             enable_reflections=True,
         ),
     )
+    malloc_scale: float = 1.0
 
     ## Visuals
     visuals: VisualsCfg = VisualsCfg()
@@ -125,9 +131,9 @@ class BaseEnvCfg:
 
     ## Particles
     # Note: This option is likely to be removed in the future
-    _particles: bool = False
-    _particles_size: float = 0.025
-    _particles_ratio: float = 0.001
+    scatter_particles: bool = False
+    particles_size: float = 0.025
+    particles_ratio: float = 0.001
 
     def __post_init__(self):
         ## Scene
@@ -163,20 +169,41 @@ class BaseEnvCfg:
         self._update_debug_vis()
 
     def _update_memory_allocation(self):
-        # TODO[low]: Tune GPU memory allocation for all tasks
-        _mem_fac = math.floor(self.scene.num_envs**0.3)
-        self.sim.physx.gpu_max_rigid_contact_count = 2 ** (12 + _mem_fac)
-        self.sim.physx.gpu_max_rigid_patch_count = 2 ** (11 + _mem_fac)
-        self.sim.physx.gpu_found_lost_pairs_capacity = 2 ** (20 + _mem_fac)
-        self.sim.physx.gpu_found_lost_aggregate_pairs_capacity = 2 ** (20 + _mem_fac)
-        self.sim.physx.gpu_total_aggregate_pairs_capacity = 2 ** (18 + _mem_fac)
-        self.sim.physx.gpu_collision_stack_size = 2 ** (20 + _mem_fac)
-        self.sim.physx.gpu_heap_capacity = 2 ** (15 + _mem_fac)
-        self.sim.physx.gpu_temp_buffer_capacity = 2 ** (12 + _mem_fac)
-        self.sim.physx.gpu_max_soft_body_contacts = 2 ** (15 + _mem_fac)
-        self.sim.physx.gpu_max_particle_contacts = 2 ** (15 + _mem_fac)
-        self.sim.physx.gpu_max_num_partitions = min(
-            32, 2 ** math.floor(self.scene.num_envs**0.2)
+        _pow = math.floor(self.scene.num_envs**0.375) - 1
+
+        self.sim.physx.gpu_max_rigid_contact_count = math.floor(
+            self.malloc_scale * 2 ** min(13 + _pow, 31),
+        )
+        self.sim.physx.gpu_max_rigid_patch_count = math.floor(
+            self.malloc_scale * 2 ** min(12 + _pow, 31),
+        )
+        self.sim.physx.gpu_found_lost_pairs_capacity = math.floor(
+            self.malloc_scale * 2 ** min(12 + _pow, 31),
+        )
+        self.sim.physx.gpu_found_lost_aggregate_pairs_capacity = math.floor(
+            self.malloc_scale * 2 ** min(13 + _pow, 31),
+        )
+        self.sim.physx.gpu_total_aggregate_pairs_capacity = math.floor(
+            self.malloc_scale * 2 ** min(12 + _pow, 31),
+        )
+        self.sim.physx.gpu_collision_stack_size = math.floor(
+            self.malloc_scale * 2 ** min(19 + _pow, 31),
+        )
+        self.sim.physx.gpu_heap_capacity = math.floor(
+            self.malloc_scale * 2 ** min(19 + _pow, 31),
+        )
+        self.sim.physx.gpu_temp_buffer_capacity = math.floor(
+            self.malloc_scale * 2 ** min(10 + _pow, 31),
+        )
+        self.sim.physx.gpu_max_soft_body_contacts = math.floor(
+            self.malloc_scale * 2 ** min(10 + _pow, 31),
+        )
+        self.sim.physx.gpu_max_particle_contacts = math.floor(
+            self.malloc_scale * 2 ** min(10 + _pow, 31),
+        )
+
+        self.sim.physx.gpu_max_num_partitions = 1 << bisect.bisect_left(
+            (3, 15, 127, 511, 1023), self.scene.num_envs
         )
 
     def _add_sunlight(self, *, prim_path: str = "/World/sunlight", **kwargs):
@@ -191,18 +218,38 @@ class BaseEnvCfg:
                 enable_color_temperature=True,
                 **kwargs,
             ),
+            init_state=AssetBaseCfg.InitialStateCfg(
+                rot=rpy_to_quat(
+                    45.0,
+                    30.0,
+                    0.0,
+                ),
+            ),
         )
 
     def _add_skydome(self, *, prim_path: str = "/World/skydome", **kwargs):
+        if not self.skydome:
+            self.scene.skydome = None
+            self.events.randomize_skydome_orientation = None
+            return
+        elif isinstance(self.skydome, str):
+            match self.skydome:
+                case "low_res":
+                    skydome_dir = SRB_ASSETS_DIR_SRB_SKYDOME_LOW_RES
+                case "high_res":
+                    skydome_dir = SRB_ASSETS_DIR_SRB_SKYDOME_HIGH_RES
+                case _:
+                    raise ValueError(f"Invalid skydome option: {self.skydome}")
+        else:
+            skydome_dir = SRB_ASSETS_DIR_SRB_SKYDOME_LOW_RES
+
         match self.domain:
             case Domain.EARTH:
                 self.scene.skydome = AssetBaseCfg(
                     prim_path=prim_path,
                     spawn=DomeLightCfg(
                         intensity=0.25 * self.domain.light_intensity,
-                        texture_file=SRB_ASSETS_DIR_SRB_SKYDOME.joinpath(
-                            "cloudy_sky.exr"
-                        ).as_posix(),
+                        texture_file=skydome_dir.joinpath("cloudy_sky.exr").as_posix(),
                         **kwargs,
                     ),
                 )
@@ -211,8 +258,9 @@ class BaseEnvCfg:
                     prim_path=prim_path,
                     spawn=DomeLightCfg(
                         intensity=0.25 * self.domain.light_intensity,
-                        texture_file=SRB_ASSETS_DIR_SRB_SKYDOME.joinpath(
+                        texture_file=skydome_dir.joinpath(
                             "stars.exr"
+                            # "milky_way.exr
                         ).as_posix(),
                         **kwargs,
                     ),
@@ -236,9 +284,7 @@ class BaseEnvCfg:
                     prim_path=prim_path,
                     spawn=DomeLightCfg(
                         intensity=0.25 * self.domain.light_intensity,
-                        texture_file=SRB_ASSETS_DIR_SRB_SKYDOME.joinpath(
-                            "mars_sky.exr"
-                        ).as_posix(),
+                        texture_file=skydome_dir.joinpath("mars_sky.exr").as_posix(),
                         **kwargs,
                     ),
                 )
@@ -248,9 +294,9 @@ class BaseEnvCfg:
                     prim_path=prim_path,
                     spawn=DomeLightCfg(
                         intensity=0.25 * self.domain.light_intensity,
-                        texture_file=SRB_ASSETS_DIR_SRB_SKYDOME.joinpath(
-                            # "low_lunar_orbit.jpg"
+                        texture_file=skydome_dir.joinpath(
                             "low_earth_orbit.exr"
+                            # "low_lunar_orbit.jpg"
                         ).as_posix(),
                         **kwargs,
                     ),
@@ -322,7 +368,7 @@ class BaseEnvCfg:
                 BakeType.ROUGHNESS: _dyn_res * 512,
             }
             density = 0.01 * (_dyn_res**2)
-            flat_area_size = 0.5 * (_dyn_res**1.5)
+            flat_area_size = 0.8 * (_dyn_res**1.2)
 
             if isinstance(type_hints, types.UnionType):
                 for typ in type_hints.__args__:
@@ -710,20 +756,20 @@ class BaseEnvCfg:
 
     def _maybe_add_particles(self):
         assert self.spacing is not None
-        if self._particles and self.spacing > 0.0:
+        if self.scatter_particles and self.spacing > 0.0:
             self.scene.particles = AssetBaseCfg(  # type: ignore
                 prim_path="{ENV_REGEX_NS}/particles",
                 spawn=PyramidParticlesSpawnerCfg(
-                    ratio=self._particles_ratio,
-                    particle_size=self._particles_size,
-                    dim_x=int(self.spacing / self._particles_size),
-                    dim_y=int(self.spacing / self._particles_size),
-                    dim_z=int(0.5 * self.spacing / self._particles_size),
+                    ratio=self.particles_ratio,
+                    particle_size=self.particles_size,
+                    dim_x=round(self.spacing / self.particles_size),
+                    dim_y=round(self.spacing / self.particles_size),
+                    dim_z=round(0.5 * self.spacing / self.particles_size),
                     velocity=((-0.5, 0.5), (-0.5, 0.5), (-0.5, 0.0)),
                     fluid=False,
-                    friction=1.0,
-                    cohesion=0.5,
-                    cast_shadows=False,
+                    density=1500.0,
+                    friction=0.85,
+                    cohesion=0.65,
                 ),
                 init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 0.5)),
             )

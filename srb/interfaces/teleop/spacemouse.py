@@ -11,6 +11,7 @@ from srb.interfaces.teleop import DeviceBase
 from srb.utils import logging
 
 
+# Driver: https://github.com/FreeSpacenav/spacenavd
 class SpacemouseTeleopInterface(DeviceBase):
     def __init__(
         self,

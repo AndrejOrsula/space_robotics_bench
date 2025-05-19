@@ -7,6 +7,7 @@ class ObjectType(str, Enum):
     COMMON = auto()
     LIGHT = auto()
     PAYLOAD = auto()
+    PEDESTAL = auto()
     TOOL = auto()
 
     def __str__(self) -> str:

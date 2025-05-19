@@ -1,10 +1,9 @@
 ### Training ###
-seed: 0
 run:
-  steps: 1000000000
-  train_ratio: 32.0
+  steps: 100000000
+  train_ratio: 64.0
 replay:
-  size: 1000000
+  size: 2500000
   online: True
   fracs: { uniform: 0.0, priority: 0.5, recency: 0.5 }
   chunksize: 1024
@@ -18,8 +17,8 @@ jax:
 ### Logging ###
 logger:
   outputs: [
-      jsonl,
       tensorboard,
+      # jsonl,
       # wandb,
       # scope,
     ]
@@ -40,13 +39,13 @@ jax.debug: False
 # .*\.depth: 4
 # .*\.units: 64
 ##  12M
-.*\.rssm: { deter: 2048, hidden: 256, classes: 16 }
-.*\.depth: 16
-.*\.units: 256
+# .*\.rssm: { deter: 2048, hidden: 256, classes: 16 }
+# .*\.depth: 16
+# .*\.units: 256
 ##  25M
-# .*\.rssm: { deter: 3072, hidden: 384, classes: 24 }
-# .*\.depth: 24
-# .*\.units: 384
+.*\.rssm: { deter: 3072, hidden: 384, classes: 24 }
+.*\.depth: 24
+.*\.units: 384
 ##  50M
 # .*\.rssm: { deter: 4096, hidden: 512, classes: 32 }
 # .*\.depth: 32

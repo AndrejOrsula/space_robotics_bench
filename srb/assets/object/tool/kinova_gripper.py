@@ -4,7 +4,7 @@ from srb.core.action import (
     JointPositionBinaryActionGroup,
 )
 from srb.core.actuator import ImplicitActuatorCfg
-from srb.core.asset import ActiveTool, ArticulationCfg, Frame, Tool, Transform
+from srb.core.asset import ActiveTool, ArticulationCfg, Frame, Transform
 from srb.core.sim import (
     ArticulationRootPropertiesCfg,
     CollisionPropertiesCfg,
@@ -53,7 +53,6 @@ class Kinova300(ActiveTool):
             ),
         },
     )
-    end_effector: Tool | None = None
 
     ## Actions
     actions: ActionGroup = JointPositionBinaryActionGroup(
@@ -79,4 +78,6 @@ class Kinova300(ActiveTool):
         prim_relpath="base",
         offset=Transform(rot=rpy_to_quat((180.0, 0.0, 0.0))),
     )
-    frame_tool_centre_point: Frame = Frame(prim_relpath="kinova300_end_effector")
+    frame_tool_centre_point: Frame = Frame(
+        prim_relpath="base", offset=Transform(pos=(0.0, 0.0, 0.16))
+    )

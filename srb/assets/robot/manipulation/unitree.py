@@ -1,11 +1,14 @@
-from srb.core.action import (
+from srb.core.action import (  # noqa: F401
     ActionGroup,
+    DifferentialIKControllerCfg,
     DifferentialInverseKinematicsActionCfg,
     InverseKinematicsActionGroup,
+    OperationalSpaceControlActionGroup,
+    OperationalSpaceControllerActionCfg,
+    OperationalSpaceControllerCfg,
 )
 from srb.core.actuator import ImplicitActuatorCfg
 from srb.core.asset import ArticulationCfg, Frame, SerialManipulator, Transform
-from srb.core.controller import DifferentialIKControllerCfg
 from srb.core.sim import (
     ArticulationRootPropertiesCfg,
     CollisionPropertiesCfg,
@@ -69,7 +72,7 @@ class UnitreeZ1(SerialManipulator):
                 use_relative_mode=True,
                 ik_method="svd",
             ),
-            scale=0.025,
+            scale=0.05,
             body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(),
         ),
     )

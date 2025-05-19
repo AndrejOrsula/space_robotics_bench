@@ -32,7 +32,6 @@ class MarsRover(WheeledRobot):
                 solver_velocity_iteration_count=4,
             ),
         ),
-        init_state=ArticulationCfg.InitialStateCfg(),
         actuators={
             "base_steering": ImplicitActuatorCfg(
                 joint_names_expr=[".*Steer.*"],

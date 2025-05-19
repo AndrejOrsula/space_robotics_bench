@@ -6,7 +6,6 @@ from typing import ClassVar, Dict, Iterable, List, Sequence, Tuple, Type
 from srb.core.asset.asset import Asset, AssetRegistry
 from srb.core.asset.asset_type import AssetType
 from srb.core.asset.object.object_type import ObjectType
-from srb.utils.str import convert_to_snake_case
 
 
 class Object(Asset, asset_entrypoint=AssetType.OBJECT):
@@ -45,11 +44,10 @@ class Object(Asset, asset_entrypoint=AssetType.OBJECT):
             if object_type not in ObjectRegistry.registry.keys():
                 ObjectRegistry.registry[object_type] = []
             else:
-                assert convert_to_snake_case(cls.__name__) not in (
-                    convert_to_snake_case(object.__name__)
-                    for object in ObjectRegistry.registry[object_type]
+                assert cls.name() not in (
+                    object.name() for object in ObjectRegistry.registry[object_type]
                 ), (
-                    f"Cannot register multiple sceneries with an identical name: '{cls.__module__}:{cls.__name__}' already exists as '{next(object for object in ObjectRegistry.registry[object_type] if convert_to_snake_case(cls.__name__) == convert_to_snake_case(object.__name__)).__module__}:{cls.__name__}'"
+                    f"Cannot register multiple sceneries with an identical name: '{cls.__module__}:{cls.__name__}' already exists as '{next(object for object in ObjectRegistry.registry[object_type] if cls.name() == object.name()).__module__}:{cls.__name__}'"
                 )
             ObjectRegistry.registry[object_type].append(cls)
 
@@ -109,6 +107,6 @@ class ObjectRegistry:
     @classmethod
     def get_by_name(cls, name: str) -> Type[Object] | None:
         for object in cls.values_inner():
-            if convert_to_snake_case(object.__name__) == name:
+            if object.name() == name:
                 return object
         return None

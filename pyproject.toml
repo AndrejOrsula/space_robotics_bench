@@ -33,6 +33,8 @@ dependencies = [
   "simforge[assets]~=0.2",
   ## Typing
   "pydantic~=2.0",
+  ## Serialization
+  "orjson~=3.10",
 ]
 
 [project.optional-dependencies]
@@ -60,7 +62,7 @@ dreamer = [
   #
   # Note: Only editable install of dreamer works for now (circular import of  partially initialized module included with sys.path)
   # TODO[mid]: Fix Dreamer install (fork and fix recursive import)
-  # "dreamer@git+https://github.com/danijar/dreamerv3.git@55c8c67c956fbdace4bf8b594ea12e934a3ae4ba",
+  # "dreamer@git+https://github.com/AndrejOrsula/dreamerv3.git@45c3955afb6ee26310fc5bce65102320b8d98b18",
   # Note: jax==0.5.1 causes issues
   "jax~=0.4,<0.5.1",
 ]

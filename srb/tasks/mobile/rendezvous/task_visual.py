@@ -2,20 +2,17 @@ from typing import Dict
 
 import torch
 
-from srb.core.env import GroundEnvVisualExtCfg, VisualExt
+from srb.core.env import OrbitalEnvVisualExtCfg, VisualExt
 from srb.utils.cfg import configclass
 
 from .task import Task, TaskCfg
 
 
 @configclass
-class VisualTaskCfg(GroundEnvVisualExtCfg, TaskCfg):
-    ## Visualization
-    command_vis: bool = False
-
+class VisualTaskCfg(OrbitalEnvVisualExtCfg, TaskCfg):
     def __post_init__(self):
         TaskCfg.__post_init__(self)
-        GroundEnvVisualExtCfg.wrap(self, env_cfg=self)
+        OrbitalEnvVisualExtCfg.wrap(self, env_cfg=self)
 
 
 class VisualTask(VisualExt, Task):

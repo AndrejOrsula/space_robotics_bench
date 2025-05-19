@@ -197,7 +197,7 @@ class Spot(LeggedRobot):
     frame_front_camera: Frame = Frame(
         prim_relpath="body/camera_front",
         offset=Transform(
-            pos=(0.4, 0.0, 0.0),
+            pos=(0.42, 0.0, 0.0),
             rot=rpy_to_quat(0.0, 30.0, 0.0),
         ),
     )

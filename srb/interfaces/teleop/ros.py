@@ -12,6 +12,7 @@ from collections.abc import Callable
 import numpy
 import rclpy
 from geometry_msgs.msg import Twist
+from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from std_msgs.msg import Bool, Float64
 
@@ -35,13 +36,13 @@ class ROSTeleopInterface(DeviceBase, Node):
         self.rot_sensitivity = rot_sensitivity
 
         self.sub_cmd_bel = self._node.create_subscription(
-            Twist, "cmd_vel", self.cb_twist, 1
+            Twist, "/cmd_vel", self.cb_twist, 1
         )
         self.sub_gripper = self._node.create_subscription(
-            Bool, "gripper", self.cb_event, 1
+            Bool, "/gripper", self.cb_event, 1
         )
         self.sub_latency = self._node.create_subscription(
-            Float64, "gui/latency", self.cb_latency, 1
+            Float64, "/gui/latency", self.cb_latency, 1
         )
 
         self.latency = 0.0
@@ -55,7 +56,9 @@ class ROSTeleopInterface(DeviceBase, Node):
 
         # Run a thread for listening to device
         if not node:
-            self._thread = threading.Thread(target=rclpy.spin, args=(self._node,))
+            self._executor = MultiThreadedExecutor(num_threads=2)
+            self._executor.add_node(self._node)
+            self._thread = threading.Thread(target=self._executor.spin)
             self._thread.daemon = True
             self._thread.start()
 

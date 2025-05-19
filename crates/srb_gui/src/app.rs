@@ -1,16 +1,16 @@
+use crate::cache::{self, EnvCache, ObjectCache, RobotCache, SceneryCache};
+use crate::env_cfg::{Domain, TaskConfig};
+use crate::page::Page;
 use eframe::epaint::Color32;
 use egui_commonmark::{commonmark_str, CommonMarkCache};
-use r2r::{
-    std_msgs::msg::{Bool as BoolMsg, Empty as EmptyMsg, Float64 as Float64Msg},
-    QosProfile,
-};
+use r2r::std_msgs::msg::{Bool as BoolMsg, Empty as EmptyMsg, Float64 as Float64Msg};
+use r2r::QosProfile;
 use std::io::{Read, Write};
+use std::path::PathBuf;
 use strum::IntoEnumIterator;
 use tracing::{error, info, trace, warn};
 
-use crate::page::Page;
-
-const LOGFILE_PATH: &str = "srb_gui.log";
+const LOGFILE_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../logs/gui.txt");
 
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)]
@@ -19,10 +19,11 @@ pub struct App {
     #[serde(skip)]
     current_page: Page,
     #[serde(skip)]
-    task_config: crate::config::TaskConfig,
+    task_config: TaskConfig,
     #[serde(skip)]
     subprocess: Option<subprocess::Popen>,
 
+    // --- UI State ---
     #[serde(skip)]
     show_about: bool,
     #[serde(skip)]
@@ -30,11 +31,13 @@ pub struct App {
     #[serde(skip)]
     show_developer_options: bool,
 
+    // --- Data Collection ---
     #[serde(skip)]
     collect_trajectory: bool,
     #[serde(skip)]
     n_collected_trajectories: usize,
 
+    // --- Real-time Params (Keep as is for now) ---
     #[serde(skip)]
     gravity: f64,
     #[serde(skip)]
@@ -57,12 +60,11 @@ pub struct App {
     #[serde(skip)]
     prev_max_feedback_force: f64,
 
+    // --- ROS ---
     #[serde(skip)]
     node: r2r::Node,
     #[serde(skip)]
     pub_gripper_toggle: r2r::Publisher<BoolMsg>,
-    // #[serde(skip)]
-    // pub_reset_save_dataset: r2r::Publisher<EmptyMsg>,
     #[serde(skip)]
     pub_reset_discard_dataset: r2r::Publisher<EmptyMsg>,
     #[serde(skip)]
@@ -81,59 +83,124 @@ pub struct App {
     #[serde(skip)]
     last_message_pub: std::time::Instant,
 
+    // --- Logging ---
     #[serde(skip)]
     logfile: std::fs::File,
 
+    // --- Cache Data ---
+    #[serde(skip)]
+    env_cache: EnvCache,
+    #[serde(skip)]
+    robot_cache: RobotCache,
+    #[serde(skip)]
+    object_cache: ObjectCache,
+    #[serde(skip)]
+    scenery_cache: SceneryCache,
+
+    // --- UI Helpers ---
     #[serde(skip)]
     hovered_task: Option<usize>,
+    #[serde(skip)]
+    all_robot_names: Vec<String>,
+    #[serde(skip)]
+    all_object_names: Vec<String>,
+    #[serde(skip)]
+    all_scenery_names: Vec<String>, // Added
+    #[serde(skip)]
+    all_tool_names: Vec<String>, // For end effectors
+    #[serde(skip)]
+    all_payload_names: Vec<String>, // For payloads
+    #[serde(skip)]
+    all_domain_names: Vec<String>,
 
+    // --- Commonmark ---
     #[serde(skip)]
     commonmark_cache: CommonMarkCache,
 }
 
 impl Default for App {
     fn default() -> Self {
+        // --- Load Cache Data ---
+        let env_cache = cache::load_env_cache();
+        let robot_cache = cache::load_robot_cache();
+        let object_cache = cache::load_object_cache();
+        let scenery_cache = cache::load_scenery_cache();
+
+        // --- Prepare UI Helper Lists ---
+        let all_robot_names = cache::get_all_robot_names(&robot_cache);
+        let all_object_names = cache::get_all_asset_names(&object_cache);
+        let all_scenery_names = cache::get_all_asset_names(&scenery_cache);
+        // all_scenery_names.insert(0, "none".to_string());
+        // all_scenery_names.sort();
+        // all_scenery_names.dedup();
+
+        // Use helpers which already include "none" and ""
+        let all_tool_names = cache::get_object_names_by_subtype(&object_cache, "tool");
+        let all_payload_names = cache::get_object_names_by_subtype(&object_cache, "payload");
+
+        let all_domain_names = Domain::iter().map(|d| d.to_string()).collect();
+
+        // --- Initialize TaskConfig with defaults based on cache if possible ---
+        let mut task_config = TaskConfig::builder().build();
+        if let Some(first_env) = env_cache.first() {
+            task_config.task = first_env.clone();
+        }
+        if let Some(first_robot) = all_robot_names.first() {
+            // Ensure default robot exists in cache, otherwise keep hardcoded default
+            if all_robot_names.contains(&task_config.robot) {
+                // Keep default if it's valid
+            } else {
+                task_config.robot = first_robot.clone();
+            }
+        }
+        // Set default gravity based on default domain
+        let initial_gravity = task_config.domain.gravity_magnitude();
+
+        // --- ROS Initialization (Keep as is) ---
         let ctx = r2r::Context::create().unwrap();
         let mut node = r2r::Node::create(ctx, "srb_gui_gui", "").unwrap();
-
         let pub_gripper_toggle = node
-            .create_publisher::<BoolMsg>("touch/event", QosProfile::default())
+            .create_publisher::<BoolMsg>("/touch/event", QosProfile::default())
             .unwrap();
-        // let pub_reset_save_dataset = node
-        //     .create_publisher::<EmptyMsg>("gui/reset_save_dataset", QosProfile::default())
-        //     .unwrap();
         let pub_reset_discard_dataset = node
-            .create_publisher::<EmptyMsg>("gui/reset_discard_dataset", QosProfile::default())
+            .create_publisher::<EmptyMsg>("/gui/reset_discard_dataset", QosProfile::default())
             .unwrap();
         let pub_gracefully_shutdown_process = node
-            .create_publisher::<EmptyMsg>("gui/shutdown_process", QosProfile::default())
+            .create_publisher::<EmptyMsg>("/gui/shutdown_process", QosProfile::default())
             .unwrap();
         let pub_gravity = node
-            .create_publisher::<Float64Msg>("gui/gravity", QosProfile::default())
+            .create_publisher::<Float64Msg>("/gui/gravity", QosProfile::default())
             .unwrap();
         let pub_latency = node
-            .create_publisher::<Float64Msg>("gui/latency", QosProfile::default())
+            .create_publisher::<Float64Msg>("/gui/latency", QosProfile::default())
             .unwrap();
         let pub_motion_sensitivity = node
-            .create_publisher::<Float64Msg>("gui/motion_sensitivity", QosProfile::default())
+            .create_publisher::<Float64Msg>("/gui/motion_sensitivity", QosProfile::default())
             .unwrap();
         let pub_force_feedback_sensitivity = node
-            .create_publisher::<Float64Msg>("gui/force_feedback_sensitivity", QosProfile::default())
+            .create_publisher::<Float64Msg>(
+                "/gui/force_feedback_sensitivity",
+                QosProfile::default(),
+            )
             .unwrap();
         let pub_max_feedback_force = node
-            .create_publisher::<Float64Msg>("gui/max_feedback_force", QosProfile::default())
+            .create_publisher::<Float64Msg>("/gui/max_feedback_force", QosProfile::default())
             .unwrap();
-
         let last_message_pub = std::time::Instant::now();
 
+        // --- Log File Initialization (Keep as is) ---
+        let logfile_path = PathBuf::from(LOGFILE_PATH);
+        if let Some(parent) = logfile_path.parent() {
+            if !parent.exists() {
+                std::fs::create_dir_all(parent).unwrap();
+            }
+        }
         let mut logfile = std::fs::OpenOptions::new()
             .create(true)
             .read(true)
             .append(true)
             .open(LOGFILE_PATH)
             .unwrap();
-
-        // Iterate over the lines and count all collected trajectories
         let n_collected_trajectories = {
             let mut file_str = String::new();
             logfile.read_to_string(&mut file_str).unwrap();
@@ -143,7 +210,6 @@ impl Default for App {
                 .filter(|x| x.starts_with("DATA"))
                 .count()
         };
-
         writeln!(
             logfile,
             "START, {}, {}",
@@ -155,36 +221,35 @@ impl Default for App {
         )
         .unwrap();
 
+        // --- Construct App State ---
         Self {
             theme: egui::Theme::Dark,
             current_page: Page::default(),
-            task_config: crate::config::TaskConfig::default(),
+            task_config, // Use updated default
             subprocess: None,
 
             show_about: false,
             show_virtual_keyboard_window: false,
-            show_developer_options: false,
+            show_developer_options: false, // Maybe default to true now?
 
             collect_trajectory: false,
             n_collected_trajectories,
 
-            gravity: crate::config::TaskConfig::default()
-                .domain
-                .gravity_magnitude(),
+            gravity: initial_gravity, // Use calculated initial gravity
             latency: 0.0,
             motion_sensitivity: 1.0,
             force_feedback_sensitivity: 1.0,
             max_feedback_force: 2.0,
 
-            prev_gravity: 0.0,
-            prev_latency: 0.0,
-            prev_motion_sensitivity: 0.0,
-            prev_force_feedback_sensitivity: 0.0,
-            prev_max_feedback_force: 0.0,
+            // Initialize prev values to force initial publish
+            prev_gravity: initial_gravity + 1.0, // Ensure initial publish
+            prev_latency: -1.0,                  // Ensure initial publish
+            prev_motion_sensitivity: -1.0,       // Ensure initial publish
+            prev_force_feedback_sensitivity: -1.0, // Ensure initial publish
+            prev_max_feedback_force: -1.0,       // Ensure initial publish
 
             node,
             pub_gripper_toggle,
-            // pub_reset_save_dataset,
             pub_reset_discard_dataset,
             pub_gracefully_shutdown_process,
             pub_gravity,
@@ -194,10 +259,22 @@ impl Default for App {
             pub_max_feedback_force,
 
             last_message_pub,
-
             logfile,
 
+            // Store loaded cache data
+            env_cache,
+            robot_cache,
+            object_cache,
+            scenery_cache,
+
+            // Store UI helper lists
             hovered_task: None,
+            all_robot_names,
+            all_object_names,
+            all_scenery_names,
+            all_tool_names,
+            all_payload_names,
+            all_domain_names,
 
             commonmark_cache: CommonMarkCache::default(),
         }
@@ -264,25 +341,29 @@ impl eframe::App for App {
         }
 
         // Navigation panel that allows switching between page
-        egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
-            ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                // Navigation
-                ui.spacing_mut().item_spacing.x = 16.0;
-                self.navigation_buttons(ui);
+        egui::TopBottomPanel::top("top_panel")
+            .max_height(32.0)
+            .show(ctx, |ui| {
+                ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                    // Navigation
+                    ui.spacing_mut().item_spacing.x = 16.0;
+                    self.navigation_buttons(ui);
 
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    self.advanced_opts_button(ui);
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        self.advanced_opts_button(ui);
 
-                    self.show_top_center_bar(ui);
+                        ui.add_space(65.0);
+
+                        self.show_top_center_bar(ui);
+                    });
                 });
             });
-        });
 
         // Bottom panel
         egui::TopBottomPanel::bottom("bottom_panel").show(ctx, |ui| {
             ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    self.about_button(ui);
+                    // self.about_button(ui);
 
                     ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
                         self.dark_mode_toggle_button(ui);
@@ -306,7 +387,7 @@ impl eframe::App for App {
                     Page::Interface => {
                         self.configuration_page(ui);
                     }
-                };
+                }
                 self.about_window(ui);
                 self.virtual_keyboard_window(ui);
                 self.developer_options_window(ui);
@@ -330,7 +411,7 @@ impl eframe::App for App {
 
 impl App {
     fn navigation_buttons(&mut self, ui: &mut egui::Ui) {
-        for page in crate::ENABLED_PAGES {
+        for page in Page::iter() {
             if self.current_page == page {
                 ui.add(egui::Button::new(page.title()))
                     .highlight()
@@ -365,8 +446,8 @@ impl App {
         }
     }
 
+    #[allow(unused)]
     fn about_button(&mut self, ui: &mut egui::Ui) {
-        // About button
         let button = ui
             .add(egui::Button::new({
                 let text = egui::RichText::new("About");
@@ -388,22 +469,20 @@ impl App {
     }
 
     fn advanced_opts_button(&mut self, ui: &mut egui::Ui) {
-        // Advanced options button
         let button = ui
             .add(egui::Button::new({
-                let text = egui::RichText::new("Advanced Options");
-                if self.show_about {
+                let text = egui::RichText::new("Customize");
+                if self.show_developer_options {
                     text.strong()
                 } else {
                     text
                 }
             }))
-            .on_hover_text(if self.show_about {
-                "Close the associated window"
+            .on_hover_text(if self.show_developer_options {
+                "Hide customization options"
             } else {
-                "Show advanced options"
+                "Show customization options"
             });
-        // If the button is clicked, open the advanced options window
         if button.clicked() {
             self.show_developer_options = !self.show_developer_options;
         }
@@ -415,134 +494,112 @@ impl App {
             &str,
             crate::utils::Difficulty,
             egui::ImageSource,
-            crate::config::TaskConfig,
+            TaskConfig,
         ); 9] = [
             (
                 egui::Theme::Dark,
-                "Lunar Sample Collection",
+                "Rock Sample Collection",
                 crate::utils::Difficulty::Easy,
                 crate::macros::include_content_image!("_images/sample_collection_moon.jpg"),
-                crate::config::TaskConfig {
-                    task: crate::config::Task::SampleCollection,
-                    seed: 0,
-                    num_envs: 1,
-                    domain: crate::config::Scenario::Moon,
-                    robot: "franka".to_owned(),
-                    enable_ui: false,
-                },
+                TaskConfig::builder()
+                    .task("sample_collection".to_owned())
+                    .domain(Domain::Moon)
+                    .robot("franka".to_owned())
+                    .extras(vec!["env.sample=procedural".to_owned()])
+                    .build(),
             ),
             (
                 egui::Theme::Dark,
-                "Mars Sample Tube Collection",
+                "Sample Tube Collection",
                 crate::utils::Difficulty::Easy,
                 crate::macros::include_content_image!("_images/sample_collection_mars.jpg"),
-                crate::config::TaskConfig {
-                    task: crate::config::Task::SampleCollection,
-                    seed: 0,
-                    num_envs: 1,
-                    domain: crate::config::Scenario::Mars,
-                    robot: "franka".to_owned(),
-                    enable_ui: false,
-                },
+                TaskConfig::builder()
+                    .task("sample_collection".to_owned())
+                    .domain(Domain::Mars)
+                    .robot("franka".to_owned())
+                    .seed(89)
+                    .build(),
             ),
             (
                 egui::Theme::Light,
                 "Debris Capture",
                 crate::utils::Difficulty::Medium,
                 crate::macros::include_content_image!("_images/debris_capture_orbit.jpg"),
-                crate::config::TaskConfig {
-                    task: crate::config::Task::SampleCollection,
-                    seed: 0,
-                    num_envs: 1,
-                    domain: crate::config::Scenario::Orbit,
-                    robot: "franka".to_owned(),
-                    enable_ui: false,
-                },
+                TaskConfig::builder()
+                    .task("debris_capture".to_owned())
+                    .domain(Domain::Orbit)
+                    .robot("franka".to_owned())
+                    .build(),
             ),
             (
                 egui::Theme::Dark,
-                "Lunar Peg-in-Hole Assembly",
-                crate::utils::Difficulty::Medium,
-                crate::macros::include_content_image!("_images/peg_in_hole_moon.jpg"),
-                crate::config::TaskConfig {
-                    task: crate::config::Task::PegInHoleAssembly,
-                    seed: 0,
-                    num_envs: 1,
-                    domain: crate::config::Scenario::Moon,
-                    robot: "franka".to_owned(),
-                    enable_ui: false,
-                },
-            ),
-            (
-                egui::Theme::Dark,
-                "Mars Perseverance Rover",
-                crate::utils::Difficulty::Demo,
-                crate::macros::include_content_image!("_images/perseverance.jpg"),
-                crate::config::TaskConfig {
-                    task: crate::config::Task::_Ground,
-                    seed: 0,
-                    num_envs: 1,
-                    domain: crate::config::Scenario::Mars,
-                    robot: "perseverance".to_owned(),
-                    enable_ui: false,
-                },
-            ),
-            (
-                egui::Theme::Light,
                 "Peg-in-Hole Assembly",
                 crate::utils::Difficulty::Challenging,
-                crate::macros::include_content_image!("_images/peg_in_hole_orbit.jpg"),
-                crate::config::TaskConfig {
-                    task: crate::config::Task::PegInHoleAssembly,
-                    seed: 0,
-                    num_envs: 1,
-                    domain: crate::config::Scenario::Orbit,
-                    robot: "franka".to_owned(),
-                    enable_ui: false,
-                },
-            ),
-            (
-                egui::Theme::Dark,
-                "Locomotion",
-                crate::utils::Difficulty::Demo,
-                // TODO[low]: Update locomotion task in GUI with the proper image
                 crate::macros::include_content_image!("_images/peg_in_hole_moon.jpg"),
-                crate::config::TaskConfig {
-                    task: crate::config::Task::LocomotionVelocityTracking,
-                    seed: 0,
-                    num_envs: 1,
-                    domain: crate::config::Scenario::Orbit,
-                    robot: "unitree_go2".to_owned(),
-                    enable_ui: false,
-                },
+                TaskConfig::builder()
+                    .task("peg_in_hole_assembly".to_owned())
+                    .domain(Domain::Moon)
+                    .robot("franka".to_owned())
+                    .seed(9)
+                    .build(),
             ),
             (
                 egui::Theme::Dark,
-                "Ingenuity Mars Helicopter",
+                "Perseverance Navigation",
+                crate::utils::Difficulty::Easy,
+                crate::macros::include_content_image!("_images/perseverance.jpg"),
+                TaskConfig::builder()
+                    .task("waypoint_navigation".to_owned())
+                    .domain(Domain::Mars)
+                    .robot("perseverance".to_owned())
+                    .extras(vec!["env.debug_vis=true".to_owned()])
+                    .build(),
+            ),
+            (
+                egui::Theme::Dark,
+                "Screwdriving",
+                crate::utils::Difficulty::Challenging,
+                crate::macros::include_content_image!("../../../docs/theme/favicon.png"),
+                TaskConfig::builder()
+                    .task("screwdriving".to_owned())
+                    .domain(Domain::Mars)
+                    .robot("franka+electric_screwdriver_m5".to_owned())
+                    .build(),
+            ),
+            (
+                egui::Theme::Dark,
+                "Excavation",
+                crate::utils::Difficulty::Challenging,
+                crate::macros::include_content_image!("../../../docs/theme/favicon.png"),
+                TaskConfig::builder()
+                    .task("excavation".to_owned())
+                    .domain(Domain::Moon)
+                    .robot("franka+scoop_rectangular".to_owned())
+                    .extras(vec!["env.spacing=5.0".to_owned()])
+                    .build(),
+            ),
+            (
+                egui::Theme::Dark,
+                "Ingenuity Flight",
                 crate::utils::Difficulty::Demo,
                 crate::macros::include_content_image!("_images/ingenuity.jpg"),
-                crate::config::TaskConfig {
-                    task: crate::config::Task::_Aerial,
-                    seed: 0,
-                    num_envs: 1,
-                    domain: crate::config::Scenario::Orbit,
-                    robot: "ingenuity".to_owned(),
-                    enable_ui: false,
-                },
+                TaskConfig::builder()
+                    .task("_aerial".to_owned())
+                    .domain(Domain::Mars)
+                    .robot("ingenuity".to_owned())
+                    .build(),
             ),
             (
                 egui::Theme::Light,
-                "Canadarm3",
+                "Gateway with Canadarm3",
                 crate::utils::Difficulty::Demo,
                 crate::macros::include_content_image!("_images/gateway.jpg"),
-                crate::config::TaskConfig {
-                    task: crate::config::Task::_Manipulation,
-                    seed: 0,
-                    num_envs: 1,
-                    domain: crate::config::Scenario::Orbit,
-                    robot: "canadarm3".to_owned(),
-                    enable_ui: false,
-                },
+                TaskConfig::builder()
+                    .task("_manipulation".to_owned())
+                    .domain(Domain::Orbit)
+                    .robot("canadarm3".to_owned())
+                    .scenery(Some("static_gateway".to_owned()))
+                    .build(),
             ),
         ];
 
@@ -575,7 +632,7 @@ impl App {
                                     self.task_config = config;
                                     self.gravity = self.task_config.domain.gravity_magnitude();
                                     self.start_subprocess();
-                                    self.current_page = Page::Interface;
+                                    // self.current_page = Page::Interface;
                                 }
                                 if button.hovered() {
                                     hovered_task = Some(i);
@@ -718,8 +775,7 @@ impl App {
                                         )
                                         .clicked()
                                     {
-                                        self.gravity =
-                                            crate::config::Scenario::Orbit.gravity_magnitude();
+                                        self.gravity = Domain::Orbit.gravity_magnitude();
                                     }
                                     if ui
                                         .add(
@@ -728,8 +784,7 @@ impl App {
                                         )
                                         .clicked()
                                     {
-                                        self.gravity =
-                                            crate::config::Scenario::Moon.gravity_magnitude();
+                                        self.gravity = Domain::Moon.gravity_magnitude();
                                     }
                                     if ui
                                         .add(
@@ -738,8 +793,7 @@ impl App {
                                         )
                                         .clicked()
                                     {
-                                        self.gravity =
-                                            crate::config::Scenario::Mars.gravity_magnitude();
+                                        self.gravity = Domain::Mars.gravity_magnitude();
                                     }
                                     if ui
                                         .add(
@@ -857,7 +911,7 @@ impl App {
                                 self.force_feedback_sensitivity = 1.0;
                                 self.max_feedback_force = 2.0;
                                 self.collect_trajectory = false;
-                                self.task_config = crate::config::TaskConfig::default();
+                                self.task_config = TaskConfig::builder().build();
                                 self.stop_subprocess();
                             }
 
@@ -884,27 +938,32 @@ impl App {
     fn restart_episode(&mut self) {
         if self.subprocess.is_some() {
             info!("Restarting episode");
-            // if self.collect_trajectory {
-            //     info!("Saving trajectory");
-            //     self.pub_reset_save_dataset.publish(&EmptyMsg {}).unwrap();
-            //     self.n_collected_trajectories += 1;
+            // Log data collection event
+            if self.collect_trajectory {
+                info!("Logging collected trajectory data point (on restart)");
+                self.n_collected_trajectories += 1; // Increment here or based on actual save confirmation if added
 
-            writeln!(
-                self.logfile,
-                "DATA, {}, {}, {}",
-                std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap()
-                    .as_secs(),
-                chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
-                self.task_config
-            )
-            .unwrap();
-            // } else {
+                // Log the configuration used for this trajectory
+                // Use serde_json for easy serialization of TaskConfig
+                let config_json = serde_json::to_string(&self.task_config)
+                    .unwrap_or_else(|e| format!("Error serializing config: {e}"));
+
+                writeln!(
+                    self.logfile,
+                    "DATA, {}, {}, {}",
+                    std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap()
+                        .as_secs(),
+                    chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
+                    config_json // Log the JSON config
+                )
+                .unwrap_or_else(|e| error!("Failed to write to logfile: {}", e));
+            }
+            // Send reset signal (discard current trajectory in sim)
             self.pub_reset_discard_dataset
                 .publish(&EmptyMsg {})
-                .unwrap();
-            // }
+                .unwrap_or_else(|e| error!("Failed to publish reset message: {}", e));
         } else {
             error!("Cannot restart episode: subprocess is not running");
         }
@@ -946,36 +1005,41 @@ impl App {
     fn virtual_keyboard_window(&mut self, ui: &mut egui::Ui) {
         if self.show_virtual_keyboard_window && self.current_page == Page::Interface {
             let available_rect = ui.ctx().available_rect();
-            let available_size = available_rect.size();
+            // let available_size = available_rect.size(); // Not used
 
             egui::containers::Window::new(egui::RichText::new("Gripper").size(16.0))
                 .interactable(true)
                 .collapsible(true)
                 .resizable(false)
-                .max_size([0.61 * available_size.x, 0.61 * available_size.y])
+                // .max_size([0.61 * available_size.x, 0.61 * available_size.y]) // Remove max size for simplicity
                 .default_rect(egui::Rect {
-                    min: egui::Pos2::new(available_rect.max.x, available_rect.min.y),
-                    max: egui::Pos2::new(available_rect.max.x, available_rect.min.y),
+                    // Position near bottom right?
+                    min: egui::Pos2::new(
+                        available_rect.max.x - 150.0,
+                        available_rect.max.y - 100.0,
+                    ),
+                    max: egui::Pos2::new(available_rect.max.x - 10.0, available_rect.max.y - 10.0),
                 })
                 .show(ui.ctx(), |ui| {
-                    ui.with_layout(egui::Layout::left_to_right(egui::Align::TOP), |ui| {
-                        if ui
-                            .add(
-                                egui::Button::new(
-                                    egui::RichText::new("Toggle\nGripper")
-                                        .heading()
-                                        .size(32.0),
-                                )
-                                    .frame(true),
-                            )
-                            .on_hover_text("\u{e811} The button stopped working \u{e811}\n          (this is a workaround)")
-                            .clicked()
-                        {
-                            self.pub_gripper_toggle
-                                .publish(&BoolMsg { data: true })
-                                .unwrap();
-                        }
-                    });
+                    ui.with_layout(
+                        egui::Layout::centered_and_justified(egui::Direction::LeftToRight),
+                        |ui| {
+                            // Use a toggle button style
+                            let button = egui::Button::new("🤏 Gripper Toggle");
+                            if ui
+                                .add(button)
+                                .on_hover_text("Click to toggle gripper (Spacebar alternative)")
+                                .clicked()
+                            {
+                                // Publish True, assuming the sim interprets any BoolMsg as a toggle trigger
+                                self.pub_gripper_toggle
+                                    .publish(&BoolMsg { data: true })
+                                    .unwrap_or_else(|e| {
+                                        error!("Failed to publish gripper toggle: {}", e);
+                                    });
+                            }
+                        },
+                    );
                 });
         }
     }
@@ -1005,28 +1069,28 @@ impl App {
                                 .width(235.0)
                                 .selected_text(
                                     egui::RichText::new(match self.task_config.domain {
-                                        crate::config::Scenario::Asteroid => "Asteroid",
-                                        crate::config::Scenario::Earth => "Earth",
-                                        crate::config::Scenario::Mars => "Mars",
-                                        crate::config::Scenario::Moon => "Moon",
-                                        crate::config::Scenario::Orbit => "Orbit",
+                                        Domain::Asteroid => "Asteroid",
+                                        Domain::Earth => "Earth",
+                                        Domain::Mars => "Mars",
+                                        Domain::Moon => "Moon",
+                                        Domain::Orbit => "Orbit",
                                     })
                                     .size(20.0),
                                 )
                                 .show_ui(ui, |ui| {
                                     ui.selectable_value(
                                         &mut self.task_config.domain,
-                                        crate::config::Scenario::Moon,
+                                        Domain::Moon,
                                         "Moon",
                                     );
                                     ui.selectable_value(
                                         &mut self.task_config.domain,
-                                        crate::config::Scenario::Mars,
+                                        Domain::Mars,
                                         "Mars",
                                     );
                                     ui.selectable_value(
                                         &mut self.task_config.domain,
-                                        crate::config::Scenario::Orbit,
+                                        Domain::Orbit,
                                         "Orbit",
                                     );
                                 });
@@ -1035,17 +1099,7 @@ impl App {
 
                             ui.add(
                                 egui::Label::new(
-                                    egui::RichText::new(format!(
-                                        "\u{eb9b} {}",
-                                        match self.task_config.task {
-                                            crate::config::Task::_Aerial
-                                            | crate::config::Task::_Ground
-                                            | crate::config::Task::_Orbital
-                                            | crate::config::Task::_Manipulation => "Demo",
-                                            _ => "Task",
-                                        }
-                                    ))
-                                    .size(20.0),
+                                    egui::RichText::new("\u{eb9b} Task".to_string()).size(20.0),
                                 )
                                 .selectable(false),
                             );
@@ -1056,11 +1110,11 @@ impl App {
                                         .size(20.0),
                                 )
                                 .show_ui(ui, |ui| {
-                                    for task in crate::config::Task::iter() {
+                                    for task in self.env_cache.clone() {
                                         ui.selectable_value(
                                             &mut self.task_config.task,
+                                            task.clone(),
                                             task,
-                                            task.to_string(),
                                         );
                                     }
                                 });
@@ -1103,17 +1157,17 @@ impl App {
 
                             ui.add(
                                 egui::Label::new(
-                                    egui::RichText::new("\u{e1bd} Enable UI").size(20.0),
+                                    egui::RichText::new("\u{e1bd} Hide UI").size(20.0),
                                 )
                                 .selectable(false),
                             );
-                            let is_enabled = self.task_config.enable_ui;
+                            let is_hidden = self.task_config.hide_ui;
                             ui.add(egui::Checkbox::new(
-                                &mut self.task_config.enable_ui,
-                                egui::RichText::new(if is_enabled {
-                                    " Enabled"
+                                &mut self.task_config.hide_ui,
+                                egui::RichText::new(if is_hidden {
+                                    " Hidden"
                                 } else {
-                                    " Disabled"
+                                    " Revealed"
                                 })
                                 .size(20.0),
                             ));
@@ -1187,7 +1241,7 @@ impl App {
                                 {
                                     self.gravity = self.task_config.domain.gravity_magnitude();
                                     self.start_subprocess();
-                                    self.current_page = Page::Interface;
+                                    // self.current_page = Page::Interface;
                                 }
                             },
                         );
@@ -1211,7 +1265,7 @@ impl App {
         let exec = self.task_config.set_exec_env(exec);
 
         // Start the subprocess
-        info!("Starting subprocess...");
+        info!("Starting subprocess: {:?}", exec);
         let mut popen = exec.popen().unwrap();
 
         popen

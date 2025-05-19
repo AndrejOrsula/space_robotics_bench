@@ -6,22 +6,22 @@ Space Robotics Bench can simulate liquid and granular materials like regolith, s
 
 ## Enabling Particles
 
-You can enable particles in any environment by setting the `_particles` parameter to `true`:
+You can enable particles in any environment by setting the `scatter_particles` parameter to `true`:
 
 ```bash
-srb agent teleop -e _manipulation env._particles=true env.robot=+scoop
+srb agent teleop -e _manipulation env.scatter_particles=true env.robot=+scoop
 ```
 
 ## Particle Configuration Parameters
 
-| Parameter              | Description                 | Default |
-| ---------------------- | --------------------------- | ------- |
-| `env._particles`       | Enable/disable particles    | `false` |
-| `env._particles_size`  | Particle diameter (meters)  | `0.025` |
-| `env._particles_ratio` | Particle density multiplier | `0.001` |
+| Parameter               | Description                 | Default |
+| ----------------------- | --------------------------- | ------- |
+| `env.scatter_particles` | Scatter particles           | `false` |
+| `env.particles_size`    | Particle diameter (meters)  | `0.025` |
+| `env.particles_ratio`   | Particle density multiplier | `0.001` |
 
 ```bash
-srb agent teleop -e _manipulation env._particles=true env._particles_size=0.01 env._particles_ratio=0.1
+srb agent teleop -e _manipulation env.scatter_particles=true env.particles_size=0.01 env.particles_ratio=0.1
 ```
 
 ## Particle Behavior

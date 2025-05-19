@@ -65,13 +65,13 @@ def run(
         logdir = stamp_dir(logdir.joinpath("eval"))
 
     if track:
-        import wandb
+        # import wandb
 
-        _run = wandb.init(
-            name=f"{env_id}_{algo}",
-            sync_tensorboard=True,
-            monitor_gym=True,
-        )
+        # _run = wandb.init(
+        #     name=f"{env_id}_{algo}",
+        #     sync_tensorboard=True,
+        #     monitor_gym=True,
+        # )
         tensorboard_log = logdir.joinpath("tensorboard")
     else:
         tensorboard_log = None

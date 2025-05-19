@@ -1,9 +1,12 @@
 from srb.assets.object.tool import Kinova300
-from srb.core.action import (
+from srb.core.action import (  # noqa: F401
     ActionGroup,
     DifferentialIKControllerCfg,
     DifferentialInverseKinematicsActionCfg,
     InverseKinematicsActionGroup,
+    OperationalSpaceControlActionGroup,
+    OperationalSpaceControllerActionCfg,
+    OperationalSpaceControllerCfg,
 )
 from srb.core.actuator import ImplicitActuatorCfg
 from srb.core.asset import ArticulationCfg, Frame, SerialManipulator, Tool, Transform

@@ -4,6 +4,7 @@ from typing import Sequence, Tuple
 import torch
 
 from srb._typing import StepReturn
+from srb.core.action import ThrustAction
 from srb.core.asset import RigidObjectCollection, RigidObjectCollectionCfg
 from srb.core.env import OrbitalEnv, OrbitalEnvCfg, OrbitalEventCfg, OrbitalSceneCfg
 from srb.core.manager import EventTermCfg, SceneEntityCfg
@@ -11,6 +12,7 @@ from srb.core.marker import VisualizationMarkers, VisualizationMarkersCfg
 from srb.core.mdp import reset_collection_root_state_uniform_poisson_disk_3d
 from srb.core.sim import PreviewSurfaceCfg, SphereCfg
 from srb.utils.cfg import configclass
+from srb.utils.math import deg_to_rad, matrix_from_quat, rotmat_to_rot6d
 
 from .asset import select_obstacle
 
@@ -21,8 +23,9 @@ from .asset import select_obstacle
 
 @configclass
 class SceneCfg(OrbitalSceneCfg):
-    env_spacing = 12.0
+    env_spacing: float = 25.0
 
+    ## Assets
     objs: RigidObjectCollectionCfg = RigidObjectCollectionCfg(
         rigid_objects=MISSING,  # type: ignore
     )
@@ -47,9 +50,9 @@ class EventCfg(OrbitalEventCfg):
                 "x": (-0.1, 0.1),
                 "y": (-0.1, 0.1),
                 "z": (-0.1, 0.1),
-                "roll": (-0.1 * torch.pi, 0.1 * torch.pi),
-                "pitch": (-0.1 * torch.pi, 0.1 * torch.pi),
-                "yaw": (-0.1 * torch.pi, 0.1 * torch.pi),
+                "roll": (-deg_to_rad(10.0), deg_to_rad(10.0)),
+                "pitch": (-deg_to_rad(10.0), deg_to_rad(10.0)),
+                "yaw": (-deg_to_rad(10.0), deg_to_rad(10.0)),
             },
             "radius": (5.0),
         },
@@ -60,7 +63,7 @@ class EventCfg(OrbitalEventCfg):
 class TaskCfg(OrbitalEnvCfg):
     ## Scene
     scene: SceneCfg = SceneCfg()
-    num_obstacles: int = 20
+    num_obstacles: int = 16
 
     ## Events
     events: EventCfg = EventCfg()
@@ -132,6 +135,17 @@ class Task(OrbitalEnv):
         super()._reset_idx(env_ids)
 
     def extract_step_return(self) -> StepReturn:
+        ## Get remaining fuel (if applicable)
+        if self._thrust_action_term_key:
+            thrust_action_term: ThrustAction = self.action_manager._terms[  # type: ignore
+                self._thrust_action_term_key
+            ]
+            remaining_fuel = (
+                thrust_action_term.remaining_fuel / thrust_action_term.cfg.fuel_capacity
+            ).unsqueeze(-1)
+        else:
+            remaining_fuel = None
+
         return _compute_step_return(
             ## Time
             episode_length=self.episode_length_buf,
@@ -143,6 +157,7 @@ class Task(OrbitalEnv):
             ## States
             # Root
             tf_pos_robot=self._robot.data.root_pos_w,
+            tf_quat_robot=self._robot.data.root_quat_w,
             vel_lin_robot=self._robot.data.root_lin_vel_b,
             vel_ang_robot=self._robot.data.root_ang_vel_b,
             # Transforms (world frame)
@@ -151,6 +166,8 @@ class Task(OrbitalEnv):
             # IMU
             imu_lin_acc=self._imu_robot.data.lin_acc_b,
             imu_ang_vel=self._imu_robot.data.ang_vel_b,
+            # Fuel
+            remaining_fuel=remaining_fuel,
         )
 
 
@@ -167,6 +184,7 @@ def _compute_step_return(
     ## States
     # Root
     tf_pos_robot: torch.Tensor,
+    tf_quat_robot: torch.Tensor,
     vel_lin_robot: torch.Tensor,
     vel_ang_robot: torch.Tensor,
     # Transforms (world frame)
@@ -175,15 +193,21 @@ def _compute_step_return(
     # IMU
     imu_lin_acc: torch.Tensor,
     imu_ang_vel: torch.Tensor,
+    # Fuel
+    remaining_fuel: torch.Tensor | None,
 ) -> StepReturn:
     num_envs = episode_length.size(0)
     num_objs = tf_pos_objs.size(1)
-    # dtype = episode_length.dtype
+    dtype = episode_length.dtype
     device = episode_length.device
 
     ############
     ## States ##
     ############
+    ## Root
+    tf_rotmat_robot = matrix_from_quat(tf_quat_robot)
+    tf_rot6d_robot = rotmat_to_rot6d(tf_rotmat_robot)
+
     ## Transforms (world frame)
     # Robot -> Object
     pos_robot_to_objs = tf_pos_robot.unsqueeze(1).repeat(1, num_objs, 1) - tf_pos_objs
@@ -193,25 +217,40 @@ def _compute_step_return(
     ]
 
     # Robot -> Target
-    tf_pos_robot_to_target = tf_pos_robot - tf_pos_target
+    tf_pos_robot_to_target = tf_pos_target - tf_pos_robot
+
+    ## Fuel
+    remaining_fuel = (
+        remaining_fuel
+        if remaining_fuel is not None
+        else torch.ones((num_envs, 1), dtype=dtype, device=device)
+    )
 
     #############
     ## Rewards ##
     #############
     # Penalty: Action rate
-    WEIGHT_ACTION_RATE = -0.05
+    WEIGHT_ACTION_RATE = -0.025
     penalty_action_rate = WEIGHT_ACTION_RATE * torch.sum(
         torch.square(act_current - act_previous), dim=1
     )
 
+    # Penalty: Fuel consumption
+    WEIGHT_FUEL_CONSUMPTION = -2.0
+    penalty_fuel_consumption = WEIGHT_FUEL_CONSUMPTION * torch.square(
+        1.0 - remaining_fuel.squeeze(-1)
+    )
+
     # Penalty: Angular velocity
-    WEIGHT_ANGULAR_VELOCITY = -0.1
-    penalty_angular_velocity = WEIGHT_ANGULAR_VELOCITY * torch.norm(
-        vel_ang_robot, dim=-1
+    WEIGHT_ANGULAR_VELOCITY = -0.25
+    MAX_ANGULAR_VELOCITY_PENALTY = -5.0
+    penalty_angular_velocity = torch.clamp_min(
+        WEIGHT_ANGULAR_VELOCITY * torch.sum(torch.square(vel_ang_robot), dim=1),
+        min=MAX_ANGULAR_VELOCITY_PENALTY,
     )
 
     # Reward: Distance | Robot <--> Object
-    WEIGHT_DISTANCE_ROBOT_TO_OBJ = 1.0
+    WEIGHT_DISTANCE_ROBOT_TO_OBJ = 2.0
     reward_distance_robot_to_nearest_obj = WEIGHT_DISTANCE_ROBOT_TO_OBJ * torch.norm(
         tf_pos_robot_to_nearest_obj, dim=-1
     )
@@ -237,22 +276,21 @@ def _compute_step_return(
     return StepReturn(
         {
             "state": {
+                "tf_rot6d_robot": tf_rot6d_robot,
                 "vel_lin_robot": vel_lin_robot,
                 "vel_ang_robot": vel_ang_robot,
-                "tf_pos_robot_to_nearest_obj": tf_pos_robot_to_nearest_obj,
                 "tf_pos_robot_to_target": tf_pos_robot_to_target,
-            },
-            "state_dyn": {
                 "pos_robot_to_objs": pos_robot_to_objs,
             },
             "proprio": {
                 "imu_lin_acc": imu_lin_acc,
                 "imu_ang_vel": imu_ang_vel,
+                "remaining_fuel": remaining_fuel,
             },
-            # "proprio_dyn": {},
         },
         {
             "penalty_action_rate": penalty_action_rate,
+            "penalty_fuel_consumption": penalty_fuel_consumption,
             "penalty_angular_velocity": penalty_angular_velocity,
             "reward_distance_robot_to_nearest_obj": reward_distance_robot_to_nearest_obj,
             "penalty_distance_robot_to_target": penalty_distance_robot_to_target,

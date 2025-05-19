@@ -8,7 +8,6 @@ from srb.core.asset.object.payload import Payload
 from srb.core.asset.robot.mobile.mobile_robot_type import MobileRobotType
 from srb.core.asset.robot.robot import Robot, RobotRegistry
 from srb.core.asset.robot.robot_type import RobotType
-from srb.utils.str import convert_to_snake_case
 
 
 class MobileRobot(Robot, robot_entrypoint=RobotType.MOBILE_ROBOT):
@@ -53,13 +52,13 @@ class MobileRobot(Robot, robot_entrypoint=RobotType.MOBILE_ROBOT):
                     if mobile_robot_type not in MobileRobotRegistry.registry.keys():
                         MobileRobotRegistry.registry[mobile_robot_type] = []
                     else:
-                        assert convert_to_snake_case(cls.__name__) not in (
-                            convert_to_snake_case(mobile_robot.__name__)
+                        assert cls.name() not in (
+                            mobile_robot.name()
                             for mobile_robot in MobileRobotRegistry.registry[
                                 mobile_robot_type
                             ]
                         ), (
-                            f"Cannot register multiple mobile robots with an identical name: '{cls.__module__}:{cls.__name__}' already exists as '{next(mobile_robot for mobile_robot in MobileRobotRegistry.registry[mobile_robot_type] if convert_to_snake_case(cls.__name__) == convert_to_snake_case(mobile_robot.__name__)).__module__}:{cls.__name__}'"
+                            f"Cannot register multiple mobile robots with an identical name: '{cls.__module__}:{cls.__name__}' already exists as '{next(mobile_robot for mobile_robot in MobileRobotRegistry.registry[mobile_robot_type] if cls.name() == mobile_robot.name()).__module__}:{cls.__name__}'"
                         )
                     MobileRobotRegistry.registry[mobile_robot_type].append(cls)
                     break
@@ -126,6 +125,6 @@ class MobileRobotRegistry:
     @classmethod
     def get_by_name(cls, name: str) -> Type[MobileRobot] | None:
         for mobile_robot in cls.values_inner():
-            if convert_to_snake_case(mobile_robot.__name__) == name:
+            if mobile_robot.name() == name:
                 return mobile_robot
         return None

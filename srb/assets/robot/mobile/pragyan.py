@@ -34,7 +34,6 @@ class Pragyan(WheeledRobot):
                 solver_velocity_iteration_count=4,
             ),
         ),
-        init_state=ArticulationCfg.InitialStateCfg(),
         actuators={
             "drive_joints": ImplicitActuatorCfg(
                 joint_names_expr=["wheel_drive_joint_.*"],

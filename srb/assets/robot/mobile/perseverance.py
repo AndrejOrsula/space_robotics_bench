@@ -34,7 +34,6 @@ class Perseverance(WheeledRobot):
                 solver_velocity_iteration_count=4,
             ),
         ),
-        init_state=ArticulationCfg.InitialStateCfg(),
         actuators={
             "drive_joints": ImplicitActuatorCfg(
                 joint_names_expr=["drive_joint.*"],
@@ -88,7 +87,7 @@ class Perseverance(WheeledRobot):
                 "drive_joint_rear_left",
                 "drive_joint_rear_right",
             ],
-            scale=1.0,
+            scale=2.0,
         )
     )
 

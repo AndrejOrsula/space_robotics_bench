@@ -87,6 +87,8 @@ class Task(ManipulationEnv):
                 )
                 else None
             ),
+            joint_acc_robot=self._robot.data.joint_acc,
+            joint_applied_torque_robot=self._robot.data.applied_torque,
             # Kinematics
             fk_pos_end_effector=self._tf_end_effector.data.target_pos_source[:, 0, :],
             fk_quat_end_effector=self._tf_end_effector.data.target_quat_source[:, 0, :],
@@ -120,6 +122,8 @@ def _compute_step_return(
     joint_pos_limits_robot: torch.Tensor | None,
     joint_pos_end_effector: torch.Tensor | None,
     joint_pos_limits_end_effector: torch.Tensor | None,
+    joint_acc_robot: torch.Tensor,
+    joint_applied_torque_robot: torch.Tensor,
     # Kinematics
     fk_pos_end_effector: torch.Tensor,
     fk_quat_end_effector: torch.Tensor,
@@ -191,8 +195,25 @@ def _compute_step_return(
         torch.square(act_current - act_previous), dim=1
     )
 
+    # Penalty: Joint torque
+    WEIGHT_JOINT_TORQUE = -0.000025
+    MAX_JOINT_TORQUE_PENALTY = -4.0
+    penalty_joint_torque = torch.clamp_min(
+        WEIGHT_JOINT_TORQUE
+        * torch.sum(torch.square(joint_applied_torque_robot), dim=1),
+        min=MAX_JOINT_TORQUE_PENALTY,
+    )
+
+    # Penalty: Joint acceleration
+    WEIGHT_JOINT_ACCELERATION = -0.0005
+    MAX_JOINT_ACCELERATION_PENALTY = -4.0
+    penalty_joint_acceleration = torch.clamp_min(
+        WEIGHT_JOINT_ACCELERATION * torch.sum(torch.square(joint_acc_robot), dim=1),
+        min=MAX_JOINT_ACCELERATION_PENALTY,
+    )
+
     # Penalty: Undesired robot contacts
-    WEIGHT_UNDESIRED_ROBOT_CONTACTS = -0.1
+    WEIGHT_UNDESIRED_ROBOT_CONTACTS = -1.0
     THRESHOLD_UNDESIRED_ROBOT_CONTACTS = 10.0
     penalty_undesired_robot_contacts = WEIGHT_UNDESIRED_ROBOT_CONTACTS * (
         torch.max(torch.norm(contact_forces_robot, dim=-1), dim=1)[0]
@@ -232,6 +253,8 @@ def _compute_step_return(
         },
         {
             "penalty_action_rate": penalty_action_rate,
+            "penalty_joint_torque": penalty_joint_torque,
+            "penalty_joint_acceleration": penalty_joint_acceleration,
             "penalty_undesired_robot_contacts": penalty_undesired_robot_contacts,
         },
         termination,

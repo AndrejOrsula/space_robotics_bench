@@ -9,7 +9,6 @@ from srb.core.asset.robot.mobile_manipulation.mobile_manipulator_type import (
 )
 from srb.core.asset.robot.robot import Robot, RobotRegistry
 from srb.core.asset.robot.robot_type import RobotType
-from srb.utils.str import convert_to_snake_case
 
 
 class MobileManipulator(Robot, robot_entrypoint=RobotType.MOBILE_MANIPULATOR):
@@ -56,13 +55,13 @@ class MobileManipulator(Robot, robot_entrypoint=RobotType.MOBILE_MANIPULATOR):
                     ):
                         MobileManipulatorRegistry.registry[mobile_manipulator_type] = []
                     else:
-                        assert convert_to_snake_case(cls.__name__) not in (
-                            convert_to_snake_case(mobile_manipulator.__name__)
+                        assert cls.name() not in (
+                            mobile_manipulator.name()
                             for mobile_manipulator in MobileManipulatorRegistry.registry[
                                 mobile_manipulator_type
                             ]
                         ), (
-                            f"Cannot register multiple mobile manipulators with an identical name: '{cls.__module__}:{cls.__name__}' already exists as '{next(mobile_manipulator for mobile_manipulator in MobileManipulatorRegistry.registry[mobile_manipulator_type] if convert_to_snake_case(cls.__name__) == convert_to_snake_case(mobile_manipulator.__name__)).__module__}:{cls.__name__}'"
+                            f"Cannot register multiple mobile manipulators with an identical name: '{cls.__module__}:{cls.__name__}' already exists as '{next(mobile_manipulator for mobile_manipulator in MobileManipulatorRegistry.registry[mobile_manipulator_type] if cls.name() == mobile_manipulator.name()).__module__}:{cls.__name__}'"
                         )
                     MobileManipulatorRegistry.registry[mobile_manipulator_type].append(
                         cls
@@ -138,6 +137,6 @@ class MobileManipulatorRegistry:
     @classmethod
     def get_by_name(cls, name: str) -> Type[MobileManipulator] | None:
         for mobile_manipulator in cls.values_inner():
-            if convert_to_snake_case(mobile_manipulator.__name__) == name:
+            if mobile_manipulator.name() == name:
                 return mobile_manipulator
         return None

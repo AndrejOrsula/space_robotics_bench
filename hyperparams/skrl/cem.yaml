@@ -1,0 +1,36 @@
+# https://skrl.readthedocs.io/en/latest/api/utils/model_instantiators.html
+models:
+  policy:
+    class: DeterministicMixin
+    clip_actions: False
+    network:
+      - name: net
+        input: 'concatenate((STATES["state_dyn"], STATES["proprio"], STATES["proprio_dyn"], STATES["command"]))'
+        layers: [384, 384]
+        activations: elu
+    output: ACTIONS
+
+# https://skrl.readthedocs.io/en/latest/api/memories/random.html
+memory: null
+
+# https://skrl.readthedocs.io/en/latest/api/agents/cem.html
+agent:
+  class: CEM
+  num_rollouts: 10
+  num_elite: 5
+  learning_starts: 0
+  state_preprocessor: RunningStandardScaler
+  state_preprocessor_kwargs: null
+  rewards_shaper_scale: 1.0
+  experiment:
+    directory: "MISSING"
+    experiment_name: "MISSING"
+    write_interval: auto
+    checkpoint_interval: 100
+    wandb: True
+
+# https://skrl.readthedocs.io/en/latest/api/trainers/single_agent.html
+trainer:
+  class: SingleAgentTrainer
+  timesteps: 100000000
+  environment_info: log

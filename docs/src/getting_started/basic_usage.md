@@ -68,6 +68,8 @@ After a while, you should see 3 tables printed in the terminal:
 {{#include ../../../srb/assets/robot/manipulation/franka.py:example_p2}}
         ...
 {{#include ../../../srb/assets/robot/manipulation/franka.py:example_p3}}
+    ...
+{{#include ../../../srb/assets/robot/manipulation/franka.py:example_p4}}
 ```
 
 </details>

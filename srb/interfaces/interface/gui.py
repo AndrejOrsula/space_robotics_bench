@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 import numpy
 import rclpy
 from pxr import Gf
+from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from std_msgs.msg import Bool, Empty, Float64
 
@@ -37,18 +38,20 @@ class GuiInterface(InterfaceBase):
 
         ## Subscribers
         self._sub_reset = self._node.create_subscription(
-            Empty, "gui/reset_discard_dataset", self._cb_reset, 1
+            Empty, "/gui/reset_discard_dataset", self._cb_reset, 1
         )
         self._sub_shutdown_process = self._node.create_subscription(
-            Empty, "gui/shutdown_process", self._cb_shutdown_process, 1
+            Empty, "/gui/shutdown_process", self._cb_shutdown_process, 1
         )
         self._sub_gravity = self._node.create_subscription(
-            Float64, "gui/gravity", self._cb_gravity, 1
+            Float64, "/gui/gravity", self._cb_gravity, 1
         )
 
         # Run a thread for listening to device
         if not node:
-            self._thread = threading.Thread(target=rclpy.spin, args=(self._node,))
+            self._executor = MultiThreadedExecutor(num_threads=2)
+            self._executor.add_node(self._node)
+            self._thread = threading.Thread(target=self._executor.spin)
             self._thread.daemon = True
             self._thread.start()
 

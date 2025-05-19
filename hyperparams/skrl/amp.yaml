@@ -1,0 +1,85 @@
+# https://skrl.readthedocs.io/en/latest/api/utils/model_instantiators.html
+models:
+  separate: True
+  policy:
+    class: GaussianMixin
+    clip_actions: False
+    clip_log_std: True
+    min_log_std: -20.0
+    max_log_std: 2.0
+    initial_log_std: -2.0
+    network:
+      - name: net
+        input: 'concatenate((STATES["state_dyn"], STATES["proprio"], STATES["proprio_dyn"], STATES["command"]))'
+        layers: [384, 384]
+        activations: elu
+    output: ACTIONS
+  value:
+    class: DeterministicMixin
+    clip_actions: False
+    network:
+      - name: net
+        input: 'concatenate((STATES["state_dyn"], STATES["proprio"], STATES["proprio_dyn"], STATES["command"]))'
+        layers: [384, 384]
+        activations: elu
+    output: ONE
+  discriminator:
+    class: DeterministicMixin
+    clip_actions: False
+    network:
+      - name: net
+        input: STATES["amp_observation"]
+        layers: [512, 256]
+        activations: elu
+    output: ONE
+
+# https://skrl.readthedocs.io/en/latest/api/memories/random.html
+memory:
+  class: RandomMemory
+  memory_size: 2048
+
+# https://skrl.readthedocs.io/en/latest/api/agents/amp.html
+agent:
+  class: AMP
+  rollouts: 256
+  learning_epochs: 10
+  mini_batches: 8
+  discount_factor: 0.997
+  lambda: 0.9
+  learning_rate: 1.0e-4
+  learning_rate_scheduler: null
+  learning_rate_scheduler_kwargs: {}
+  state_preprocessor: RunningStandardScaler
+  state_preprocessor_kwargs: null
+  value_preprocessor: RunningStandardScaler
+  value_preprocessor_kwargs: null
+  random_timesteps: 0
+  learning_starts: 0
+  grad_norm_clip: 0.5
+  ratio_clip: 0.2
+  value_clip: 0.2
+  clip_predicted_values: True
+  entropy_loss_scale: 0.01
+  value_loss_scale: 0.5
+  kl_threshold: 0.0
+  rewards_shaper_scale: 1.0
+  motions_path: "path/to/your/motion_data.pt"
+  motions_key: "motions"
+  amp_batch_size: 512
+  amp_learning_epochs: 2
+  amp_learning_rate: 1.0e-4
+  amp_loss_scale: 10.0
+  amp_grad_penalty_scale: 1.0
+  normalize_amp_observations: True
+  experiment:
+    directory: "MISSING"
+    experiment_name: "MISSING"
+    write_interval: auto
+    checkpoint_interval: 1000
+    wandb: True
+
+# https://skrl.readthedocs.io/en/latest/api/trainers/sequential.html
+trainer:
+  class: SequentialTrainer
+  timesteps: 100000000
+  environment_info: log

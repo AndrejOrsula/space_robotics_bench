@@ -1,4 +1,4 @@
-from typing import Sequence
+from typing import List, Sequence
 
 import torch
 
@@ -70,6 +70,8 @@ class Task(GroundEnv):
             # IMU
             imu_lin_acc=self._imu_robot.data.lin_acc_b,
             imu_ang_vel=self._imu_robot.data.ang_vel_b,
+            ## Robot descriptors
+            forward_drive_indices=self._forward_drive_indices,
         )
 
 
@@ -92,6 +94,8 @@ def _compute_step_return(
     # IMU
     imu_lin_acc: torch.Tensor,
     imu_ang_vel: torch.Tensor,
+    ## Robot descriptors
+    forward_drive_indices: List[int],
 ) -> StepReturn:
     num_envs = episode_length.size(0)
     # dtype = episode_length.dtype
@@ -111,6 +115,12 @@ def _compute_step_return(
     WEIGHT_ACTION_RATE = -0.05
     penalty_action_rate = WEIGHT_ACTION_RATE * torch.sum(
         torch.square(act_current - act_previous), dim=1
+    )
+
+    # Penalty: Backward motion
+    WEIGHT_BACKWARD_MOTION = -0.5
+    penalty_backward_motion = WEIGHT_BACKWARD_MOTION * torch.norm(
+        torch.clamp_max(act_current[:, forward_drive_indices], 0.0), dim=-1
     )
 
     ##################
@@ -142,6 +152,7 @@ def _compute_step_return(
         },
         {
             "penalty_action_rate": penalty_action_rate,
+            "penalty_backward_motion": penalty_backward_motion,
         },
         termination,
         truncation,

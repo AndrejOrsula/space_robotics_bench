@@ -9,7 +9,7 @@ from srb.core.asset.robot.mobile.mobile_robot_type import MobileRobotType
 
 class AerialRobot(MobileRobot, mobile_robot_entrypoint=MobileRobotType.AERIAL):
     ## Frames
-    frame_downward_camera: Frame
+    frame_onboard_camera: Frame
 
     @classmethod
     def mobile_robot_registry(cls) -> Sequence[Type[AerialRobot]]:

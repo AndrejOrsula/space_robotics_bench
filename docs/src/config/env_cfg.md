@@ -42,7 +42,7 @@ Below are the most important configuration parameters organized by category (sev
 - `env.domain` - [Domain](domain.md)
 - `env.robot` - [Robot](robot.md)
 - `env.scene.num_envs`, `env.stack` - [Parallelism](parallelism.md)
-- `env._particles` - [Particles](particles.md)
+- `env.scatter_particles` - [Particles](particles.md)
 
 ### Simulation
 

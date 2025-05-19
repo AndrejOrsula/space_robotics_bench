@@ -153,8 +153,8 @@ class DirectEnv(__DirectRLEnv, metaclass=__PostInitCaller):
     def _update_gym_env_spaces(self):
         # Action space
         self.single_action_space = gymnasium.spaces.Box(
-            low=-numpy.inf,
-            high=numpy.inf,
+            low=-1.0,
+            high=1.0,
             shape=(self.action_manager.total_action_dim,),
         )
         self.action_space = gymnasium.vector.utils.batch_space(
@@ -165,8 +165,63 @@ class DirectEnv(__DirectRLEnv, metaclass=__PostInitCaller):
         self.single_observation_space = gymnasium.spaces.Dict({})
         for obs_key, obs_buf in self._get_observations().items():
             assert isinstance(obs_buf, (numpy.ndarray, torch.Tensor))
+            if isinstance(obs_buf, torch.Tensor):
+                match obs_buf.dtype:
+                    case torch.float32:
+                        dtype = numpy.float32
+                    case torch.float64:
+                        dtype = numpy.float64
+                    case torch.int8:
+                        dtype = numpy.int8
+                    case torch.uint8:
+                        dtype = numpy.uint8
+                    case torch.int16:
+                        dtype = numpy.int16
+                    case torch.uint16:
+                        dtype = numpy.uint16
+                    case torch.int32:
+                        dtype = numpy.int32
+                    case torch.uint32:
+                        dtype = numpy.uint32
+                    case torch.int64:
+                        dtype = numpy.int64
+                    case torch.uint64:
+                        dtype = numpy.uint64
+                    case torch.bool:
+                        dtype = numpy.bool_
+                    case _:
+                        raise TypeError(
+                            f"Unsupported torch dtype '{obs_buf.dtype}' for observation '{obs_key}'."
+                        )
+            else:
+                dtype = obs_buf.dtype
+            match dtype:
+                case numpy.float32 | numpy.float64:
+                    low = numpy.finfo(dtype).min  # type: ignore
+                    high = numpy.finfo(dtype).max  # type: ignore
+                case (
+                    numpy.int8
+                    | numpy.uint8
+                    | numpy.int16
+                    | numpy.uint16
+                    | numpy.int32
+                    | numpy.uint32
+                    | numpy.int64
+                    | numpy.uint64
+                ):
+                    low = numpy.iinfo(dtype).min
+                    high = numpy.iinfo(dtype).max
+                case numpy.bool_:
+                    low = 0
+                    high = 1
+                case _:
+                    low = -numpy.inf
+                    high = numpy.inf
             self.single_observation_space[obs_key] = gymnasium.spaces.Box(
-                low=-numpy.inf, high=numpy.inf, shape=obs_buf.shape[1:]
+                low=low,
+                high=high,
+                shape=obs_buf.shape[1:],
+                dtype=dtype,  # type: ignore
             )
         self.observation_space = gymnasium.vector.utils.batch_space(
             self.single_observation_space, self.num_envs

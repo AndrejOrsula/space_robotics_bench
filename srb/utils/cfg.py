@@ -60,7 +60,6 @@ from srb.utils.spaces import (
     replace_env_cfg_spaces_with_strings,
     replace_strings_with_env_cfg_spaces,
 )
-from srb.utils.str import convert_to_snake_case
 
 if TYPE_CHECKING:
     from srb._typing import AnyEnvCfg
@@ -400,9 +399,7 @@ def reconstruct_object(obj: Any, updates: Any) -> Any:
                                         (
                                             end_effector_class
                                             for end_effector_class in Tool.object_registry()
-                                            if convert_to_snake_case(
-                                                end_effector_class.__name__
-                                            )
+                                            if end_effector_class.name()
                                             == end_effector_name
                                         ),
                                         None,
@@ -461,10 +458,7 @@ def reconstruct_object(obj: Any, updates: Any) -> Any:
                                         (
                                             payload_class
                                             for payload_class in Payload.object_registry()
-                                            if convert_to_snake_case(
-                                                payload_class.__name__
-                                            )
-                                            == payload_name
+                                            if payload_class.name() == payload_name
                                         ),
                                         None,
                                     ):

@@ -51,12 +51,12 @@ class BaseEventCfg:
             "asset_cfg": SceneEntityCfg("sunlight"),
             "orientation_distribution_params": {
                 "roll": (
-                    deg_to_rad(-75.0),
-                    deg_to_rad(75.0),
+                    deg_to_rad(-60.0),
+                    deg_to_rad(60.0),
                 ),
                 "pitch": (
-                    deg_to_rad(-75.0),
-                    deg_to_rad(75.0),
+                    deg_to_rad(-60.0),
+                    deg_to_rad(60.0),
                 ),
             },
         },
@@ -116,6 +116,17 @@ class BaseEventCfg:
         self._update_gravity(env_cfg)
         self._update_sunlight(env_cfg)
         self._update_mobile_manipulator(env_cfg)
+
+        for term in (
+            self.randomize_gravity,
+            self.randomize_sunlight_orientation,
+            self.randomize_sunlight_intensity,
+            self.randomize_sunlight_angular_diameter,
+            self.randomize_sunlight_color_temperature,
+            self.randomize_skydome_orientation,
+        ):
+            if term is not None:
+                term.mode = "reset" if env_cfg.num_envs == 1 else "interval"
 
     def _update_gravity(self, env_cfg: "AnyEnvCfg"):
         if env_cfg.domain.gravity_variation <= 0.0:

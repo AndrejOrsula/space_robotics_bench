@@ -47,7 +47,21 @@ def train(
         for key, value in tran.items():
             if value.dtype == numpy.uint8 and value.ndim == 3:
                 if worker == 0:
-                    episode.add(f"policy_{key}", value, agg="stack")
+                    if value.shape[-1] >= 3:
+                        episode.add(f"policy_{key}_ch0-2", value[..., :3], agg="stack")
+                        for i in range(3, value.shape[-1]):
+                            episode.add(
+                                f"policy_{key}_ch{i}",
+                                value[..., i : i + 1],
+                                agg="stack",
+                            )
+                    else:
+                        for i in range(value.shape[-1]):
+                            episode.add(
+                                f"policy_{key}_ch{i}",
+                                value[..., i : i + 1],
+                                agg="stack",
+                            )
             elif key.startswith("log/"):
                 assert value.ndim == 0, (key, value.shape, value.dtype)
                 episode.add(key, value, agg=("avg", "max", "sum"))  # type: ignore

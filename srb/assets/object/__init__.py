@@ -1,12 +1,14 @@
 from .light import *  # noqa: F403
 from .payload import *  # noqa: F403
+from .pedestal import *  # noqa: F403
 from .tool import *  # noqa: F403
 
 # isort: split
 
 from .asteroid import Asteroid  # noqa: F401
 from .beneficiation_unit import BeneficiationUnit  # noqa: F401
-from .debris import CubesatDebris  # noqa: F401
+from .bolt_and_nut import BoltM8, NutM8  # noqa: F401
+from .juggling_ball import JugglingBall  # noqa: F401
 from .peg_in_hole import (  # noqa: F401
     Hole,
     Peg,

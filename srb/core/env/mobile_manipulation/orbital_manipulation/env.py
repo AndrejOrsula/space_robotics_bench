@@ -63,7 +63,7 @@ class OrbitalManipulationEnvCfg(OrbitalEnvCfg):
         super().__post_init__()
         assert self.scene.manipulator is not None
 
-        ## Adapted from ManipulatorEnvCfg
+        ## Adapted from ManipulationEnvCfg
         # Sensor: End-effector transform
         self.scene.tf_end_effector.prim_path = f"{self.scene.manipulator.prim_path}/{self._robot.manipulator.frame_base.prim_relpath}"
         self.scene.tf_end_effector.target_frames[

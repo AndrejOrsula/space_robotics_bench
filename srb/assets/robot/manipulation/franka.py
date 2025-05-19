@@ -1,9 +1,16 @@
 from srb.assets.object.tool import FrankaHand
-from srb.core.action import (
+from srb.core.action import (  # noqa: F401
     ActionGroup,
     DifferentialIKControllerCfg,
     DifferentialInverseKinematicsActionCfg,
     InverseKinematicsActionGroup,
+    JointEffortActionCfg,
+    JointEffortActionGroup,
+    JointPositionRelativeActionGroup,
+    OperationalSpaceControlActionGroup,
+    OperationalSpaceControllerActionCfg,
+    OperationalSpaceControllerCfg,
+    RelativeJointPositionActionCfg,
 )
 from srb.core.actuator import ImplicitActuatorCfg
 from srb.core.asset import ArticulationCfg, Frame, SerialManipulator, Tool, Transform
@@ -80,24 +87,89 @@ class Franka(SerialManipulator):
     )
     ## End effector - The default hand is separate to allow for easy replacement
     end_effector: Tool | None = FrankaHand()
+    ### ANCHOR_END: example_p3 (docs)
 
     ## Actions - Inverse Kinematics action group that drives all joints
-    actions: ActionGroup = InverseKinematicsActionGroup(
-        DifferentialInverseKinematicsActionCfg(
+    # actions: ActionGroup = InverseKinematicsActionGroup(
+    #     DifferentialInverseKinematicsActionCfg(
+    #         asset_name="robot",
+    #         joint_names=["panda_joint[1-7]"],
+    #         base_name="panda_link0",
+    #         body_name="panda_link7",
+    #         controller=DifferentialIKControllerCfg(
+    #             command_type="pose",
+    #             use_relative_mode=True,
+    #             ik_method="svd",
+    #         ),
+    #         scale=0.1,
+    #         body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(),
+    #     ),
+    # )
+    # actions: ActionGroup = OperationalSpaceControlActionGroup(
+    #     OperationalSpaceControllerActionCfg(
+    #         asset_name="robot",
+    #         joint_names=["panda_joint[1-7]"],
+    #         body_name="panda_link7",
+    #         controller_cfg=OperationalSpaceControllerCfg(
+    #             target_types=["pose_rel"],
+    #             impedance_mode="fixed",
+    #             motion_stiffness_task=100.0,
+    #             motion_damping_ratio_task=1.0,
+    #             # motion_stiffness_task=250.0,
+    #             # motion_damping_ratio_task=1.5,
+    #             nullspace_control="position",
+    #         ),
+    #         nullspace_joint_pos_target="center",
+    #         position_scale=0.1,
+    #         orientation_scale=0.1,
+    #         body_offset=OperationalSpaceControllerActionCfg.OffsetCfg(),
+    #     )
+    # )
+    # actions: ActionGroup = OperationalSpaceControlActionGroup(
+    #     OperationalSpaceControllerActionCfg(
+    #         asset_name="robot",
+    #         joint_names=["panda_joint[1-7]"],
+    #         body_name="panda_link7",
+    #         controller_cfg=OperationalSpaceControllerCfg(
+    #             target_types=["pose_rel"],
+    #             impedance_mode="variable_kp",
+    #             motion_stiffness_limits_task=(10.0, 250.0),
+    #             motion_damping_ratio_task=1.0,
+    #             # motion_damping_ratio_task=1.5,
+    #             nullspace_control="position",
+    #         ),
+    #         nullspace_joint_pos_target="center",
+    #         position_scale=0.1,
+    #         orientation_scale=0.1,
+    #         stiffness_scale=120.0,
+    #         # stiffness_scale=240.0,
+    #         body_offset=OperationalSpaceControllerActionCfg.OffsetCfg(),
+    #     )
+    # )
+    actions: ActionGroup = OperationalSpaceControlActionGroup(
+        OperationalSpaceControllerActionCfg(
             asset_name="robot",
             joint_names=["panda_joint[1-7]"],
-            base_name="panda_link0",
             body_name="panda_link7",
-            controller=DifferentialIKControllerCfg(
-                command_type="pose",
-                use_relative_mode=True,
-                ik_method="svd",
+            controller_cfg=OperationalSpaceControllerCfg(
+                target_types=["pose_rel"],
+                impedance_mode="variable",
+                motion_stiffness_limits_task=(10.0, 250.0),
+                motion_damping_ratio_limits_task=(0.5, 2.5),
+                nullspace_control="position",
             ),
-            scale=0.1,
-            body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(),
-        ),
+            nullspace_joint_pos_target="center",
+            position_scale=0.1,
+            orientation_scale=0.1,
+            stiffness_scale=120.0,
+            damping_ratio_scale=1.0,
+            # stiffness_scale=240.0,
+            # damping_ratio_scale=2.0,
+            body_offset=OperationalSpaceControllerActionCfg.OffsetCfg(),
+        )
     )
 
+    ### ANCHOR: example_p4 (docs)
     ## Frames - Relevant frames for attaching the robot and mounting tool/sensors
     frame_base: Frame = Frame(prim_relpath="panda_link0")
     frame_flange: Frame = Frame(
@@ -114,11 +186,11 @@ class Franka(SerialManipulator):
             rot=rpy_to_quat(0.0, -80.0, 135.0),
         ),
     )
-    ### ANCHOR_END: example_p3 (docs)
+    ### ANCHOR_END: example_p4 (docs)
     frame_base_camera: Frame = Frame(
         prim_relpath="panda_link0/camera_base",
         offset=Transform(
-            pos=(0.06, 0.0, 0.15),
-            rot=rpy_to_quat(0.0, -10.0, 0.0),
+            pos=(0.15, 0.0, 0.1),
+            rot=rpy_to_quat(0.0, 45.0, 0.0),
         ),
     )

@@ -1,7 +1,7 @@
 <h1 align="center">Space Robotics Bench</h1>
 
 <p align="center">
-  <a href="https://AndrejOrsula.github.io/space_robotics_bench"><img src="docs/src/_images/srb_multi_env.jpg" width="100%"></a>
+  <a href="https://AndrejOrsula.github.io/space_robotics_bench"><img src="https://github.com/user-attachments/assets/049289be-0c99-497b-be37-c4975d924524" width="100%" alt=""></a>
 </p>
 
 [![Discord](https://img.shields.io/badge/Discord-invite-5865F2?logo=discord)](https://discord.gg/p9gZAPWa65)
@@ -29,7 +29,7 @@
 SRB documentation with detailed installation instructions, usage guides, and development resources is available [online](https://AndrejOrsula.github.io/space_robotics_bench).
 
 <div align="right">
-<a href="https://AndrejOrsula.github.io/space_robotics_bench"><img alt="Documentation" src="https://github.com/user-attachments/assets/e4f6c735-9831-43c3-9d7e-fb6a5245e762" width="96" height="96"></a>
+<a href="https://AndrejOrsula.github.io/space_robotics_bench"><img alt="Documentation" src="https://github.com/user-attachments/assets/c8663796-3ef1-4ff7-860b-cf8080d0a07a" width="96" height="96"></a>
 </div>
 
 ## License

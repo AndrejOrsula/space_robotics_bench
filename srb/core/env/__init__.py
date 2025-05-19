@@ -20,9 +20,9 @@ from .common import (  # noqa: F401
 from .manipulation import (  # noqa: F401
     ManipulationEnv,
     ManipulationEnvCfg,
+    ManipulationEnvVisualExtCfg,
     ManipulationEventCfg,
     ManipulationSceneCfg,
-    ManipulatorEnvVisualExtCfg,
 )
 from .mobile import (  # noqa: F401
     AerialEnv,

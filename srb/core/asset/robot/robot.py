@@ -9,7 +9,6 @@ from srb.core.asset.asset import Asset
 from srb.core.asset.asset_type import AssetType
 from srb.core.asset.common import Frame
 from srb.core.asset.robot.robot_type import RobotType
-from srb.utils.str import convert_to_snake_case
 
 
 class Robot(Asset, asset_entrypoint=AssetType.ROBOT):
@@ -52,11 +51,10 @@ class Robot(Asset, asset_entrypoint=AssetType.ROBOT):
                     if robot_type not in RobotRegistry.registry.keys():
                         RobotRegistry.registry[robot_type] = []
                     else:
-                        assert convert_to_snake_case(cls.__name__) not in (
-                            convert_to_snake_case(robot.__name__)
-                            for robot in RobotRegistry.registry[robot_type]
+                        assert cls.name() not in (
+                            robot.name() for robot in RobotRegistry.registry[robot_type]
                         ), (
-                            f"Cannot register multiple robots with an identical name: '{cls.__module__}:{cls.__name__}' already exists as '{next(robot for robot in RobotRegistry.registry[robot_type] if convert_to_snake_case(cls.__name__) == convert_to_snake_case(robot.__name__)).__module__}:{cls.__name__}'"
+                            f"Cannot register multiple robots with an identical name: '{cls.__module__}:{cls.__name__}' already exists as '{next(robot for robot in RobotRegistry.registry[robot_type] if cls.name() == robot.name()).__module__}:{cls.__name__}'"
                         )
                     RobotRegistry.registry[robot_type].append(cls)
                     break
@@ -115,6 +113,6 @@ class RobotRegistry:
     @classmethod
     def get_by_name(cls, name: str) -> Type[Robot] | None:
         for robot in cls.values_inner():
-            if convert_to_snake_case(robot.__name__) == name:
+            if robot.name() == name:
                 return robot
         return None

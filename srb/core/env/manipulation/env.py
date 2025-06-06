@@ -3,12 +3,14 @@ from dataclasses import MISSING
 from srb import assets
 from srb.core.asset import (
     Articulation,
+    ArticulationCfg,
     AssetBaseCfg,
     AssetVariant,
     Manipulator,
     MobileRobot,
     Pedestal,
     RigidObject,
+    RigidObjectCfg,
 )
 from srb.core.env import BaseEventCfg, BaseSceneCfg, DirectEnv, DirectEnvCfg, ViewerCfg
 from srb.core.manager import EventTermCfg, SceneEntityCfg
@@ -154,6 +156,7 @@ class ManipulationEnvCfg(DirectEnvCfg):
                 prim_path=f"{self._robot.end_effector.asset_cfg.prim_path}/.*",
             )
             if self._robot.end_effector is not None
+            and isinstance(self._robot.end_effector, (RigidObjectCfg, ArticulationCfg))
             else None
         )
 

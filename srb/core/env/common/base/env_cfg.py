@@ -624,7 +624,7 @@ class BaseEnvCfg:
             if isinstance(manipulator.end_effector, Tool):
                 if isinstance(
                     manipulator.end_effector.asset_cfg,
-                    (RigidObjectCfg, ArticulationCfg),
+                    ArticulationCfg,
                 ):
                     manipulator.end_effector.asset_cfg.prim_path = (
                         prim_path_end_effector
@@ -655,6 +655,20 @@ class BaseEnvCfg:
                         mask_all_collisions=True,
                     )
                 else:
+                    if isinstance(
+                        manipulator.end_effector.asset_cfg,
+                        RigidObjectCfg,
+                    ):
+                        manipulator.end_effector.asset_cfg = AssetBaseCfg(  # type: ignore
+                            spawn=manipulator.end_effector.asset_cfg.spawn
+                        )
+                        for props in ("rigid_props",):
+                            setattr(manipulator.end_effector.asset_cfg, props, None)
+                        if hasattr(
+                            manipulator.end_effector.asset_cfg.spawn,
+                            "activate_contact_sensors",
+                        ):
+                            manipulator.end_effector.asset_cfg.spawn.activate_contact_sensors = False  # type: ignore
                     self.joint_assemblies.pop(end_effector_name, None)
                     manipulator.end_effector.asset_cfg.prim_path = f"{manipulator.asset_cfg.prim_path}/{manipulator.frame_flange.prim_relpath}/{end_effector_name}"
                     (

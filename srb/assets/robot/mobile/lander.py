@@ -440,42 +440,41 @@ class ResilienceLander(Lander):
                 ThrusterCfg(
                     offset=(0.0, 0.0, 0.325),
                     power=2500.0,
-                    gimbal_limits=(deg_to_rad(10.0), deg_to_rad(10.0)),
                 ),
                 # Attitude control
                 ThrusterCfg(
                     offset=(0.3435, 0.3435, 0.45816),
-                    direction=(-0.25, -0.2572, -0.9334),
-                    power=50.0,
+                    direction=(-0.25, -0.25, -0.925),
+                    power=250.0,
                 ),
                 ThrusterCfg(
                     offset=(0.469217, -0.125732, 0.45816),
-                    direction=(-0.293374, 0.076, -0.953),
-                    power=50.0,
+                    direction=(-0.3, 0.075, -0.925),
+                    power=250.0,
                 ),
                 ThrusterCfg(
                     offset=(-0.1257, 0.46922, 0.45816),
-                    direction=(0.0977, -0.3452, -0.9334),
-                    power=50.0,
+                    direction=(0.1, -0.35, -0.925),
+                    power=250.0,
                 ),
                 ThrusterCfg(
                     offset=(-0.3435, -0.3435, 0.45816),
-                    direction=(0.25, 0.2572, -0.9334),
-                    power=50.0,
+                    direction=(0.25, 0.25, -0.925),
+                    power=250.0,
                 ),
                 ThrusterCfg(
                     offset=(-0.469217, 0.125732, 0.45816),
-                    direction=(0.293374, -0.076, -0.953),
-                    power=50.0,
+                    direction=(0.3, -0.075, -0.925),
+                    power=250.0,
                 ),
                 ThrusterCfg(
                     offset=(0.1257, -0.46922, 0.45816),
-                    direction=(-0.0977, 0.3452, -0.9334),
-                    power=50.0,
+                    direction=(-0.1, 0.35, -0.925),
+                    power=250.0,
                 ),
             ),
             fuel_capacity=0.5 * 660.0,
-            fuel_consumption_rate=(0.5 * 660.0 / (1 * 2500.0)) / 20.0,
+            fuel_consumption_rate=(0.5 * 660.0 / (1 * 2500.0)) / 10.0,
         )
     )
 

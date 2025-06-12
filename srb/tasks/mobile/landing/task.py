@@ -233,14 +233,20 @@ def _compute_step_return(
     vertical_distance_to_target = torch.clamp_min(-tf_pos_robot_to_target[:, 2], 0.001)
 
     ## Contacts
-    MAX_TOUCHDOWN_LINEAR_VELOCITY = 2.0
-    MAX_TOUCHDOWN_ANGLE = 0.174533  # 10 degrees
+    MAX_TOUCHDOWN_LINEAR_VELOCITY = 0.5
+    MAX_TOUCHDOWN_ANGLE = 0.087266463  # 5 degrees
+    MAX_STABLE_ANGLE = 0.26179939  # 15 degrees
     touchdown = contact_robot.any(dim=1)
-    crash = touchdown & (
-        (torch.norm(vel_lin_robot, dim=1) > MAX_TOUCHDOWN_LINEAR_VELOCITY)
-        | (torch.acos(-projected_gravity_robot[:, 2]) > MAX_TOUCHDOWN_ANGLE)
-    )
-    landed = touchdown | (torch.norm(contact_forces_robot.mean(dim=1), dim=1) > 1.0)
+    in_contact = torch.norm(contact_forces_robot.mean(dim=1), dim=1) > 1.0
+    lander_angle = torch.acos(-projected_gravity_robot[:, 2])
+    crash = (
+        touchdown
+        & (
+            (torch.norm(vel_lin_robot, dim=1) > MAX_TOUCHDOWN_LINEAR_VELOCITY)
+            | (lander_angle > MAX_TOUCHDOWN_ANGLE)
+        )
+    ) | in_contact & (lander_angle > MAX_STABLE_ANGLE)
+    landed = touchdown | in_contact
 
     ## Fuel
     remaining_fuel = (

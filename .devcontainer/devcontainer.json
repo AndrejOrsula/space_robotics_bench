@@ -39,7 +39,10 @@
 		"type=bind,source=${localEnv:HOME}/.nvidia-omniverse/logs/isaac-sim,target=/root/isaac-sim/kit/logs",
 		/// SimForge
 		// Cache
-		"type=bind,source=${localEnv:HOME}/.cache/simforge,target=/root/.cache/simforge"
+		"type=bind,source=${localEnv:HOME}/.cache/simforge,target=/root/.cache/simforge",
+		/// Misc
+		// History
+		"type=bind,source=${localWorkspaceFolder}/.docker/.history,target=/.history"
 	],
 	"containerEnv": {
 		// GUI (X11)
@@ -47,7 +50,15 @@
 		"XAUTHORITY": "${localEnv:TMPDIR:/tmp}/xauth_docker_vsc_${localWorkspaceFolderBasename}",
 		// NVIDIA GPU
 		"NVIDIA_VISIBLE_DEVICES": "all",
-		"NVIDIA_DRIVER_CAPABILITIES": "all"
+		"NVIDIA_DRIVER_CAPABILITIES": "all",
+		// ROS
+		"ROS_DOMAIN_ID": "${localEnv:ROS_DOMAIN_ID:0}",
+		"ROS_LOCALHOST_ONLY": "${localEnv:ROS_LOCALHOST_ONLY:1}",
+		"RMW_IMPLEMENTATION": "${localEnv:RMW_IMPLEMENTATION:rmw_cyclonedds_cpp}",
+		// History
+		"PROMPT_COMMAND": "history -a",
+		"HISTFILE": "/.history/.bash_history",
+		"PYTHON_HISTORY": "/.history/.python_history"
 	},
 	"initializeCommand": "XAUTH=\"${localEnv:TMPDIR:/tmp}/xauth_docker_vsc_${localWorkspaceFolderBasename}\"; touch \"${XAUTH}\"; chmod a+r \"${XAUTH}\"; XAUTH_LIST=$(xauth nlist \"${localEnv:DISPLAY}\"); if [ -n \"${XAUTH_LIST}\" ]; then echo \"${XAUTH_LIST}\" | sed -e 's/^..../ffff/' | xauth -f \"${XAUTH}\" nmerge -; fi",
 	"customizations": {

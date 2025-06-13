@@ -659,6 +659,7 @@ class BaseEnvCfg:
                         manipulator.end_effector.asset_cfg,
                         RigidObjectCfg,
                     ):
+                        # Replace with non-rigid object
                         manipulator.end_effector.asset_cfg = AssetBaseCfg(  # type: ignore
                             spawn=manipulator.end_effector.asset_cfg.spawn
                         )
@@ -669,6 +670,18 @@ class BaseEnvCfg:
                             "activate_contact_sensors",
                         ):
                             manipulator.end_effector.asset_cfg.spawn.activate_contact_sensors = False  # type: ignore
+                        # Update annotation
+                        manipulator.end_effector.__annotations__["asset_cfg"] = (
+                            AssetBaseCfg
+                        )
+                        manipulator.end_effector.model_fields[
+                            "asset_cfg"
+                        ].annotation = AssetBaseCfg
+                        manipulator.end_effector.model_fields[
+                            "asset_cfg"
+                        ].default = AssetBaseCfg()
+                        manipulator.end_effector.model_rebuild(force=True)
+
                     self.joint_assemblies.pop(end_effector_name, None)
                     manipulator.end_effector.asset_cfg.prim_path = f"{manipulator.asset_cfg.prim_path}/{manipulator.frame_flange.prim_relpath}/{end_effector_name}"
                     (

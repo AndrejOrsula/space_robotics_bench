@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Sequence, Type
 
 from srb.core.action import ActionGroup
-from srb.core.asset import ArticulationCfg, RigidObjectCfg
+from srb.core.asset import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from srb.core.asset.common import Frame
 from srb.core.asset.object.object import Object, ObjectRegistry
 from srb.core.asset.object.object_type import ObjectType
@@ -11,7 +11,7 @@ from srb.core.asset.object.object_type import ObjectType
 
 class Tool(Object, object_entrypoint=ObjectType.TOOL):
     ## Model
-    asset_cfg: RigidObjectCfg | ArticulationCfg
+    asset_cfg: AssetBaseCfg | RigidObjectCfg | ArticulationCfg
 
     ## Frames
     frame_mount: Frame

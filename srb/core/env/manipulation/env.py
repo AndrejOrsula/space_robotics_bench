@@ -4,6 +4,7 @@ from srb import assets
 from srb.core.asset import (
     Articulation,
     ArticulationCfg,
+    AssetBase,
     AssetBaseCfg,
     AssetVariant,
     Manipulator,
@@ -170,7 +171,7 @@ class ManipulationEnv(DirectEnv):
         ## Get scene assets
         self._tf_end_effector: FrameTransformer = self.scene["tf_end_effector"]
         self._contacts_robot: ContactSensor = self.scene["contacts_robot"]
-        self._end_effector: Articulation | RigidObject | None = (
+        self._end_effector: AssetBase | RigidObject | Articulation | None = (
             self.scene.articulations.get("end_effector", None)
             or self.scene.rigid_objects.get("end_effector", None)
             or None

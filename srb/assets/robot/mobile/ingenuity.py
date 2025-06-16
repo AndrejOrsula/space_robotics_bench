@@ -65,7 +65,7 @@ class Ingenuity(Multicopter):
                 "rotor_joint_2": -2500.0,
             },
             tilt_magnitude=0.125,
-            scale=0.5,
+            scale=5.0,
         )
     )
 

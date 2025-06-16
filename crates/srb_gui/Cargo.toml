@@ -43,13 +43,13 @@ image = { version = "0.25", default-features = false, features = [
     "png",
 ] }
 itertools = { version = "0.14" }
-nix = { version = "0.30", features = ["signal"] }
+nix = { version = "0.29", features = ["signal"] }
 r2r = { version = "0.9" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1" }
 strum = { version = "0.27", features = ["derive"] }
 subprocess = { version = "0.2" }
-sysinfo = { version = "0.35" }
+sysinfo = { version = "0.34" }
 tracing = { version = "0.1" }
 tracing-subscriber = { version = "0.3" }
 typed-builder = { version = "0.21" }

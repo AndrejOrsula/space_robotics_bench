@@ -1,5 +1,5 @@
 use crate::cache::{self, EnvCache, ObjectCache, RobotCache, SceneryCache};
-use crate::env_cfg::{Domain, TaskConfig, Workflow};
+use crate::env_cfg::{Domain, TaskConfig};
 use crate::page::Page;
 use eframe::epaint::Color32;
 use egui_commonmark::{commonmark_str, CommonMarkCache};
@@ -521,7 +521,7 @@ impl App {
                     .build(),
             ),
             (
-                egui::Theme::Light,
+                egui::Theme::Dark,
                 "Debris Capture",
                 crate::utils::Difficulty::Medium,
                 crate::macros::include_content_image!("_images/debris_capture_orbit.jpg"),
@@ -529,6 +529,18 @@ impl App {
                     .task("debris_capture".to_owned())
                     .domain(Domain::Orbit)
                     .robot("franka".to_owned())
+                    .build(),
+            ),
+            (
+                egui::Theme::Dark,
+                "Perseverance Navigation",
+                crate::utils::Difficulty::Easy,
+                crate::macros::include_content_image!("_images/waypoint_navigation.jpg"),
+                TaskConfig::builder()
+                    .task("waypoint_navigation".to_owned())
+                    .domain(Domain::Mars)
+                    .robot("perseverance".to_owned())
+                    .extras(vec!["env.debug_vis=true".to_owned()])
                     .build(),
             ),
             (
@@ -545,21 +557,9 @@ impl App {
             ),
             (
                 egui::Theme::Dark,
-                "Perseverance Navigation",
-                crate::utils::Difficulty::Easy,
-                crate::macros::include_content_image!("_images/perseverance.jpg"),
-                TaskConfig::builder()
-                    .task("waypoint_navigation".to_owned())
-                    .domain(Domain::Mars)
-                    .robot("perseverance".to_owned())
-                    .extras(vec!["env.debug_vis=true".to_owned()])
-                    .build(),
-            ),
-            (
-                egui::Theme::Dark,
                 "Screwdriving",
                 crate::utils::Difficulty::Challenging,
-                crate::macros::include_content_image!("../../../docs/theme/favicon.png"),
+                crate::macros::include_content_image!("_images/screwdriving.jpg"),
                 TaskConfig::builder()
                     .task("screwdriving".to_owned())
                     .domain(Domain::Mars)
@@ -570,7 +570,7 @@ impl App {
                 egui::Theme::Dark,
                 "Excavation",
                 crate::utils::Difficulty::Challenging,
-                crate::macros::include_content_image!("../../../docs/theme/favicon.png"),
+                crate::macros::include_content_image!("_images/excavation.jpg"),
                 TaskConfig::builder()
                     .task("excavation".to_owned())
                     .domain(Domain::Moon)
@@ -591,7 +591,7 @@ impl App {
             ),
             (
                 egui::Theme::Light,
-                "Gateway with Canadarm3",
+                "Canadarm3            .",
                 crate::utils::Difficulty::Demo,
                 crate::macros::include_content_image!("_images/gateway.jpg"),
                 TaskConfig::builder()
@@ -599,6 +599,7 @@ impl App {
                     .domain(Domain::Orbit)
                     .robot("canadarm3".to_owned())
                     .scenery(Some("static_gateway".to_owned()))
+                    .extras(vec!["env.lunar_orbit=true".to_owned()])
                     .build(),
             ),
         ];
@@ -1061,45 +1062,11 @@ impl App {
                         egui::Grid::new("extra_developer_options_grid").show(ui, |ui| {
                             ui.add(
                                 egui::Label::new(
-                                    egui::RichText::new("\u{ea3c} Workflow").size(20.0),
+                                    egui::RichText::new("\u{ef75} Scenario").size(20.0),
                                 )
                                 .selectable(false),
                             );
-                            egui::ComboBox::new("dev_workflow_combo_box", "")
-                                .width(235.0)
-                                .selected_text(
-                                    egui::RichText::new(match self.task_config.workflow {
-                                        Workflow::Zero => "Zero",
-                                        Workflow::Rand => "Rand",
-                                        Workflow::Teleop => "Teleop",
-                                    })
-                                    .size(20.0),
-                                )
-                                .show_ui(ui, |ui| {
-                                    ui.selectable_value(
-                                        &mut self.task_config.workflow,
-                                        Workflow::Rand,
-                                        "Rand",
-                                    );
-                                    ui.selectable_value(
-                                        &mut self.task_config.workflow,
-                                        Workflow::Zero,
-                                        "Zero",
-                                    );
-                                    ui.selectable_value(
-                                        &mut self.task_config.workflow,
-                                        Workflow::Teleop,
-                                        "Teleop",
-                                    );
-                                });
-
-                            ui.end_row();
-
-                            ui.add(
-                                egui::Label::new(egui::RichText::new("\u{ef75} Domain").size(20.0))
-                                    .selectable(false),
-                            );
-                            egui::ComboBox::new("dev_domain_combo_box", "")
+                            egui::ComboBox::new("dev_scenario_combo_box", "")
                                 .width(235.0)
                                 .selected_text(
                                     egui::RichText::new(match self.task_config.domain {
@@ -1112,16 +1079,6 @@ impl App {
                                     .size(20.0),
                                 )
                                 .show_ui(ui, |ui| {
-                                    ui.selectable_value(
-                                        &mut self.task_config.domain,
-                                        Domain::Asteroid,
-                                        "Asteroid",
-                                    );
-                                    ui.selectable_value(
-                                        &mut self.task_config.domain,
-                                        Domain::Earth,
-                                        "Earth",
-                                    );
                                     ui.selectable_value(
                                         &mut self.task_config.domain,
                                         Domain::Moon,

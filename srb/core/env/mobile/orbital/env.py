@@ -68,7 +68,7 @@ class OrbitalEnvCfg(MobileEnvCfg):
     events: OrbitalEventCfg = OrbitalEventCfg()
 
     ## Time
-    env_rate: float = 1.0 / 25.0
+    env_rate: float = 1.0 / 250.0
     agent_rate: float = 1.0 / 25.0
 
     ## Viewer

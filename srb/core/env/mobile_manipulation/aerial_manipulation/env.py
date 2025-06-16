@@ -49,7 +49,7 @@ class AerialManipulationEnvCfg(AerialEnvCfg):
     events: AerialManipulationEventCfg = AerialManipulationEventCfg()
 
     ## Time
-    env_rate: float = 1.0 / 150.0
+    env_rate: float = 1.0 / 250.0
     agent_rate: float = 1.0 / 50.0
 
     def __post_init__(self):

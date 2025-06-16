@@ -350,7 +350,7 @@ RUN --mount=type=bind,source="pyproject.toml",target="${SRB_PATH}/pyproject.toml
 COPY . "${SRB_PATH}"
 
 ## Build Rust targets of the project
-ARG BUILD_RUST=false
+ARG BUILD_RUST=true
 # hadolint ignore=SC1091
 RUN if [[ "${BUILD_RUST,,}" = true ]]; then \
     source /entrypoint.bash -- && \

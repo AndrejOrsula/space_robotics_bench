@@ -43,7 +43,7 @@ class UR3(SerialManipulator):
                 max_depenetration_velocity=5.0,
             ),
             articulation_props=ArticulationRootPropertiesCfg(
-                enabled_self_collisions=False,
+                enabled_self_collisions=True,
                 solver_position_iteration_count=12,
                 solver_velocity_iteration_count=1,
             ),
@@ -141,7 +141,7 @@ class UR3e(SerialManipulator):
                 max_depenetration_velocity=5.0,
             ),
             articulation_props=ArticulationRootPropertiesCfg(
-                enabled_self_collisions=False,
+                enabled_self_collisions=True,
                 solver_position_iteration_count=12,
                 solver_velocity_iteration_count=1,
             ),
@@ -239,7 +239,7 @@ class UR5(SerialManipulator):
                 max_depenetration_velocity=5.0,
             ),
             articulation_props=ArticulationRootPropertiesCfg(
-                enabled_self_collisions=False,
+                enabled_self_collisions=True,
                 solver_position_iteration_count=12,
                 solver_velocity_iteration_count=1,
             ),
@@ -337,7 +337,7 @@ class UR5e(SerialManipulator):
                 max_depenetration_velocity=5.0,
             ),
             articulation_props=ArticulationRootPropertiesCfg(
-                enabled_self_collisions=False,
+                enabled_self_collisions=True,
                 solver_position_iteration_count=12,
                 solver_velocity_iteration_count=1,
             ),
@@ -471,7 +471,7 @@ class UR10(SerialManipulator):
                 max_depenetration_velocity=5.0,
             ),
             articulation_props=ArticulationRootPropertiesCfg(
-                enabled_self_collisions=False,
+                enabled_self_collisions=True,
                 solver_position_iteration_count=12,
                 solver_velocity_iteration_count=1,
             ),
@@ -572,7 +572,7 @@ class UR10e(SerialManipulator):
                 max_depenetration_velocity=5.0,
             ),
             articulation_props=ArticulationRootPropertiesCfg(
-                enabled_self_collisions=False,
+                enabled_self_collisions=True,
                 solver_position_iteration_count=12,
                 solver_velocity_iteration_count=1,
             ),
@@ -670,7 +670,7 @@ class UR16e(SerialManipulator):
                 max_depenetration_velocity=5.0,
             ),
             articulation_props=ArticulationRootPropertiesCfg(
-                enabled_self_collisions=False,
+                enabled_self_collisions=True,
                 solver_position_iteration_count=12,
                 solver_velocity_iteration_count=1,
             ),
@@ -768,7 +768,7 @@ class UR20(SerialManipulator):
                 max_depenetration_velocity=5.0,
             ),
             articulation_props=ArticulationRootPropertiesCfg(
-                enabled_self_collisions=False,
+                enabled_self_collisions=True,
                 solver_position_iteration_count=12,
                 solver_velocity_iteration_count=1,
             ),
@@ -866,7 +866,7 @@ class UR30(SerialManipulator):
                 max_depenetration_velocity=5.0,
             ),
             articulation_props=ArticulationRootPropertiesCfg(
-                enabled_self_collisions=False,
+                enabled_self_collisions=True,
                 solver_position_iteration_count=12,
                 solver_velocity_iteration_count=1,
             ),

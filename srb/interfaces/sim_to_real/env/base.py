@@ -9,9 +9,8 @@ from srb.utils import logging
 
 
 class RealEnv(gymnasium.Env):
-    ACTION_KEYS: Sequence[str] = ()
-    # TODO: Check obs shapes
-    OBSERVATION_KEYS: Sequence[str] = ()
+    ACTION_SPACE: Dict[str, gymnasium.Space] = {}
+    OBSERVATION_SPACE: Dict[str, gymnasium.Space] = {}
     ACTION_RATE: float = 1.0 / 50.0
 
     _MIN_SLEEP_TIME: float = 1.0 / 1000.0
@@ -46,9 +45,9 @@ class RealEnv(gymnasium.Env):
 
         # Map each action and observation to a single hardware interface
         self._hardware_action_map: Dict[HardwareInterface, List[Tuple[str, str]]] = {}
-        for action_key in self.ACTION_KEYS:
+        for action_key, action_space in self.ACTION_SPACE.items():
             _found_action_hw: HardwareInterface | None = None
-            for hw in self._hardware:
+            for hw in self._sink_action:
                 alias_key = hw._map_alias(action_key)
                 for kw_alias_key, hw_target_key in hw.action_key_map.items():
                     if kw_alias_key is alias_key:
@@ -65,6 +64,16 @@ class RealEnv(gymnasium.Env):
                             )
                         )
                         _found_action_hw = hw
+
+                        hw_action_space = hw.ACTION_SPACE[hw_target_key]
+                        if not action_space.shape == hw_action_space.shape:
+                            raise ValueError(
+                                f'Action "{action_key}" from hardware "{hw.name}" does not match expected space "{action_space}" with its shape "{hw_action_space.shape}"'
+                            )
+                        if not action_space.dtype == hw_action_space.dtype:
+                            raise ValueError(
+                                f'Action "{action_key}" from hardware "{hw.name}" does not match expected dtype "{action_space.dtype}" with its dtype "{hw_action_space.dtype}"'
+                            )
             if _found_action_hw is None:
                 raise ValueError(
                     f'Action key "{action_key}" must be mapped to a hardware interface but no matches were found'
@@ -72,9 +81,9 @@ class RealEnv(gymnasium.Env):
         self._hardware_observation_map: Dict[
             HardwareInterface, List[Tuple[str, str]]
         ] = {}
-        for obs_key in self.OBSERVATION_KEYS:
+        for obs_key, obs_space in self.OBSERVATION_SPACE.items():
             _found_obs_hw: HardwareInterface | None = None
-            for hw in self._hardware:
+            for hw in self._src_observation:
                 alias_key = hw._map_alias(obs_key)
                 for kw_alias_key, hw_target_key in hw.observation_key_map.items():
                     if kw_alias_key is alias_key:
@@ -91,6 +100,11 @@ class RealEnv(gymnasium.Env):
                             )
                         )
                         _found_obs_hw = hw
+
+                        if not obs_space.contains(hw.observation[hw_target_key]):
+                            raise ValueError(
+                                f'Observation "{obs_key}" from hardware "{hw.name}" does not match expected space "{obs_space}" with its shape "{hw.observation[hw_target_key].shape}" and dtype "{hw.observation[hw_target_key].dtype}"'
+                            )
             if _found_obs_hw is None:
                 raise ValueError(
                     f'Observation key "{obs_key}" must be mapped to a hardware interface but no matches were found'
@@ -137,7 +151,7 @@ class RealEnv(gymnasium.Env):
         for hw in self._hardware:
             hw.sync()
         observation: Dict[str, numpy.ndarray] = {}
-        for hw, keys in self._hardware_action_map.items():
+        for hw, keys in self._hardware_observation_map.items():
             observation.update(
                 {key_pair[1]: hw.observation[key_pair[0]] for key_pair in keys}
             )
@@ -171,7 +185,7 @@ class RealEnv(gymnasium.Env):
 
         # Extract initial observations
         observation: Dict[str, numpy.ndarray] = {}
-        for hw, keys in self._hardware_action_map.items():
+        for hw, keys in self._hardware_observation_map.items():
             observation.update(
                 {key_pair[1]: hw.observation[key_pair[0]] for key_pair in keys}
             )

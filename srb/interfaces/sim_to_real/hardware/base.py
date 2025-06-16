@@ -1,13 +1,14 @@
 from functools import cache, cached_property
 from typing import Any, Dict, Iterable, Mapping, Sequence
 
+import gymnasium
 import numpy
 
 from srb.utils import logging
 
 
 class HardwareInterface:
-    ACTION_KEYS: Sequence[str] = ()
+    ACTION_SPACE: Dict[str, gymnasium.Space] = {}
     CUSTOM_ALIASES: Sequence[Sequence[str]] = ()
 
     def __init__(self):
@@ -63,7 +64,7 @@ class HardwareInterface:
     def action_key_map(self) -> Mapping[str, str]:
         if not self._has_io_action:
             return {}
-        return self._map_aliases(self.ACTION_KEYS)
+        return self._map_aliases(self.ACTION_SPACE.keys())
 
     @cached_property
     def observation_key_map(self) -> Mapping[str, str]:
@@ -77,7 +78,7 @@ class HardwareInterface:
             self.apply_action({})
         except NotImplementedError:
             return False
-        return bool(self.ACTION_KEYS)
+        return bool(self.ACTION_SPACE)
 
     @cached_property
     def _has_io_observation(self) -> bool:

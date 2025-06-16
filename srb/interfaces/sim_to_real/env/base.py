@@ -65,7 +65,7 @@ class RealEnv(gymnasium.Env):
                         )
                         _found_action_hw = hw
 
-                        hw_action_space = hw.ACTION_SPACE[hw_target_key]
+                        hw_action_space = hw.SUPPORTED_ACTION_SPACES[hw_target_key]
                         if not action_space.shape == hw_action_space.shape:
                             raise ValueError(
                                 f'Action "{action_key}" from hardware "{hw.name}" does not match expected space "{action_space}" with its shape "{hw_action_space.shape}"'

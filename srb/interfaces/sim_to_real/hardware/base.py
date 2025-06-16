@@ -8,7 +8,8 @@ from srb.utils import logging
 
 
 class HardwareInterface:
-    ACTION_SPACE: Dict[str, gymnasium.Space] = {}
+    # Note: Action spaces can be both mutually inclusive or exclusive
+    SUPPORTED_ACTION_SPACES: Dict[str, gymnasium.Space] = {}
     CUSTOM_ALIASES: Sequence[Sequence[str]] = ()
 
     def __init__(self):
@@ -64,7 +65,7 @@ class HardwareInterface:
     def action_key_map(self) -> Mapping[str, str]:
         if not self._has_io_action:
             return {}
-        return self._map_aliases(self.ACTION_SPACE.keys())
+        return self._map_aliases(self.SUPPORTED_ACTION_SPACES.keys())
 
     @cached_property
     def observation_key_map(self) -> Mapping[str, str]:
@@ -78,7 +79,7 @@ class HardwareInterface:
             self.apply_action({})
         except NotImplementedError:
             return False
-        return bool(self.ACTION_SPACE)
+        return bool(self.SUPPORTED_ACTION_SPACES)
 
     @cached_property
     def _has_io_observation(self) -> bool:

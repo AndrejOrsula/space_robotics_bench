@@ -26,7 +26,7 @@ from srb.utils.math import combine_frame_transforms_tuple, deg_to_rad
 
 @configclass
 class ManipulationSceneCfg(BaseSceneCfg):
-    env_spacing: float = 4.0
+    env_spacing: float = 8.0
 
     ## Assets
     pedestal: AssetBaseCfg | None = None
@@ -50,15 +50,16 @@ class ManipulationSceneCfg(BaseSceneCfg):
 
 @configclass
 class ManipulationEventCfg(BaseEventCfg):
-    randomize_robot_joints: EventTermCfg = EventTermCfg(
-        func=reset_joints_by_offset,
-        mode="reset",
-        params={
-            "asset_cfg": SceneEntityCfg("robot"),
-            "position_range": (-deg_to_rad(5.0), deg_to_rad(5.0)),
-            "velocity_range": (0.0, 0.0),
-        },
-    )
+    pass
+    # randomize_robot_joints: EventTermCfg = EventTermCfg(
+    #     func=reset_joints_by_offset,
+    #     mode="reset",
+    #     params={
+    #         "asset_cfg": SceneEntityCfg("robot"),
+    #         "position_range": (-deg_to_rad(5.0), deg_to_rad(5.0)),
+    #         "velocity_range": (0.0, 0.0),
+    #     },
+    # )
 
 
 @configclass
@@ -75,7 +76,7 @@ class ManipulationEnvCfg(DirectEnvCfg):
     events: ManipulationEventCfg = ManipulationEventCfg()
 
     ## Time
-    env_rate: float = 1.0 / 150.0
+    env_rate: float = 1.0 / 250.0
     agent_rate: float = 1.0 / 50.0
 
     ## Viewer

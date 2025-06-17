@@ -4,16 +4,17 @@ from typing import Any, Dict, List, Mapping, Sequence, SupportsFloat, Tuple
 import gymnasium
 import numpy
 
-from srb.interfaces.sim_to_real import HardwareInterface
+from srb.interfaces.sim_to_real.hardware import HardwareInterface
 from srb.utils import logging
 
 
 class RealEnv(gymnasium.Env):
-    ACTION_SPACE: Dict[str, gymnasium.Space] = {}
-    OBSERVATION_SPACE: Dict[str, gymnasium.Space] = {}
+    ACTION_SPACE: gymnasium.spaces.Dict
+    OBSERVATION_SPACE: gymnasium.spaces.Dict
 
+    ACTION_RATE: float
+    ACTION_SCALE: Dict[str, float]
     ROBOT: Sequence[str] | str | None = None
-    ACTION_RATE: float = 1.0 / 50.0
 
     _MIN_SLEEP_TIME: float = 1.0 / 1000.0
     _FREQ_EST_EMA_ALPHA: float = 0.9
@@ -45,72 +46,24 @@ class RealEnv(gymnasium.Env):
             f"Termination interfaces: {', '.join(hw.name for hw in self._src_termination)}"
         )
 
-        # Map each action and observation to a single hardware interface
+        # Map each action to a single hardware interface
         self._hardware_action_map: Dict[HardwareInterface, List[Tuple[str, str]]] = {}
-        for action_key, action_space in self.ACTION_SPACE.items():
-            _found_action_hw: HardwareInterface | None = None
-            for hw in self._sink_action:
-                alias_key = hw._map_alias(action_key)
-                for kw_alias_key, hw_target_key in hw.action_key_map.items():
-                    if kw_alias_key is alias_key:
-                        if _found_action_hw is not None:
-                            raise ValueError(
-                                f'Action key "{action_key}" must have a unique hardware interface mapping but two were found: {_found_action_hw.name} and {hw.name}'
-                            )
-                        if hw not in self._hardware_action_map:
-                            self._hardware_action_map[hw] = []
-                        self._hardware_action_map[hw].append(
-                            (
-                                action_key,
-                                hw_target_key,
-                            )
-                        )
-                        _found_action_hw = hw
+        if isinstance(self.ACTION_SPACE, gymnasium.spaces.Dict):
+            for action_key, action_space in self.ACTION_SPACE.spaces.items():
+                self._map_action_to_hardware(action_key, action_space)
+        else:
+            raise ValueError(f"Unexpected action space type: {self.ACTION_SPACE}")
 
-                        hw_action_space = hw.SUPPORTED_ACTION_SPACES[hw_target_key]
-                        if not action_space.shape == hw_action_space.shape:
-                            raise ValueError(
-                                f'Action "{action_key}" from hardware "{hw.name}" does not match expected space "{action_space}" with its shape "{hw_action_space.shape}"'
-                            )
-                        if not action_space.dtype == hw_action_space.dtype:
-                            raise ValueError(
-                                f'Action "{action_key}" from hardware "{hw.name}" does not match expected dtype "{action_space.dtype}" with its dtype "{hw_action_space.dtype}"'
-                            )
-            if _found_action_hw is None:
-                raise ValueError(
-                    f'Action key "{action_key}" must be mapped to a hardware interface but no matches were found'
-                )
+        # Map each observation to a single hardware interface
         self._hardware_observation_map: Dict[
             HardwareInterface, List[Tuple[str, str]]
         ] = {}
-        for obs_key, obs_space in self.OBSERVATION_SPACE.items():
-            _found_obs_hw: HardwareInterface | None = None
-            for hw in self._src_observation:
-                alias_key = hw._map_alias(obs_key)
-                for kw_alias_key, hw_target_key in hw.observation_key_map.items():
-                    if kw_alias_key is alias_key:
-                        if _found_obs_hw is not None:
-                            raise ValueError(
-                                f'Observation key "{obs_key}" must have a unique hardware interface mapping but two were found: {_found_obs_hw.name} and {hw.name}'
-                            )
-                        if hw not in self._hardware_observation_map:
-                            self._hardware_observation_map[hw] = []
-                        self._hardware_observation_map[hw].append(
-                            (
-                                obs_key,
-                                hw_target_key,
-                            )
-                        )
-                        _found_obs_hw = hw
-
-                        if not obs_space.contains(hw.observation[hw_target_key]):
-                            raise ValueError(
-                                f'Observation "{obs_key}" from hardware "{hw.name}" does not match expected space "{obs_space}" with its shape "{hw.observation[hw_target_key].shape}" and dtype "{hw.observation[hw_target_key].dtype}"'
-                            )
-            if _found_obs_hw is None:
-                raise ValueError(
-                    f'Observation key "{obs_key}" must be mapped to a hardware interface but no matches were found'
-                )
+        if isinstance(self.OBSERVATION_SPACE, gymnasium.spaces.Dict):
+            self._map_observations_recursive("", self.OBSERVATION_SPACE.spaces)
+        else:
+            raise ValueError(
+                f"Unexpected observation space type: {self.OBSERVATION_SPACE}"
+            )
 
         # Start all hardware interfaces
         for hw in self._hardware:
@@ -136,7 +89,7 @@ class RealEnv(gymnasium.Env):
                 hw.apply_action({key_pair[1]: action[key_pair[0]] for key_pair in keys})
         else:
             for hw in self._sink_action:
-                hw.apply_action({"obs": action})
+                hw.apply_action({"action": action})
 
         # Maintain constant action rate
         action_time: float = time.time() - pre_action_time
@@ -152,11 +105,10 @@ class RealEnv(gymnasium.Env):
         pre_extract_time: float = time.time()
         for hw in self._hardware:
             hw.sync()
-        observation: Dict[str, numpy.ndarray] = {}
-        for hw, keys in self._hardware_observation_map.items():
-            observation.update(
-                {key_pair[1]: hw.observation[key_pair[0]] for key_pair in keys}
-            )
+
+        # Build hierarchical observation structure
+        observation = self._build_observation_structure()
+
         reward: float = 0.0
         for hw in self._src_reward:
             reward += hw.reward
@@ -186,11 +138,7 @@ class RealEnv(gymnasium.Env):
             hw.reset()
 
         # Extract initial observations
-        observation: Dict[str, numpy.ndarray] = {}
-        for hw, keys in self._hardware_observation_map.items():
-            observation.update(
-                {key_pair[1]: hw.observation[key_pair[0]] for key_pair in keys}
-            )
+        observation = self._build_observation_structure()
 
         # Extract info
         info: Dict[str, Any] = {hw.name: hw.info for hw in self._hardware}
@@ -203,3 +151,100 @@ class RealEnv(gymnasium.Env):
         # Close all hardware interfaces
         for hw in self._hardware:
             hw.close()
+
+    def _map_action_to_hardware(self, action_key: str, action_space: gymnasium.Space):
+        _found_action_hw: HardwareInterface | None = None
+        for hw in self._sink_action:
+            alias_key = hw._map_alias(action_key)
+            for kw_alias_key, hw_target_key in hw.action_key_map.items():
+                if kw_alias_key == alias_key:
+                    if _found_action_hw is not None:
+                        raise ValueError(
+                            f'Action key "{action_key}" must have a unique hardware interface mapping but two were found: {_found_action_hw.name} and {hw.name}'
+                        )
+                    _found_action_hw = hw
+
+                    if hw not in self._hardware_action_map:
+                        self._hardware_action_map[hw] = []
+                    self._hardware_action_map[hw].append((action_key, hw_target_key))
+
+                    hw_action_space = hw.SUPPORTED_ACTION_SPACES[hw_target_key]
+                    if not action_space.shape == hw_action_space.shape:
+                        raise ValueError(
+                            f'Action "{action_key}" from hardware "{hw.name}" does not match expected space "{action_space}" with its shape "{hw_action_space.shape}"'
+                        )
+                    if not action_space.dtype == hw_action_space.dtype:
+                        raise ValueError(
+                            f'Action "{action_key}" from hardware "{hw.name}" does not match expected dtype "{action_space.dtype}" with its dtype "{hw_action_space.dtype}"'
+                        )
+
+        if _found_action_hw is None:
+            raise ValueError(
+                f'Action key "{action_key}" must be mapped to a hardware interface but no matches were found'
+            )
+
+    def _map_observations_recursive(
+        self, prefix: str, obs_spaces: Dict[str, gymnasium.Space]
+    ):
+        for obs_key, obs_space in obs_spaces.items():
+            assert "/" not in obs_key
+            full_key = f"{prefix}/{obs_key}" if prefix else obs_key
+            if isinstance(obs_space, gymnasium.spaces.Dict):
+                self._map_observations_recursive(full_key, obs_space.spaces)
+            else:
+                self._map_observation_to_hardware(full_key, obs_space)
+
+    def _map_observation_to_hardware(self, obs_key: str, obs_space: gymnasium.Space):
+        _found_obs_hw: HardwareInterface | None = None
+        for hw in self._src_observation:
+            alias_key = hw._map_alias(obs_key)
+            for kw_alias_key, hw_target_key in hw.observation_key_map.items():
+                if kw_alias_key == alias_key:
+                    if _found_obs_hw is not None:
+                        raise ValueError(
+                            f'Observation key "{obs_key}" must have a unique hardware interface mapping but two were found: {_found_obs_hw.name} and {hw.name}'
+                        )
+                    _found_obs_hw = hw
+
+                    if hw not in self._hardware_observation_map:
+                        self._hardware_observation_map[hw] = []
+                    self._hardware_observation_map[hw].append((obs_key, hw_target_key))
+
+                    if not obs_space.contains(hw.observation[hw_target_key]):
+                        raise ValueError(
+                            f'Observation "{obs_key}" from hardware "{hw.name}" does not match expected space "{obs_space}" with its shape "{hw.observation[hw_target_key].shape}" and dtype "{hw.observation[hw_target_key].dtype}"'
+                        )
+
+        if _found_obs_hw is None:
+            raise ValueError(
+                f'Observation key "{obs_key}" must be mapped to a hardware interface but no matches were found'
+            )
+
+    def _build_observation_structure(self) -> Dict[str, Any]:
+        observation = {}
+        for hw, keys in self._hardware_observation_map.items():
+            for obs_key, hw_target_key in keys:
+                key_parts = obs_key.split("/")
+                current_dict = observation
+                for part in key_parts[:-1]:
+                    if part not in current_dict:
+                        current_dict[part] = {}
+                    current_dict = current_dict[part]
+                current_dict[key_parts[-1]] = hw.observation[hw_target_key]
+
+        return self._flatten_observations(observation)
+
+    @staticmethod
+    def _flatten_observations(
+        obs_dict: Dict[str, Dict[str, numpy.ndarray]],
+    ) -> Dict[str, numpy.ndarray]:
+        return {
+            obs_cat: numpy.concatenate(
+                [
+                    obs_group[obs_key].reshape((-1,))
+                    for obs_key in sorted(obs_group.keys())
+                ],
+                axis=0,
+            )
+            for obs_cat, obs_group in obs_dict.items()
+        }

@@ -24,7 +24,10 @@ if TYPE_CHECKING:
 
 def main():
     def impl(
-        subcommand: Literal["agent", "ls", "gui", "repl", "docs", "test"], **kwargs
+        subcommand: Literal[
+            "agent", "sim_to_real", "ls", "gui", "repl", "docs", "test"
+        ],
+        **kwargs,
     ):
         if not find_spec("omni"):
             raise ImportError(
@@ -37,6 +40,8 @@ def main():
                     raise NotImplementedError()
                 else:
                     run_agent_with_env(**kwargs)
+            case "sim_to_real":
+                run_sim_to_real(**kwargs)
             case "ls":
                 list_registered(**kwargs)
             case "gui":
@@ -78,7 +83,7 @@ def run_agent_with_env(
     # Preprocess kwargs
     kwargs["enable_cameras"] = video_enable or env_id.endswith("_visual")
     kwargs["experience"] = SRB_APPS_DIR.joinpath(
-        f"srb.{'headless.' if kwargs['headless'] else ''}{'rendering.' if video_enable or kwargs['enable_cameras'] else ''}kit"
+        f"srb.{'headless.' if kwargs['headless'] else ''}{'rendering.' if kwargs['enable_cameras'] else ''}kit"
     )
 
     # Launch Isaac Sim
@@ -971,6 +976,78 @@ def eval_agent(algo: str, **kwargs):
             sbx.run(workflow=WORKFLOW, algo=algo.removeprefix("sbx_"), **kwargs)
 
 
+### Sim-to-Real ###
+def run_sim_to_real(
+    sim_to_real_subcommand: Literal["generate"],
+    **kwargs,
+):
+    # Run the implementation
+    def sim_to_real_impl(**kwargs):
+        match sim_to_real_subcommand:
+            case "generate":
+                generate_sim_to_real(**kwargs)
+
+    sim_to_real_impl(**kwargs)
+
+
+def generate_sim_to_real(env_id: str, forwarded_args: Sequence[str] = ()):
+    from srb.core.app import AppLauncher
+
+    # Launch Isaac Sim
+    enable_cameras = env_id.endswith("_visual")
+    launcher = AppLauncher(
+        headless=True,
+        enable_cameras=env_id.endswith("_visual"),
+        experience=SRB_APPS_DIR.joinpath(
+            f"srb.headless.{'rendering.' if enable_cameras else ''}kit"
+        ),
+    )
+
+    # Update the offline registry cache
+    update_offline_srb_cache()
+
+    from omni.physx import acquire_physx_interface
+
+    from srb.utils.cfg import hydra_task_config, new_logdir
+
+    # Post-launch configuration
+    acquire_physx_interface().overwrite_gpu_setting(1)
+
+    # Get the log directory based on the workflow
+    logdir_root = Path(SRB_LOGS_DIR).resolve()
+    logdir = new_logdir(
+        env_id=env_id, workflow="sim_to_real_generate", root=logdir_root
+    )
+
+    # Update Hydra output directory
+    if not any(arg.startswith("hydra.run.dir=") for arg in forwarded_args):
+        sys.argv.extend([f"hydra.run.dir={logdir.as_posix()}"])
+
+    @hydra_task_config(
+        task_name=env_id,
+        agent_cfg_entry_point=None,
+    )
+    def hydra_main(env_cfg: Dict[str, Any], agent_cfg: Dict[str, Any] | None = None):
+        import gymnasium
+
+        from srb.interfaces.sim_to_real.env.generator import RealEnvGenerator
+
+        # Create the environment and initialize it
+        env = gymnasium.make(id=env_id, cfg=env_cfg, render_mode=None)
+        env.reset()
+
+        # Generate RealEnv classes
+        RealEnvGenerator().generate_offline(env)  # type: ignore
+
+        # Close the environment
+        env.close()
+
+    hydra_main()  # type: ignore
+
+    # Shutdown Isaac Sim
+    launcher.app.close()
+
+
 ### List ###
 def list_registered(
     category: str | Sequence[str], show_hidden: bool, forwarded_args: Sequence[str] = ()
@@ -1381,6 +1458,11 @@ def parse_cli_args() -> argparse.Namespace:
     Parse command-line arguments for this script.
     """
 
+    _env_choices = read_offline_srb_env_cache()
+    _interface_choices = sorted(map(str, InterfaceType))
+    _teleop_device_choices = sorted(map(str, TeleopDeviceType))
+    _algo_choices = sorted(map(str, SupportedAlgo))
+
     parser = argparse.ArgumentParser(
         description="Space Robotics Bench",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -1440,6 +1522,23 @@ def parse_cli_args() -> argparse.Namespace:
     learn_agent_parser = agent_subparsers.add_parser(
         "learn",
         help="Learn from demonstrations",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+
+    ## Sim-to-Real subcommand
+    sim_to_real_parser = subparsers.add_parser(
+        "sim_to_real",
+        help="Sim-to-real subcommands",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    sim_to_real_subparsers = sim_to_real_parser.add_subparsers(
+        title="Sim-to-real subcommands",
+        dest="sim_to_real_subcommand",
+        required=True,
+    )
+    generate_sim_to_real_parser = sim_to_real_subparsers.add_parser(
+        "generate",
+        help="Generate sim-to-real setup",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
@@ -1547,8 +1646,6 @@ def parse_cli_args() -> argparse.Namespace:
         )
 
     ## Environment args
-    _env_choices = read_offline_srb_env_cache()
-    _interface_choices = sorted(map(str, InterfaceType))
     for _agent_parser in (
         zero_agent_parser,
         rand_agent_parser,
@@ -1557,6 +1654,7 @@ def parse_cli_args() -> argparse.Namespace:
         train_agent_parser,
         eval_agent_parser,
         collect_agent_parser,
+        generate_sim_to_real_parser,
     ):
         environment_group = _agent_parser.add_argument_group("Environment")
         environment_group.add_argument(
@@ -1571,6 +1669,16 @@ def parse_cli_args() -> argparse.Namespace:
             required=True,
         )
 
+    ## Environment args (extras)
+    for _agent_parser in (
+        zero_agent_parser,
+        rand_agent_parser,
+        teleop_agent_parser,
+        ros_agent_parser,
+        train_agent_parser,
+        eval_agent_parser,
+        collect_agent_parser,
+    ):
         logging_group = _agent_parser.add_argument_group("Logging")
         logging_group.add_argument(
             "--logdir",
@@ -1622,7 +1730,6 @@ def parse_cli_args() -> argparse.Namespace:
         )
 
     ## Teleop args
-    _teleop_device_choices = sorted(map(str, TeleopDeviceType))
     for _agent_parser in (teleop_agent_parser, collect_agent_parser):
         teleop_group = _agent_parser.add_argument_group("Teleop")
         teleop_group.add_argument(
@@ -1654,7 +1761,6 @@ def parse_cli_args() -> argparse.Namespace:
         )
 
     ## Algorithm args
-    _algo_choices = sorted(map(str, SupportedAlgo))
     for _agent_parser in (
         train_agent_parser,
         eval_agent_parser,

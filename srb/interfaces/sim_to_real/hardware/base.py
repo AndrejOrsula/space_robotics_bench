@@ -6,11 +6,29 @@ import numpy
 
 from srb.utils import logging
 
+# TODO: Provide HardwareInterface with access to a shared ROS node
+
 
 class HardwareInterface:
     # Note: Action spaces can be both mutually inclusive or exclusive
     SUPPORTED_ACTION_SPACES: Dict[str, gymnasium.Space] = {}
+
     CUSTOM_ALIASES: Sequence[Sequence[str]] = ()
+    __COMMON_ALIASES: Sequence[Sequence[str]] = (
+        ("accel", "acceleration", "accelerometer"),
+        ("cmd_vel", "velocity_command"),
+        ("depth", "depth_image", "depth_img", "depth_map"),
+        ("ee_displacement", "ee_velocity"),
+        ("ft", "ft_sensor", "force_torque_sensor"),
+        ("gripper", "gripper_toggle"),
+        ("gyro", "gyroscope", "angular_velocity"),
+        ("img", "image", "rgb", "rgb_image", "rgb_img"),
+        ("imu", "inertial_measurement_unit"),
+        ("joint_position", "joint_positions"),
+        ("joint_state", "joint_states"),
+        ("joint_torque", "joint_torques"),
+        ("joint_velocity", "joint_velocities"),
+    )
 
     def __init__(self):
         pass
@@ -104,22 +122,6 @@ class HardwareInterface:
         except NotImplementedError:
             return False
         return True
-
-    __COMMON_ALIASES: Sequence[Sequence[str]] = (
-        ("accel", "acceleration", "accelerometer"),
-        ("cmd_vel", "velocity_command"),
-        ("depth", "depth_image", "depth_img", "depth_map"),
-        ("ee_displacement", "ee_velocity"),
-        ("ft", "ft_sensor", "force_torque_sensor"),
-        ("gripper", "gripper_toggle"),
-        ("gyro", "gyroscope", "angular_velocity"),
-        ("img", "image", "rgb", "rgb_image", "rgb_img"),
-        ("imu", "inertial_measurement_unit"),
-        ("joint_position", "joint_positions"),
-        ("joint_state", "joint_states"),
-        ("joint_torque", "joint_torques"),
-        ("joint_velocity", "joint_velocities"),
-    )
 
     def _map_aliases(self, value: Iterable[str]) -> Mapping[str, str]:
         return {self._map_alias(val): val for val in value}

@@ -11,6 +11,8 @@ from srb.utils import logging
 class RealEnv(gymnasium.Env):
     ACTION_SPACE: Dict[str, gymnasium.Space] = {}
     OBSERVATION_SPACE: Dict[str, gymnasium.Space] = {}
+
+    ROBOT: Sequence[str] | str | None = None
     ACTION_RATE: float = 1.0 / 50.0
 
     _MIN_SLEEP_TIME: float = 1.0 / 1000.0
@@ -116,7 +118,7 @@ class RealEnv(gymnasium.Env):
             hw.sync()
 
         # Misc
-        self._extract_time_average: float = 0.0
+        self._extract_duration_ema: float = 0.0
 
     def step(
         self, action: Dict[str, numpy.ndarray] | numpy.ndarray
@@ -138,12 +140,12 @@ class RealEnv(gymnasium.Env):
 
         # Maintain constant action rate
         action_time: float = time.time() - pre_action_time
-        sleep_time: float = self.ACTION_RATE - action_time - self._extract_time_average
+        sleep_time: float = self.ACTION_RATE - action_time - self._extract_duration_ema
         if sleep_time > self._MIN_SLEEP_TIME:
             time.sleep(sleep_time)
         else:
             logging.warning(
-                f"Action rate of {self.ACTION_RATE} cannot be maintained with a remaining sleep time of {sleep_time:.3f} s (below the minimum threshold of {self._MIN_SLEEP_TIME:.3f} s). The actual action rate closer to {(1.0 / (action_time + self._extract_time_average)):.3f} Hz..."
+                f"Action rate of {self.ACTION_RATE} cannot be maintained with a remaining sleep time of {sleep_time:.3f} s (below the minimum threshold of {self._MIN_SLEEP_TIME:.3f} s). The actual action rate closer to {(1.0 / (action_time + self._extract_duration_ema)):.3f} Hz..."
             )
 
         # Extract observations, rewards, terminations, and info
@@ -164,8 +166,8 @@ class RealEnv(gymnasium.Env):
                 terminated = True
                 break
         info: Dict[str, Any] = {hw.name: hw.info for hw in self._hardware}
-        self._extract_time_average = (
-            self._FREQ_EST_EMA_ALPHA * self._extract_time_average
+        self._extract_duration_ema = (
+            self._FREQ_EST_EMA_ALPHA * self._extract_duration_ema
             + self._FREQ_EST_EMA_BETA * (time.time() - pre_extract_time)
         )
 

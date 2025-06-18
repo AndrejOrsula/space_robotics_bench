@@ -57,6 +57,7 @@ from srb.utils.path import (
     SRB_ASSETS_DIR_SRB_SKYDOME_HIGH_RES,
     SRB_ASSETS_DIR_SRB_SKYDOME_LOW_RES,
 )
+from srb.utils.str import sanitize_action_term_name
 
 from .event_cfg import BaseEventCfg
 from .scene_cfg import BaseSceneCfg
@@ -506,13 +507,17 @@ class BaseEnvCfg:
         robot.asset_cfg.prim_path = prim_path
         setattr(self.scene, robot_name, robot.asset_cfg)
         # Actions
-        for action_key, action_term in robot.actions.__dict__.items():
+        for action_term in robot.actions.__dict__.values():
             if not isinstance(action_term, ActionTermCfg):
                 continue
             # Ensure the actions terms are applied to the correct asset
             action_term.asset_name = robot_name
             # Add action terms to the action group
-            setattr(self.actions, f"{robot_name}__{action_key}", action_term)
+            setattr(
+                self.actions,
+                f"{robot_name}/{sanitize_action_term_name(action_term.class_type.__name__)}",
+                action_term,
+            )
         # Add the command mapping function to the action group
         map_cmd_to_action_fns.append(robot.actions.map_cmd_to_action)
 
@@ -603,16 +608,17 @@ class BaseEnvCfg:
                 disable_root_joints=not manipulator_needs_jacobian,
             )
             # Actions
-            for (
-                action_key,
-                action_term,
-            ) in robot.manipulator.actions.__dict__.items():
+            for action_term in robot.manipulator.actions.__dict__.values():
                 if not isinstance(action_term, ActionTermCfg):
                     continue
                 # Ensure the actions terms are applied to the correct asset
                 action_term.asset_name = manipulator_name
                 # Add action terms to the action group
-                setattr(self.actions, f"{manipulator_name}__{action_key}", action_term)
+                setattr(
+                    self.actions,
+                    f"{manipulator_name}/{sanitize_action_term_name(action_term.class_type.__name__)}",
+                    action_term,
+                )
             # Add the command mapping function to the action group
             map_cmd_to_action_fns.append(robot.manipulator.actions.map_cmd_to_action)
         else:
@@ -693,9 +699,8 @@ class BaseEnvCfg:
                 # Actions
                 if isinstance(manipulator.end_effector, ActiveTool):
                     for (
-                        action_key,
-                        action_term,
-                    ) in manipulator.end_effector.actions.__dict__.items():
+                        action_term
+                    ) in manipulator.end_effector.actions.__dict__.values():
                         if not isinstance(action_term, ActionTermCfg):
                             continue
                         # Ensure the actions terms are applied to the correct asset
@@ -703,7 +708,7 @@ class BaseEnvCfg:
                         # Add action terms to the action group
                         setattr(
                             self.actions,
-                            f"{end_effector_name}__{action_key}",
+                            f"{end_effector_name}/{sanitize_action_term_name(action_term.class_type.__name__)}",
                             action_term,
                         )
                     # Add the command mapping function to the action group
@@ -801,9 +806,9 @@ class BaseEnvCfg:
             if isinstance(asset_cfg, SensorBaseCfg):
                 asset_cfg.debug_vis = self.debug_vis
 
-        for action_template in self.actions.__dict__.values():
-            if isinstance(action_template, ActionTermCfg):
-                action_template.debug_vis = self.debug_vis
+        for action_term in self.actions.__dict__.values():
+            if isinstance(action_term, ActionTermCfg):
+                action_term.debug_vis = self.debug_vis
 
         for attr in self.__dict__.values():
             if isinstance(attr, VisualizationMarkersCfg):

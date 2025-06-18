@@ -1030,6 +1030,7 @@ def generate_sim_to_real(env_id: str, forwarded_args: Sequence[str] = ()):
     def hydra_main(env_cfg: Dict[str, Any], agent_cfg: Dict[str, Any] | None = None):
         import gymnasium
 
+        from srb.interfaces.sim_to_real import tasks as __mod_sim_to_real_tasks
         from srb.interfaces.sim_to_real.env.generator import RealEnvGenerator
 
         # Create the environment and initialize it
@@ -1037,7 +1038,12 @@ def generate_sim_to_real(env_id: str, forwarded_args: Sequence[str] = ()):
         env.reset()
 
         # Generate RealEnv classes
-        RealEnvGenerator().generate_offline(env)  # type: ignore
+        RealEnvGenerator().generate_offline(
+            env=env,  # type: ignore
+            output=Path(__mod_sim_to_real_tasks.__file__).parent.joinpath(
+                f"{env_id.removeprefix('srb/')}.py"
+            ),
+        )
 
         # Close the environment
         env.close()

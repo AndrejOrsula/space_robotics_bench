@@ -991,6 +991,10 @@ def run_sim_to_real(
 
 
 def generate_sim_to_real(env_id: str, forwarded_args: Sequence[str] = ()):
+    if env_id.removeprefix("srb/").upper() == "ALL":
+        generate_sim_to_real_all(forwarded_args=forwarded_args)
+        return
+
     from srb.core.app import AppLauncher
 
     # Launch Isaac Sim
@@ -1052,6 +1056,79 @@ def generate_sim_to_real(env_id: str, forwarded_args: Sequence[str] = ()):
 
     # Shutdown Isaac Sim
     launcher.app.close()
+
+
+def generate_sim_to_real_all(forwarded_args: Sequence[str] = ()):
+    import subprocess
+
+    from srb.utils import logging
+    from srb.utils.isaacsim import get_isaacsim_python
+
+    # Get all registered environments
+    env_list = read_offline_srb_env_cache()
+    if not env_list:
+        logging.warning(
+            "No environments found in cache. Please run an environment first to populate the cache."
+        )
+        return
+
+    # Filter out hidden environments (visual variants and templates)
+    env_list = [
+        env
+        for env in env_list
+        if not env.endswith("_visual") and not env.removeprefix("srb/").startswith("_")
+    ]
+
+    logging.info(f"Generating sim-to-real setup for {len(env_list)} environments...")
+
+    successful_envs = []
+    failed_envs = []
+
+    for i, env in enumerate(sorted(env_list), 1):
+        logging.info(f"[{i}/{len(env_list)}] Processing environment: {env}")
+        cmd = [
+            get_isaacsim_python(),
+            "-m",
+            "srb",
+            "sim_to_real",
+            "generate",
+            "--env",
+            env,
+            *forwarded_args,
+        ]
+        try:
+            _result = subprocess.run(
+                cmd,
+                # capture_output=True,
+                # text=True,
+                check=True,
+                timeout=300,
+            )
+            successful_envs.append(env)
+            logging.info(f"✓ Successfully generated sim-to-real setup for {env}")
+        except subprocess.TimeoutExpired:
+            failed_envs.append((env, "Timeout after 5 minutes"))
+            logging.error(f"✗ Timeout generating sim-to-real setup for {env}")
+        except subprocess.CalledProcessError as e:
+            failed_envs.append((env, f"Process failed with code {e.returncode}"))
+            logging.error(
+                f"✗ Failed to generate sim-to-real setup for {env}: {e.stderr}"
+            )
+        except Exception as e:
+            failed_envs.append((env, str(e)))
+            logging.error(f"✗ Exception while processing {env}: {e}")
+
+    # Summary report
+    logging.info("\n=== Generation Summary ===")
+    logging.info(
+        f"Successfully processed: {len(successful_envs)}/{len(env_list)} environments"
+    )
+    if successful_envs:
+        logging.info(f"Successful environments: {', '.join(successful_envs)}")
+    if failed_envs:
+        logging.warning("Failed environments:")
+        for env, reason in failed_envs:
+            logging.warning(f"  - {env}: {reason}")
 
 
 ### List ###
@@ -1671,7 +1748,11 @@ def parse_cli_args() -> argparse.Namespace:
             help="Name of the environment to select",
             type=str,
             action=AutoNamespaceTaskAction,
-            choices=_env_choices,
+            choices=(
+                _env_choices
+                if not generate_sim_to_real_parser
+                else (("all", "ALL", *_env_choices) if _env_choices else ())
+            ),
             required=True,
         )
 

@@ -1,8 +1,12 @@
 import time
+from threading import Thread
 from typing import Any, Dict, List, Mapping, Sequence, SupportsFloat, Tuple
 
 import gymnasium
 import numpy
+import rclpy
+from rclpy.executors import MultiThreadedExecutor
+from rclpy.node import Node as RosNode
 
 from srb.interfaces.sim_to_real.hardware import HardwareInterface
 from srb.utils import logging
@@ -20,7 +24,12 @@ class RealEnv(gymnasium.Env):
     _FREQ_EST_EMA_ALPHA: float = 0.9
     _FREQ_EST_EMA_BETA: float = 1.0 - _FREQ_EST_EMA_ALPHA
 
-    def __init__(self, hardware: Sequence[HardwareInterface], **kwargs):
+    def __init__(
+        self,
+        hardware: Sequence[HardwareInterface],
+        ros_node: RosNode | None = None,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
 
         # Categorize all hardware interfaces
@@ -65,13 +74,40 @@ class RealEnv(gymnasium.Env):
                 f"Unexpected observation space type: {self.OBSERVATION_SPACE}"
             )
 
+        # Initialize ROS node
+        if not ros_node:
+            rclpy.init()
+            self._ros_node = RosNode(
+                "real", namespace="srb", start_parameter_services=False
+            )
+        else:
+            self._ros_node = ros_node
+
         # Start all hardware interfaces
         for hw in self._hardware:
-            hw.start(rate=self.ACTION_RATE)
+            if hw in self._hardware_action_map.keys():
+                action_scale = {}
+                for action_key, hw_target_key in self._hardware_action_map[hw]:
+                    action_scale[hw_target_key] = self.ACTION_SCALE.get(action_key, 1.0)
+            else:
+                action_scale = {}
+            hw.start(
+                action_rate=self.ACTION_RATE,
+                action_scale=action_scale,
+                ros_node=self._ros_node,
+            )
             hw.sync()
 
         # Misc
         self._extract_duration_ema: float = 0.0
+
+        # Spin up ROS executor
+        if not ros_node:
+            self.__ros_executor = MultiThreadedExecutor(num_threads=2)
+            self.__ros_executor.add_node(self.ros_node)
+            self.__ros_thread = Thread(target=self.__ros_executor.spin)
+            self.__ros_thread.daemon = True
+            self.__ros_thread.start()
 
     def step(
         self, action: Dict[str, numpy.ndarray] | numpy.ndarray
@@ -86,7 +122,12 @@ class RealEnv(gymnasium.Env):
         pre_action_time: float = time.time()
         if isinstance(action, Mapping):
             for hw, keys in self._hardware_action_map.items():
-                hw.apply_action({key_pair[1]: action[key_pair[0]] for key_pair in keys})
+                hw.apply_action(
+                    {
+                        hw_target_key: action[action_key]
+                        for action_key, hw_target_key in keys
+                    }
+                )
         else:
             for hw in self._sink_action:
                 hw.apply_action({"action": action})
@@ -152,6 +193,19 @@ class RealEnv(gymnasium.Env):
         for hw in self._hardware:
             hw.close()
 
+        # Shutdown ROS node if it was created by this environment
+        if hasattr(self, "__ros_executor"):
+            self.__ros_executor.shutdown()
+            self.__ros_thread.join()
+            rclpy.shutdown()
+
+    def __del__(self):
+        self.close()
+
+    @property
+    def ros_node(self) -> RosNode:
+        return self._ros_node
+
     def _map_action_to_hardware(self, action_key: str, action_space: gymnasium.Space):
         _found_action_hw: HardwareInterface | None = None
         for hw in self._sink_action:
@@ -168,7 +222,7 @@ class RealEnv(gymnasium.Env):
                         self._hardware_action_map[hw] = []
                     self._hardware_action_map[hw].append((action_key, hw_target_key))
 
-                    hw_action_space = hw.SUPPORTED_ACTION_SPACES[hw_target_key]
+                    hw_action_space = hw.SUPPORTED_ACTION_SPACES.spaces[hw_target_key]
                     if not action_space.shape == hw_action_space.shape:
                         raise ValueError(
                             f'Action "{action_key}" from hardware "{hw.name}" does not match expected space "{action_space}" with its shape "{hw_action_space.shape}"'

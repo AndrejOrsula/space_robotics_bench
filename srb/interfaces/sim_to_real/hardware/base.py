@@ -7,22 +7,26 @@ from pydantic import BaseModel
 from rclpy.node import Node as RosNode
 
 from srb.utils import logging
+from srb.utils.str import convert_to_snake_case
 
 
 class HardwareInterfaceCfg(BaseModel):
-    pass
+    name: str = ""
 
 
 class HardwareInterface:
-    SUPPORTED_ACTION_SPACES: gymnasium.spaces.Dict = gymnasium.spaces.Dict()
     CUSTOM_ALIASES: Sequence[Sequence[str]] = ()
 
     def __init__(self, cfg: HardwareInterfaceCfg = HardwareInterfaceCfg()):
         self.cfg = cfg
 
-    @property
+    @cached_property
     def name(self) -> str:
-        return self.__class__.__name__
+        return convert_to_snake_case(self.cfg.name or self.__class__.__name__)
+
+    @property
+    def supported_action_spaces(self) -> gymnasium.spaces.Dict:
+        return gymnasium.spaces.Dict()
 
     def start(
         self,
@@ -81,7 +85,7 @@ class HardwareInterface:
     def action_key_map(self) -> Mapping[str, str]:
         if not self._has_io_action:
             return {}
-        return self._map_aliases(self.SUPPORTED_ACTION_SPACES.spaces.keys())
+        return self._map_aliases(self.supported_action_spaces.spaces.keys())
 
     @cached_property
     def observation_key_map(self) -> Mapping[str, str]:
@@ -95,7 +99,7 @@ class HardwareInterface:
             self.apply_action({})
         except NotImplementedError:
             return False
-        return bool(self.SUPPORTED_ACTION_SPACES.spaces)
+        return bool(self.supported_action_spaces.spaces)
 
     @cached_property
     def _has_io_observation(self) -> bool:

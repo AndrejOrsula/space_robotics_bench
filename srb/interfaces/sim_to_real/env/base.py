@@ -15,17 +15,17 @@ from srb.utils import logging
 class RealEnv(gymnasium.Env):
     SINGLE_ACTION_SPACE: ClassVar[gymnasium.Space]
     DETAILED_ACTION_SPACE: ClassVar[gymnasium.spaces.Dict]
+    ACTION_ORDERING: ClassVar[Dict[str, slice]]
+    ACTION_RATE: ClassVar[float]
+    ACTION_SCALE: ClassVar[Dict[str, float]]
 
     SINGLE_OBSERVATION_SPACE: ClassVar[gymnasium.Space]
     DETAILED_OBSERVATION_SPACE: ClassVar[gymnasium.spaces.Dict]
 
-    ACTION_RATE: ClassVar[float]
-    ACTION_SCALE: ClassVar[Dict[str, float]]
-    ROBOT: ClassVar[str | None]
+    ROBOT: ClassVar[str]
 
-    _MIN_SLEEP_TIME: ClassVar[float] = 1.0 / 1000.0
+    _MIN_SLEEP_DURATION: ClassVar[float] = 1.0 / 1000.0
     _FREQ_EST_EMA_ALPHA: ClassVar[float] = 0.9
-    _FREQ_EST_EMA_BETA: ClassVar[float] = 1.0 - _FREQ_EST_EMA_ALPHA
 
     def __init__(
         self,
@@ -132,37 +132,45 @@ class RealEnv(gymnasium.Env):
 
     def step(
         self, action: Dict[str, numpy.ndarray] | numpy.ndarray
-    ) -> Tuple[
-        Dict[str, numpy.ndarray],
-        SupportsFloat,
-        bool,
-        bool,
-        Dict[str, Any],
-    ]:
-        # TODO: Convert actions into a proper dictionary (likely passed in as an array/tensor)
+    ) -> Tuple[Dict[str, numpy.ndarray], SupportsFloat, bool, bool, Dict[str, Any]]:
+        pre_action_time: float = time.time()
+
+        # Structure the action
+        if isinstance(action, numpy.ndarray):
+            assert action.shape == self.single_action_space.shape, (
+                f"Action shape {action.shape} does not match expected shape {self.single_action_space.shape}"
+            )
+            action = {
+                action_key: action[action_range]
+                for action_key, action_range in self.ACTION_ORDERING.items()
+            }
+        elif not (
+            isinstance(action, Mapping)
+            and all(isinstance(v, numpy.ndarray) for v in action.values())
+        ):
+            raise ValueError(
+                f"Action must either be a numpy array with shape {self.single_action_space.shape} or a mapping of action keys to numpy arrays, but got: {action}"
+            )
 
         # Apply action
-        pre_action_time: float = time.time()
-        if isinstance(action, Mapping):
-            for hw, keys in self._hardware_action_map.items():
-                hw.apply_action(
-                    {
-                        hw_target_key: action[action_key]
-                        for action_key, hw_target_key in keys
-                    }
-                )
-        else:
-            for hw in self._sink_action:
-                hw.apply_action({"action": action})
+        for hw, keys in self._hardware_action_map.items():
+            hw.apply_action(
+                {
+                    hw_target_key: action[action_key]
+                    for action_key, hw_target_key in keys
+                }
+            )
 
         # Maintain constant action rate
-        action_time: float = time.time() - pre_action_time
-        sleep_time: float = self.ACTION_RATE - action_time - self._extract_duration_ema
-        if sleep_time > self._MIN_SLEEP_TIME:
-            time.sleep(sleep_time)
+        action_duration: float = time.time() - pre_action_time
+        sleep_duration: float = (
+            self.ACTION_RATE - action_duration - self._extract_duration_ema
+        )
+        if sleep_duration > self._MIN_SLEEP_DURATION:
+            time.sleep(sleep_duration)
         else:
             logging.warning(
-                f"Action rate of {self.ACTION_RATE} cannot be maintained with a remaining sleep time of {sleep_time:.3f} s (below the minimum threshold of {self._MIN_SLEEP_TIME:.3f} s). The actual action rate closer to {(1.0 / (action_time + self._extract_duration_ema)):.3f} Hz..."
+                f"Action rate of {self.ACTION_RATE} cannot be maintained with a remaining sleep time of {sleep_duration:.3f} s (below the minimum threshold of {self._MIN_SLEEP_DURATION:.3f} s). The actual action rate closer to {(1.0 / (action_duration + self._extract_duration_ema)):.3f} Hz..."
             )
 
         # Extract observations, rewards, terminations, and info
@@ -184,7 +192,7 @@ class RealEnv(gymnasium.Env):
         info: Dict[str, Any] = {hw.name: hw.info for hw in self._hardware}
         self._extract_duration_ema = (
             self._FREQ_EST_EMA_ALPHA * self._extract_duration_ema
-            + self._FREQ_EST_EMA_BETA * (time.time() - pre_extract_time)
+            + (1.0 - self._FREQ_EST_EMA_ALPHA) * (time.time() - pre_extract_time)
         )
 
         # Reset episode if terminated
@@ -268,7 +276,7 @@ class RealEnv(gymnasium.Env):
                             )
                         )
 
-                        hw_action_space = hw.SUPPORTED_ACTION_SPACES.spaces[
+                        hw_action_space = hw.supported_action_spaces.spaces[
                             hw_target_key
                         ]
                         if not action_space.shape == hw_action_space.shape:

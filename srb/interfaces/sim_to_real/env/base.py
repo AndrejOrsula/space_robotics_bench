@@ -1,6 +1,6 @@
 import time
 from threading import Thread
-from typing import Any, Dict, List, Mapping, Sequence, SupportsFloat, Tuple
+from typing import Any, ClassVar, Dict, List, Mapping, Sequence, SupportsFloat, Tuple
 
 import gymnasium
 import numpy
@@ -13,19 +13,19 @@ from srb.utils import logging
 
 
 class RealEnv(gymnasium.Env):
-    ACTION_SPACE: gymnasium.spaces.Dict
-    single_action_space: gymnasium.Space
+    SINGLE_ACTION_SPACE: ClassVar[gymnasium.Space]
+    DETAILED_ACTION_SPACE: ClassVar[gymnasium.spaces.Dict]
 
-    OBSERVATION_SPACE: gymnasium.spaces.Dict
-    single_observation_space: gymnasium.Space
+    SINGLE_OBSERVATION_SPACE: ClassVar[gymnasium.Space]
+    DETAILED_OBSERVATION_SPACE: ClassVar[gymnasium.spaces.Dict]
 
-    ACTION_RATE: float
-    ACTION_SCALE: Dict[str, float]
-    ROBOT: Sequence[str] | str | None = None
+    ACTION_RATE: ClassVar[float]
+    ACTION_SCALE: ClassVar[Dict[str, float]]
+    ROBOT: ClassVar[str | None]
 
-    _MIN_SLEEP_TIME: float = 1.0 / 1000.0
-    _FREQ_EST_EMA_ALPHA: float = 0.9
-    _FREQ_EST_EMA_BETA: float = 1.0 - _FREQ_EST_EMA_ALPHA
+    _MIN_SLEEP_TIME: ClassVar[float] = 1.0 / 1000.0
+    _FREQ_EST_EMA_ALPHA: ClassVar[float] = 0.9
+    _FREQ_EST_EMA_BETA: ClassVar[float] = 1.0 - _FREQ_EST_EMA_ALPHA
 
     def __init__(
         self,
@@ -35,11 +35,13 @@ class RealEnv(gymnasium.Env):
     ):
         super().__init__(**kwargs)
 
-        # Create batch action and observation spaces for consistency
-        self.action_space = gymnasium.vector.utils.batch_space(
+        # Map extracted spaces to standard interfaces
+        self._single_action_space = self.SINGLE_ACTION_SPACE
+        self._action_space = gymnasium.vector.utils.batch_space(
             self.single_action_space, 1
         )
-        self.observation_space = gymnasium.vector.utils.batch_space(
+        self._single_observation_space = self.SINGLE_OBSERVATION_SPACE
+        self._observation_space = gymnasium.vector.utils.batch_space(
             self.single_observation_space, 1
         )
 
@@ -68,21 +70,23 @@ class RealEnv(gymnasium.Env):
 
         # Map each action to a single hardware interface
         self._hardware_action_map: Dict[HardwareInterface, List[Tuple[str, str]]] = {}
-        if isinstance(self.ACTION_SPACE, gymnasium.spaces.Dict):
-            for action_key, action_space in self.ACTION_SPACE.spaces.items():
+        if isinstance(self.DETAILED_ACTION_SPACE, gymnasium.spaces.Dict):
+            for action_key, action_space in self.DETAILED_ACTION_SPACE.spaces.items():
                 self._map_action_to_hardware(action_key, action_space)
         else:
-            raise ValueError(f"Unexpected action space type: {self.ACTION_SPACE}")
+            raise ValueError(
+                f"Unexpected action space type: {self.DETAILED_ACTION_SPACE}"
+            )
 
         # Map each observation to a single hardware interface
         self._hardware_observation_map: Dict[
             HardwareInterface, List[Tuple[str, str]]
         ] = {}
-        if isinstance(self.OBSERVATION_SPACE, gymnasium.spaces.Dict):
-            self._map_observations_recursive("", self.OBSERVATION_SPACE.spaces)
+        if isinstance(self.DETAILED_OBSERVATION_SPACE, gymnasium.spaces.Dict):
+            self._map_observations_recursive("", self.DETAILED_OBSERVATION_SPACE.spaces)
         else:
             raise ValueError(
-                f"Unexpected observation space type: {self.OBSERVATION_SPACE}"
+                f"Unexpected observation space type: {self.DETAILED_OBSERVATION_SPACE}"
             )
 
         # Initialize ROS node
@@ -121,7 +125,7 @@ class RealEnv(gymnasium.Env):
         # Spin up ROS executor
         if not ros_node:
             self.__ros_executor = MultiThreadedExecutor(num_threads=2)
-            self.__ros_executor.add_node(self.ros_node)
+            self.__ros_executor.add_node(self._ros_node)
             self.__ros_thread = Thread(target=self.__ros_executor.spin)
             self.__ros_thread.daemon = True
             self.__ros_thread.start()
@@ -222,8 +226,20 @@ class RealEnv(gymnasium.Env):
         self.close()
 
     @property
-    def ros_node(self) -> RosNode:
-        return self._ros_node
+    def single_action_space(self) -> gymnasium.Space:
+        return self._single_action_space
+
+    @property
+    def action_space(self) -> gymnasium.Space:
+        return self._action_space
+
+    @property
+    def single_observation_space(self) -> gymnasium.Space:
+        return self._single_observation_space
+
+    @property
+    def observation_space(self) -> gymnasium.Space:
+        return self._observation_space
 
     def _map_action_to_hardware(self, action_key: str, action_space: gymnasium.Space):
         _found_action_hw: HardwareInterface | None = None

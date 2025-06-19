@@ -1072,18 +1072,12 @@ def generate_sim_to_real_all(forwarded_args: Sequence[str] = ()):
         )
         return
 
-    # Filter out hidden environments (visual variants and templates)
-    env_list = [
-        env
-        for env in env_list
-        if not env.endswith("_visual") and not env.removeprefix("srb/").startswith("_")
-    ]
-
+    # Filter out templates
+    env_list = [env for env in env_list if not env.removeprefix("srb/").startswith("_")]
     logging.info(f"Generating sim-to-real setup for {len(env_list)} environments...")
 
     successful_envs = []
     failed_envs = []
-
     for i, env in enumerate(sorted(env_list), 1):
         logging.info(f"[{i}/{len(env_list)}] Processing environment: {env}")
         cmd = [
@@ -1097,13 +1091,7 @@ def generate_sim_to_real_all(forwarded_args: Sequence[str] = ()):
             *forwarded_args,
         ]
         try:
-            _result = subprocess.run(
-                cmd,
-                # capture_output=True,
-                # text=True,
-                check=True,
-                timeout=300,
-            )
+            _result = subprocess.run(cmd, check=True, timeout=300)
             successful_envs.append(env)
             logging.info(f"✓ Successfully generated sim-to-real setup for {env}")
         except subprocess.TimeoutExpired:

@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 def main():
     def impl(
         subcommand: Literal[
-            "agent", "sim_to_real", "ls", "gui", "repl", "docs", "test"
+            "agent", "real_agent", "list", "ls", "gui", "repl", "python", "docs", "test"
         ],
         **kwargs,
     ):
@@ -36,17 +36,14 @@ def main():
 
         match subcommand:
             case "agent":
-                if kwargs["agent_subcommand"] == "learn":
-                    raise NotImplementedError()
-                else:
-                    run_agent_with_env(**kwargs)
-            case "sim_to_real":
-                run_sim_to_real(**kwargs)
-            case "ls":
+                run_agent(**kwargs)
+            case "real_agent":
+                run_real_agent(**kwargs)
+            case "ls" | "list":
                 list_registered(**kwargs)
             case "gui":
                 launch_gui(**kwargs)
-            case "repl":
+            case "repl" | "python":
                 enter_repl(**kwargs)
             case "docs":
                 serve_docs(**kwargs)
@@ -250,13 +247,11 @@ def run_agent_with_env(
 
         # Run the implementation
         def agent_impl(**kwargs):
-            kwargs.update(
-                {
-                    "env_id": env_id,
-                    "agent_cfg": agent_cfg,
-                    "env_cfg": env_cfg,
-                }
-            )
+            kwargs.update({
+                "env_id": env_id,
+                "agent_cfg": agent_cfg,
+                "env_cfg": env_cfg,
+            })
 
             match agent_subcommand:
                 case "zero":
@@ -541,16 +536,14 @@ def _teleop_agent_direct(
                         contact_forces = (
                             contacts_end_effector.data.net_forces_w  # type: ignore
                         )[0].mean(dim=0)
-                        contact_ft = torch.cat(
-                            [
-                                contact_forces,
-                                torch.zeros(
-                                    3,
-                                    device=contact_forces.device,
-                                    dtype=contact_forces.dtype,
-                                ),
-                            ]
-                        )
+                        contact_ft = torch.cat([
+                            contact_forces,
+                            torch.zeros(
+                                3,
+                                device=contact_forces.device,
+                                dtype=contact_forces.dtype,
+                            ),
+                        ])
                         ft_feedback = (
                             torch.tensor([0.33, 0.33, 0.33, 0.0, 0.0, 0.0])
                             * contact_ft.cpu()
@@ -589,12 +582,10 @@ def _teleop_agent_via_policy(
             for event_name in event_names:
                 for recognized_cmd_key in recognized_cmd_keys:
                     if recognized_cmd_key in event_name:
-                        events_to_remove.append(
-                            (
-                                category,
-                                event_names.index(event_name),
-                            )
-                        )
+                        events_to_remove.append((
+                            category,
+                            event_names.index(event_name),
+                        ))
                         break
         for category, event_id in reversed(events_to_remove):
             env.unwrapped.event_manager._mode_term_names[category].pop(  # type: ignore
@@ -674,17 +665,15 @@ def _teleop_agent_via_policy(
                         ),
                     )
                 case 7:
-                    cmd = torch.concat(
-                        (
-                            torch.from_numpy(twist).to(
-                                device=env.unwrapped.device,  # type: ignore
-                                dtype=torch.float32,
-                            ),
-                            torch.Tensor((-1.0 if event else 1.0,)).to(
-                                device=twist.device  # type: ignore
-                            ),
-                        )
-                    )
+                    cmd = torch.concat((
+                        torch.from_numpy(twist).to(
+                            device=env.unwrapped.device,  # type: ignore
+                            dtype=torch.float32,
+                        ),
+                        torch.Tensor((-1.0 if event else 1.0,)).to(
+                            device=twist.device  # type: ignore
+                        ),
+                    ))
                     setattr(
                         env.unwrapped,
                         self._internal_cmd_attr_name,  # type: ignore
@@ -849,9 +838,10 @@ def eval_agent(algo: str, **kwargs):
 
 
 ### Sim-to-Real ###
-def run_sim_to_real(
-    sim_to_real_subcommand: Literal[
-        "generate",
+def run_real_agent(
+    real_agent_subcommand: Literal[
+        "env_gen",
+        "gen",
         "zero",
         "rand",
         "teleop",
@@ -863,20 +853,20 @@ def run_sim_to_real(
     **kwargs,
 ):
     # Run the implementation
-    def sim_to_real_impl(**kwargs):
-        match sim_to_real_subcommand:
-            case "generate":
-                generate_sim_to_real(**kwargs)
+    def real_agent_impl(**kwargs):
+        match real_agent_subcommand:
+            case "env_gen" | "gen":
+                generate_real_agent(**kwargs)
             case _:
-                run_sim_to_real_with_env(
-                    sim_to_real_subcommand=sim_to_real_subcommand, **kwargs
+                run_real_agent_with_env(
+                    real_agent_subcommand=real_agent_subcommand, **kwargs
                 )
 
-    sim_to_real_impl(**kwargs)
+    real_agent_impl(**kwargs)
 
 
-def run_sim_to_real_with_env(
-    sim_to_real_subcommand: Literal[
+def run_real_agent_with_env(
+    real_agent_subcommand: Literal[
         "zero",
         "rand",
         "teleop",
@@ -896,7 +886,7 @@ def run_sim_to_real_with_env(
     from srb.utils.cfg import last_logdir, new_logdir
 
     # Get the log directory based on the workflow
-    workflow = kwargs.get("algo") or sim_to_real_subcommand
+    workflow = kwargs.get("algo") or real_agent_subcommand
     logdir_root = Path(logdir_path).resolve()
     if model := kwargs.get("model"):
         model = Path(model).resolve()
@@ -916,8 +906,8 @@ def run_sim_to_real_with_env(
                 break
             logdir = _new_parent
         kwargs["model"] = model
-    elif (sim_to_real_subcommand == "train" and kwargs["continue_training"]) or (
-        sim_to_real_subcommand in ("eval", "teleop") and kwargs["algo"]
+    elif (real_agent_subcommand == "train" and kwargs["continue_training"]) or (
+        real_agent_subcommand in ("eval", "teleop") and kwargs["algo"]
     ):
         logdir = last_logdir(env_id=env_id, workflow=workflow, root=logdir_root)
     else:
@@ -948,7 +938,7 @@ def run_sim_to_real_with_env(
             logging.critical(
                 f"The RealEnv for {env_name} is not registered. Generating it now..."
             )
-            _generate_sim_to_real_subprocess(
+            _generate_real_agent_subprocess(
                 env_id=env_name, forwarded_args=forwarded_args
             )
             logging.info(
@@ -962,15 +952,13 @@ def run_sim_to_real_with_env(
 
         # Run the implementation
         def agent_impl(**kwargs):
-            kwargs.update(
-                {
-                    "env_id": env_id,
-                    "agent_cfg": agent_cfg,
-                    "env_cfg": None,
-                }
-            )
+            kwargs.update({
+                "env_id": env_id,
+                "agent_cfg": agent_cfg,
+                "env_cfg": None,
+            })
 
-            match sim_to_real_subcommand:
+            match real_agent_subcommand:
                 case "zero":
                     zero_agent(**kwargs)
                 case "rand":
@@ -1004,9 +992,9 @@ def run_sim_to_real_with_env(
     hydra_main()  # type: ignore
 
 
-def generate_sim_to_real(env_id: str, forwarded_args: Sequence[str] = (), **kwargs):
+def generate_real_agent(env_id: str, forwarded_args: Sequence[str] = (), **kwargs):
     if env_id.removeprefix("srb/").upper() == "ALL":
-        _generate_sim_to_real_subprocess(env_id="ALL", forwarded_args=forwarded_args)
+        _generate_real_agent_subprocess(env_id="ALL", forwarded_args=forwarded_args)
         return
 
     from srb.core.app import AppLauncher
@@ -1042,7 +1030,7 @@ def generate_sim_to_real(env_id: str, forwarded_args: Sequence[str] = (), **kwar
     def hydra_main(env_cfg: Dict[str, Any], agent_cfg: Dict[str, Any] | None = None):
         import gymnasium
 
-        from srb.interfaces.sim_to_real import tasks as __mod_sim_to_real_tasks
+        from srb.interfaces.sim_to_real import tasks as __mod_real_agent_tasks
         from srb.interfaces.sim_to_real.env.generator import RealEnvGenerator
 
         # Create the environment and initialize it
@@ -1054,7 +1042,7 @@ def generate_sim_to_real(env_id: str, forwarded_args: Sequence[str] = (), **kwar
         RealEnvGenerator().generate_offline(
             env=env,  # type: ignore
             env_spec=env_spec,
-            output=Path(__mod_sim_to_real_tasks.__file__).parent.joinpath(
+            output=Path(__mod_real_agent_tasks.__file__).parent.joinpath(
                 f"{env_id.removeprefix('srb/')}.py"
             ),
         )
@@ -1068,7 +1056,7 @@ def generate_sim_to_real(env_id: str, forwarded_args: Sequence[str] = (), **kwar
     launcher.app.close()
 
 
-def _generate_sim_to_real_subprocess(env_id: str, forwarded_args: Sequence[str] = ()):
+def _generate_real_agent_subprocess(env_id: str, forwarded_args: Sequence[str] = ()):
     import subprocess
 
     from srb.utils import logging
@@ -1102,8 +1090,8 @@ def _generate_sim_to_real_subprocess(env_id: str, forwarded_args: Sequence[str] 
             get_isaacsim_python(),
             "-m",
             "srb",
-            "sim_to_real",
-            "generate",
+            "real_agent",
+            "env_gen",
             "--env",
             env,
             *forwarded_args,
@@ -1693,14 +1681,10 @@ def __wrap_env_in_performance_test(
 
 ### CLI ###
 def parse_cli_args() -> argparse.Namespace:
-    """
-    Parse command-line arguments for this script.
-    """
-
-    _env_choices = read_offline_srb_env_cache()
-    _interface_choices = sorted(map(str, InterfaceType))
-    _teleop_device_choices = sorted(map(str, TeleopDeviceType))
-    _algo_choices = sorted(map(str, SupportedAlgo))
+    env_choices = read_offline_srb_env_cache()
+    interface_choices = sorted(map(str, InterfaceType))
+    teleop_device_choices = sorted(map(str, TeleopDeviceType))
+    algo_choices = sorted(map(str, SupportedAlgo))
 
     parser = argparse.ArgumentParser(
         description="Space Robotics Bench",
@@ -1755,7 +1739,7 @@ def parse_cli_args() -> argparse.Namespace:
     )
     collect_agent_parser = agent_subparsers.add_parser(
         "collect",
-        help="Collect demonstrations",
+        help="Collect demonstrations with agent",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     learn_agent_parser = agent_subparsers.add_parser(
@@ -1765,44 +1749,85 @@ def parse_cli_args() -> argparse.Namespace:
     )
 
     ## Sim-to-Real subcommand
-    sim_to_real_parser = subparsers.add_parser(
-        "sim_to_real",
+    real_agent_parser = subparsers.add_parser(
+        "real_agent",
         help="Sim-to-real subcommands",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    sim_to_real_subparsers = sim_to_real_parser.add_subparsers(
+    real_agent_subparsers = real_agent_parser.add_subparsers(
         title="Sim-to-real subcommands",
-        dest="sim_to_real_subcommand",
+        dest="real_agent_subcommand",
         required=True,
     )
-    generate_sim_to_real_parser = sim_to_real_subparsers.add_parser(
-        "generate",
-        help="Generate sim-to-real setup",
+    real_env_gen_parsers = []
+    for i, alias in enumerate(("env_gen", "gen")):
+        real_env_gen_parser = real_agent_subparsers.add_parser(
+            alias,
+            help=("<alias: env_gen>" if i > 0 else "Generate sim-to-real setup"),
+            formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        )
+        real_env_gen_parsers.append(real_env_gen_parser)
+    zero_real_agent_parser = real_agent_subparsers.add_parser(
+        "zero",
+        help="Real agent with zero-valued actions",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    rand_real_agent_parser = real_agent_subparsers.add_parser(
+        "rand",
+        help="Real agent with random actions",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    teleop_real_agent_parser = real_agent_subparsers.add_parser(
+        "teleop",
+        help="Teleoperate real agent",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    ros_real_agent_parser = real_agent_subparsers.add_parser(
+        "ros",
+        help="Real agent with actions from ROS 2 | Space ROS",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    train_real_agent_parser = real_agent_subparsers.add_parser(
+        "train",
+        help="Train real agent",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    eval_real_agent_parser = real_agent_subparsers.add_parser(
+        "eval",
+        help="Evaluate real agent",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    collect_real_agent_parser = real_agent_subparsers.add_parser(
+        "collect",
+        help="Collect demonstrations with real agent",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
     ## List subcommand
-    list_parser = subparsers.add_parser(
-        "ls",
-        help="List registered assets and environments"
-        + ("" if find_spec("rich") else ' (MISSING: "rich" Python package)'),
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    )
-    list_parser.add_argument(
-        "category",
-        help="Filter of categories to list",
-        nargs="*",
-        type=str,
-        choices=sorted(map(str, EntityToList)),
-        default=str(EntityToList.ALL),
-    )
-    list_parser.add_argument(
-        "-a",
-        "--show_hidden",
-        help='Show hidden entities ("*_visual" environments are hidden by default)',
-        action="store_true",
-        default=False,
-    )
+    for i, alias in enumerate(("list", "ls")):
+        list_parser = subparsers.add_parser(
+            alias,
+            help=(
+                "<alias: list>" if i > 0 else "List registered assets and environments"
+            )
+            + ("" if find_spec("rich") else ' (MISSING: "rich" Python package)'),
+            formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        )
+        list_parser.add_argument(
+            "category",
+            help="Filter of categories to list",
+            nargs="*",
+            type=str,
+            choices=sorted(map(str, EntityToList)),
+            default=str(EntityToList.ALL),
+        )
+        list_parser.add_argument(
+            "-a",
+            "--show_hidden",
+            help='Show hidden entities ("*_visual" environments are hidden by default)',
+            action="store_true",
+            default=False,
+        )
 
     ## GUI subcommand
     _gui_parser = subparsers.add_parser(
@@ -1812,12 +1837,17 @@ def parse_cli_args() -> argparse.Namespace:
     )
 
     ## REPL subcommand
-    repl_parser = subparsers.add_parser(
-        "repl",
-        help="Enter REPL"
-        + ("" if find_spec("ptpython") else ' (MISSING: "ptpython" Python package)'),
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    )
+    repl_parsers = []
+    for i, alias in enumerate(("repl", "python")):
+        repl_parser = subparsers.add_parser(
+            alias,
+            help=("<alias: repl>" if i > 0 else "Enter Python REPL")
+            + (
+                "" if find_spec("ptpython") else ' (MISSING: "ptpython" Python package)'
+            ),
+            formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        )
+        repl_parsers.append(repl_parser)
 
     ## Docs subcommand
     _docs_parser = subparsers.add_parser(
@@ -1855,7 +1885,7 @@ def parse_cli_args() -> argparse.Namespace:
         eval_agent_parser,
         collect_agent_parser,
         learn_agent_parser,
-        repl_parser,
+        *repl_parsers,
     ):
         launcher_group = _agent_parser.add_argument_group("Launcher")
         launcher_group.add_argument(
@@ -1893,7 +1923,7 @@ def parse_cli_args() -> argparse.Namespace:
         train_agent_parser,
         eval_agent_parser,
         collect_agent_parser,
-        generate_sim_to_real_parser,
+        *real_env_gen_parsers,
     ):
         environment_group = _agent_parser.add_argument_group("Environment")
         environment_group.add_argument(
@@ -1905,9 +1935,9 @@ def parse_cli_args() -> argparse.Namespace:
             type=str,
             action=AutoNamespaceTaskAction,
             choices=(
-                _env_choices
-                if not generate_sim_to_real_parser
-                else (("all", "ALL", *_env_choices) if _env_choices else ())
+                env_choices
+                if _agent_parser not in real_env_gen_parsers
+                else (("all", "ALL", *env_choices) if env_choices else ())
             ),
             required=True,
         )
@@ -1938,7 +1968,7 @@ def parse_cli_args() -> argparse.Namespace:
             help="Sequence of interfaces to enable",
             type=str,
             nargs="*",
-            choices=_interface_choices,
+            choices=interface_choices,
             default=[],
         )
 
@@ -1980,7 +2010,7 @@ def parse_cli_args() -> argparse.Namespace:
             help="Device for interacting with environment",
             type=str,
             nargs="+",
-            choices=_teleop_device_choices,
+            choices=teleop_device_choices,
             default=[str(TeleopDeviceType.KEYBOARD)],
         )
         teleop_group.add_argument(
@@ -2020,7 +2050,7 @@ def parse_cli_args() -> argparse.Namespace:
             "--algo",
             help="Name of the algorithm",
             type=str,
-            choices=_algo_choices,
+            choices=algo_choices,
             required=_agent_parser not in (teleop_agent_parser, collect_agent_parser),
         )
         if _agent_parser != train_agent_parser:

@@ -11,13 +11,13 @@ from rclpy.node import Node as RosNode
 from srb.interfaces.sim_to_real.hardware import HardwareInterface
 from srb.utils import logging
 
-# TODO: provide action_space and observation_space
-# Note: Action space needs to be combined and just a single Box
-
 
 class RealEnv(gymnasium.Env):
     ACTION_SPACE: gymnasium.spaces.Dict
+    single_action_space: gymnasium.Space
+
     OBSERVATION_SPACE: gymnasium.spaces.Dict
+    single_observation_space: gymnasium.Space
 
     ACTION_RATE: float
     ACTION_SCALE: Dict[str, float]
@@ -34,6 +34,14 @@ class RealEnv(gymnasium.Env):
         **kwargs,
     ):
         super().__init__(**kwargs)
+
+        # Create batch action and observation spaces for consistency
+        self.action_space = gymnasium.vector.utils.batch_space(
+            self.single_action_space, 1
+        )
+        self.observation_space = gymnasium.vector.utils.batch_space(
+            self.single_observation_space, 1
+        )
 
         # Categorize all hardware interfaces
         self._hardware: List[HardwareInterface] = list(hardware)

@@ -5,6 +5,7 @@ from typing import Any, ClassVar, Dict, List, Mapping, Sequence, SupportsFloat, 
 import gymnasium
 import numpy
 import rclpy
+import torch
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node as RosNode
 
@@ -131,12 +132,32 @@ class RealEnv(gymnasium.Env):
             self.__ros_thread.start()
 
     def step(
-        self, action: Dict[str, numpy.ndarray] | numpy.ndarray
+        self,
+        action: numpy.ndarray | torch.Tensor | Dict[str, numpy.ndarray | torch.Tensor],
     ) -> Tuple[Dict[str, numpy.ndarray], SupportsFloat, bool, bool, Dict[str, Any]]:
         pre_action_time: float = time.time()
 
         # Structure the action
-        if isinstance(action, numpy.ndarray):
+        if isinstance(action, Mapping):
+            if any(isinstance(v, torch.Tensor) for v in action.values()):
+                action = {
+                    action_key: v.detach().cpu().numpy()
+                    if isinstance(v, torch.Tensor)
+                    else v
+                    for action_key, v in action.items()
+                }
+            assert all(isinstance(v, numpy.ndarray) for v in action.values()), (
+                f"Action must be a mapping of action keys to numpy arrays, but got: {action}"
+            )
+            assert set(action.keys()) == set(self.ACTION_ORDERING.keys()), (
+                f"Action keys {set(action.keys())} do not match expected keys {set(self.ACTION_ORDERING.keys())}"
+            )
+        else:
+            if isinstance(action, torch.Tensor):
+                action = action.detach().cpu().numpy()
+            assert isinstance(action, numpy.ndarray), (
+                f"Action must be a numpy array or a mapping, but got: {type(action)}"
+            )
             assert action.shape == self.single_action_space.shape, (
                 f"Action shape {action.shape} does not match expected shape {self.single_action_space.shape}"
             )
@@ -144,18 +165,11 @@ class RealEnv(gymnasium.Env):
                 action_key: action[action_range]
                 for action_key, action_range in self.ACTION_ORDERING.items()
             }
-        elif not (
-            isinstance(action, Mapping)
-            and all(isinstance(v, numpy.ndarray) for v in action.values())
-        ):
-            raise ValueError(
-                f"Action must either be a numpy array with shape {self.single_action_space.shape} or a mapping of action keys to numpy arrays, but got: {action}"
-            )
 
         # Apply action
         for hw, keys in self._hardware_action_map.items():
             hw.apply_action(
-                {
+                {  # type: ignore
                     hw_target_key: action[action_key]
                     for action_key, hw_target_key in keys
                 }

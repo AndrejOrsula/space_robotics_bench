@@ -6,7 +6,7 @@ import omni
 from isaaclab.devices import Se3Keyboard as __Se3Keyboard
 
 
-class KeyboardTeleopInterface(__Se3Keyboard):
+class OmniKeyboardTeleopInterface(__Se3Keyboard):
     def __str__(self) -> str:
         msg = super().__str__()
 
@@ -26,7 +26,7 @@ class KeyboardTeleopInterface(__Se3Keyboard):
         return ret
 
 
-class EventKeyboardTeleopInterface:
+class EventOmniKeyboardTeleopInterface:
     def __init__(self, callbacks: dict[str, Callable] = {}):
         self._appwindow = omni.appwindow.get_default_app_window()  # type: ignore
         self._input = carb.input.acquire_input_interface()  # type: ignore

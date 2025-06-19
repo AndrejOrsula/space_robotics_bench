@@ -279,7 +279,7 @@ def hydra_task_config(
             @hydra.main(
                 config_path=None,
                 config_name=task_name.rsplit("/", 1)[1],
-                version_base="1.3",
+                version_base=None,
             )
             def hydra_main(
                 hydra_env_cfg: DictConfig, env_cfg=env_cfg, agent_cfg=agent_cfg

@@ -14,11 +14,14 @@ from typing import (
 )
 
 import gymnasium
+import gymnasium.core
+import gymnasium.envs.registration
 import numpy
 import torch
 from pydantic import BaseModel
 
 from srb.interfaces.sim_to_real.env.base import RealEnv
+from srb.utils.path import SRB_DIR, SRB_HYPERPARAMS_DIR
 
 if TYPE_CHECKING:
     from srb._typing import AnyEnv, AnyEnvCfg
@@ -69,12 +72,39 @@ class RealEnvGenerator:
     def generate_offline(
         self,
         env: "AnyEnv",
+        env_spec: gymnasium.envs.registration.EnvSpec,
         output: Path | str,
     ):
         output = Path(output).resolve()
 
         # Extract environment information
         env_info = self._extract_env_info(env)
+
+        # Pre-process registration kwargs
+        registration_kwargs = env_spec.kwargs.copy()
+        registration_kwargs.pop("task_cfg", None)
+        used_srb_paths = set()
+        for key, value in registration_kwargs.items():
+            maybe_path = Path(value).resolve()
+            if maybe_path.exists():
+                for srb_path_var_name, srb_path in {
+                    "SRB_HYPERPARAMS_DIR": SRB_HYPERPARAMS_DIR,
+                    "SRB_DIR": SRB_DIR,
+                }.items():
+                    try:
+                        registration_kwargs[key] = (
+                            f'__NO_STR__{srb_path_var_name}.joinpath("{maybe_path.relative_to(srb_path).as_posix()}")__NO_STR__'
+                        )
+                        used_srb_paths.add(srb_path_var_name)
+                        break
+                    except ValueError:
+                        continue
+        registration_kwargs = (
+            repr(registration_kwargs)
+            .replace("'", '"')
+            .replace('"__NO_STR__', "")
+            .replace('__NO_STR__"', "")
+        )
 
         # Generate the content of the file
         content = f"""\
@@ -87,19 +117,40 @@ import gymnasium
 import numpy
 
 from srb.interfaces.sim_to_real import RealEnv
+{
+            (
+                "from srb.utils.path import " + ", ".join(sorted(used_srb_paths))
+                if used_srb_paths
+                else ""
+            )
+        }
 
 
 class Env(RealEnv):
-    SINGLE_ACTION_SPACE: ClassVar[gymnasium.Space] = {self._format_space(env_info.single_action_space)}
-    DETAILED_ACTION_SPACE: ClassVar[gymnasium.spaces.Dict] = {self._format_space(env_info.detailed_action_space)}
+    SINGLE_ACTION_SPACE: ClassVar[gymnasium.Space] = {
+            self._format_space(env_info.single_action_space)
+        }
+    DETAILED_ACTION_SPACE: ClassVar[gymnasium.spaces.Dict] = {
+            self._format_space(env_info.detailed_action_space)
+        }
     ACTION_ORDERING: ClassVar[Dict[str, slice]] = {env_info.action_ordering}
     ACTION_RATE: ClassVar[float] = {env_info.action_rate}
     ACTION_SCALE: ClassVar[Dict[str, float]] = {env_info.action_scale}
 
-    SINGLE_OBSERVATION_SPACE: ClassVar[gymnasium.Space] = {self._format_space(env_info.single_observation_space)}
-    DETAILED_OBSERVATION_SPACE: ClassVar[gymnasium.spaces.Dict] = {self._format_space(env_info.detailed_observation_space)}
+    SINGLE_OBSERVATION_SPACE: ClassVar[gymnasium.Space] = {
+            self._format_space(env_info.single_observation_space)
+        }
+    DETAILED_OBSERVATION_SPACE: ClassVar[gymnasium.spaces.Dict] = {
+            self._format_space(env_info.detailed_observation_space)
+        }
 
     ROBOT: ClassVar[str] = {repr(env_info.robot)}
+
+gymnasium.register(
+    id="srb_real/{env_spec.id.rsplit("/", 1)[-1]}",
+    entry_point=f"{{Env.__module__}}:{{Env.__name__}}",
+    kwargs={registration_kwargs},
+)
 """
 
         # Write to file

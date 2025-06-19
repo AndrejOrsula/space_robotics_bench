@@ -3,6 +3,7 @@ import signal
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, Sequence
 
+import gymnasium
 import numpy
 from isaacsim.simulation_app import SimulationApp
 from rl_zoo3 import ALGOS
@@ -23,10 +24,10 @@ OFF_POLICY_ALGOS: Sequence[str] = ("qrdqn", "dqn", "ddpg", "sac", "her", "td3", 
 def run(
     workflow: Literal["train", "eval"],
     algo: str,
-    env: "AnyEnv",
+    env: "AnyEnv | gymnasium.Env",
     sim_app: SimulationApp,
     env_id: str,
-    env_cfg: "AnyEnvCfg",
+    env_cfg: "AnyEnvCfg | None",
     agent_cfg: dict,
     logdir: Path,
     model: Path,
@@ -103,7 +104,7 @@ def run(
         n_startup_trials=n_startup_trials,
         n_evaluations=n_evaluations,
         truncate_last_trajectory=truncate_last_trajectory,
-        seed=env_cfg.seed,
+        seed=env_cfg.seed if env_cfg else 0,
         log_interval=log_interval,
         save_replay_buffer=save_replay_buffer,
         verbose=verbose,

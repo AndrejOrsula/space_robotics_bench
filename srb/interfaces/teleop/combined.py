@@ -8,7 +8,7 @@ import torch
 from srb.core.action import ActionGroup
 from srb.interfaces.enums import TeleopDeviceType
 from srb.interfaces.teleop import DeviceBase, Se3Gamepad
-from srb.interfaces.teleop.keyboard import KeyboardTeleopInterface
+from srb.interfaces.teleop.keyboard_omni import OmniKeyboardTeleopInterface
 from srb.interfaces.teleop.spacemouse import SpacemouseTeleopInterface
 
 if TYPE_CHECKING:
@@ -45,7 +45,7 @@ class CombinedTeleopInterface(DeviceBase):
             match device.lower():
                 case TeleopDeviceType.KEYBOARD:
                     self.interfaces.append(
-                        KeyboardTeleopInterface(
+                        OmniKeyboardTeleopInterface(
                             pos_sensitivity=0.6 * pos_sensitivity,
                             rot_sensitivity=0.4 * rot_sensitivity,
                         )
@@ -117,14 +117,14 @@ class CombinedTeleopInterface(DeviceBase):
             interface.__del__()
 
     def __str__(self) -> str:
-        from srb.interfaces.teleop.keyboard import KeyboardTeleopInterface
+        from srb.interfaces.teleop.keyboard_omni import OmniKeyboardTeleopInterface
 
         msg = "Combined Interface\n"
         msg += f"Devices: {', '.join([interface.__class__.__name__ for interface in self.interfaces])}\n"
 
         for interface in self.interfaces:
             if (
-                isinstance(interface, KeyboardTeleopInterface)
+                isinstance(interface, OmniKeyboardTeleopInterface)
                 and self._actions is not None
             ):
                 msg += self._keyboard_control_scheme()
@@ -147,7 +147,7 @@ class CombinedTeleopInterface(DeviceBase):
 
     def add_callback(self, key: str, func: Callable):
         for interface in self.interfaces:
-            if isinstance(interface, KeyboardTeleopInterface):
+            if isinstance(interface, OmniKeyboardTeleopInterface):
                 interface.add_callback(key=key, func=func)
             if isinstance(interface, SpacemouseTeleopInterface) and key in [
                 "L",

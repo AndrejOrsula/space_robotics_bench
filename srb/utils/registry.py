@@ -18,11 +18,12 @@ def register_srb_tasks(
     default_entry_point: Type[gymnasium.Env] | None = None,
     default_task_cfg: Any | None = None,
     default_cfg_dir: str | None = SRB_HYPERPARAMS_DIR.as_posix(),
+    namespace: str = "srb",
 ):
     for id, cfg in tasks.items():
         entry_point: gymnasium.Env = cfg.get("entry_point", default_entry_point)  # type: ignore
         gymnasium.register(
-            id=f"srb/{id}",
+            id=f"{namespace}/{id}",
             entry_point=f"{entry_point.__module__}:{entry_point.__name__}",  # type: ignore
             kwargs={
                 "task_cfg": cfg.get("task_cfg", default_task_cfg),
@@ -32,5 +33,9 @@ def register_srb_tasks(
         )
 
 
-def get_srb_tasks() -> List[str]:
-    return [env_id for env_id in gymnasium.registry.keys() if env_id.startswith("srb/")]
+def get_srb_tasks(namespace: str = "srb") -> List[str]:
+    return [
+        env_id
+        for env_id in gymnasium.registry.keys()
+        if env_id.startswith(f"{namespace}/")
+    ]

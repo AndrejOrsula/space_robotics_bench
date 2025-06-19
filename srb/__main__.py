@@ -57,6 +57,30 @@ def main():
 
 
 ### Agent ###
+def run_agent(
+    agent_subcommand: Literal[
+        "zero",
+        "rand",
+        "teleop",
+        "ros",
+        "train",
+        "eval",
+        "collect",
+        "learn",
+    ],
+    **kwargs,
+):
+    # Run the implementation
+    def agent_impl(**kwargs):
+        match agent_subcommand:
+            case "learn":
+                raise NotImplementedError()
+            case _:
+                run_agent_with_env(agent_subcommand=agent_subcommand, **kwargs)
+
+    agent_impl(**kwargs)
+
+
 def run_agent_with_env(
     agent_subcommand: Literal[
         "zero",
@@ -74,6 +98,7 @@ def run_agent_with_env(
     perf_enable: bool,
     perf_output: str,
     perf_duration: float,
+    headless: bool,
     hide_ui: bool,
     forwarded_args: Sequence[str] = (),
     **kwargs,
@@ -83,7 +108,7 @@ def run_agent_with_env(
     # Preprocess kwargs
     kwargs["enable_cameras"] = video_enable or env_id.endswith("_visual")
     kwargs["experience"] = SRB_APPS_DIR.joinpath(
-        f"srb.{'headless.' if kwargs['headless'] else ''}{'rendering.' if kwargs['enable_cameras'] else ''}kit"
+        f"srb.{'headless.' if headless else ''}{'rendering.' if kwargs['enable_cameras'] else ''}kit"
     )
 
     # Launch Isaac Sim
@@ -94,7 +119,7 @@ def run_agent_with_env(
 
     from omni.physx import acquire_physx_interface
 
-    from srb.interfaces.teleop import EventKeyboardTeleopInterface
+    from srb.interfaces.teleop import EventOmniKeyboardTeleopInterface
     from srb.utils.cfg import hydra_task_config, last_logdir, new_logdir
     from srb.utils.isaacsim import hide_isaacsim_ui
 
@@ -135,6 +160,8 @@ def run_agent_with_env(
     if not any(arg.startswith("hydra.run.dir=") for arg in forwarded_args):
         sys.argv.extend([f"hydra.run.dir={logdir.as_posix()}"])
 
+    # TODO[high]: Load agent config from existing logdir if available
+
     @hydra_task_config(
         task_name=env_id,
         agent_cfg_entry_point=f"{kwargs['algo']}_cfg" if kwargs.get("algo") else None,
@@ -159,168 +186,11 @@ def run_agent_with_env(
 
         # Add wrapper for performance tests
         if perf_enable:
-            import sys
-            import time
-            from collections import deque
-
-            import torch
-            from gymnasium.core import ActType, Env, ObsType, Wrapper
-
-            class PerformanceTestWrapper(Wrapper):
-                def __init__(
-                    self,
-                    env: Env[ObsType, ActType],
-                    output: str,
-                    duration: float,
-                    min_report_interval_fraction: float = 0.1,
-                    max_buffer_size: int = 1000000,
-                ):
-                    super().__init__(env)
-                    self.__perf_output = output
-                    self.__perf_duration = duration
-                    self.__perf_min_report_interval = (
-                        duration * min_report_interval_fraction
-                    )
-
-                    _env: "AnyEnv" = env.unwrapped  # type: ignore
-                    self.__num_envs = _env.num_envs
-                    self.__agent_rate = _env.cfg.agent_rate
-
-                    self._perf_num_steps = 0
-                    self._perf_num_episodes = 0
-                    self._perf_total_time = 0.0
-                    self._perf_step_timings = deque(maxlen=max_buffer_size)
-                    self._perf_start_time = time.perf_counter()
-                    self._perf_last_report_time = self._perf_start_time
-
-                    if self.__perf_output != "STDOUT":
-                        parent_dir = os.path.dirname(self.__perf_output)
-                        if not os.path.exists(parent_dir):
-                            os.makedirs(parent_dir, exist_ok=True)
-
-                def step(self, action):
-                    # Step timing
-                    t_start = time.perf_counter()
-                    obs, reward, terminated, truncated, info = super().step(action)
-                    t_end = time.perf_counter()
-                    step_timing = t_end - t_start
-                    self._perf_step_timings.append(step_timing)
-                    self._perf_num_steps += self.__num_envs
-                    self._perf_total_time += step_timing
-
-                    # Episode end detection
-                    done: torch.Tensor = terminated | truncated  # type: ignore
-                    num_done = torch.sum(done).item()
-                    self._perf_num_episodes += num_done
-                    episode_ended = num_done > 0.5 * self.__num_envs
-
-                    if episode_ended or (
-                        t_end - self._perf_last_report_time
-                        > self.__perf_min_report_interval
-                    ):
-                        self.__perf_report(episode_end=episode_ended)
-                        self._perf_last_report_time = t_end
-
-                    # Check for duration limit
-                    if self._perf_total_time >= self.__perf_duration:
-                        self.__perf_report(final=True)
-                        print(
-                            "The performance test has finished (duration limit reached)."
-                        )
-                        env.close()
-                        launcher.app.close()
-                        sys.exit(0)
-
-                    return obs, reward, terminated, truncated, info
-
-                def __perf_report(self, episode_end: bool = False, final: bool = False):
-                    steps = self._perf_num_steps
-                    episodes = self._perf_num_episodes
-                    total_time = self._perf_total_time
-                    timings = torch.tensor(list(self._perf_step_timings))
-                    steps_per_sec = steps / total_time if total_time > 0 else 0
-                    mean_step_time = (
-                        torch.mean(timings).item() if timings.numel() > 0 else 0
-                    )
-                    median_step_time = (
-                        torch.median(timings).item() if timings.numel() > 0 else 0
-                    )
-                    min_step_time = (
-                        torch.min(timings).item() if timings.numel() > 0 else 0
-                    )
-                    max_step_time = (
-                        torch.max(timings).item() if timings.numel() > 0 else 0
-                    )
-
-                    def torch_percentiles(t, percentiles):
-                        if t.numel() == 0:
-                            return [0 for _ in percentiles]
-                        t_sorted, _ = torch.sort(t)
-                        n = t.numel()
-                        result = []
-                        for p in percentiles:
-                            k = (n - 1) * (p / 100)
-                            f = torch.floor(torch.tensor(k)).long()
-                            c = torch.ceil(torch.tensor(k)).long()
-                            if f == c:
-                                val = t_sorted[f]
-                            else:
-                                d0 = t_sorted[f] * (c.float() - k)
-                                d1 = t_sorted[c] * (k - f.float())
-                                val = d0 + d1
-                            result.append(val.item())
-                        return result
-
-                    step_time_percentiles = torch_percentiles(timings, [10, 20, 80, 90])
-                    if not hasattr(self, "_perf_episode_lengths"):
-                        self._perf_episode_lengths = []
-                    if episode_end and self._perf_num_episodes > 0:
-                        last_episode_len = (
-                            self._perf_num_steps / self._perf_num_episodes
-                        )
-                        self._perf_episode_lengths.append(last_episode_len)
-                    episode_lengths = torch.tensor(self._perf_episode_lengths)
-                    mean_episode_len = (
-                        torch.mean(episode_lengths).item()
-                        if episode_lengths.numel() > 0
-                        else 0
-                    )
-                    median_episode_len = (
-                        torch.median(episode_lengths).item()
-                        if episode_lengths.numel() > 0
-                        else 0
-                    )
-                    min_episode_len = (
-                        torch.min(episode_lengths).item()
-                        if episode_lengths.numel() > 0
-                        else 0
-                    )
-                    max_episode_len = (
-                        torch.max(episode_lengths).item()
-                        if episode_lengths.numel() > 0
-                        else 0
-                    )
-                    episode_len_percentiles = torch_percentiles(
-                        episode_lengths, [10, 20, 80, 90]
-                    )
-                    report = (
-                        f"\nPerformance Report{' (final)' if final else ''}:\n"
-                        f"    Elapsed time (s)       : {total_time:.2f}\n"
-                        f"    Total steps (#)        : {steps}\n"
-                        f"    Total episodes (#)     : {episodes}\n"
-                        f"    Steps per second (#/s) : {steps_per_sec:.2f}\n"
-                        f"    Step time (ms)         : min={min_step_time * 1000:.3f}, p10={step_time_percentiles[0] * 1000:.3f}, p20={step_time_percentiles[1] * 1000:.3f}, mean={mean_step_time * 1000:.3f}, median={median_step_time * 1000:.3f}, p80={step_time_percentiles[2] * 1000:.3f}, p90={step_time_percentiles[3] * 1000:.3f}, max={max_step_time * 1000:.3f}\n"
-                        f"    Episode length (steps) : min={min_episode_len:.1f}, p10={episode_len_percentiles[0]:.1f}, p20={episode_len_percentiles[1]:.1f}, mean={mean_episode_len:.1f}, median={median_episode_len:.1f}, p80={episode_len_percentiles[2]:.1f}, p90={episode_len_percentiles[3]:.1f}, max={max_episode_len:.1f}\n"
-                        f"    Episode length (s)     : min={self.__agent_rate * min_episode_len:.1f}, p10={self.__agent_rate * episode_len_percentiles[0]:.1f}, p20={self.__agent_rate * episode_len_percentiles[1]:.1f}, mean={self.__agent_rate * mean_episode_len:.1f}, median={self.__agent_rate * median_episode_len:.1f}, p80={self.__agent_rate * episode_len_percentiles[2]:.1f}, p90={self.__agent_rate * episode_len_percentiles[3]:.1f}, max={self.__agent_rate * max_episode_len:.1f}\n"
-                    )
-                    if self.__perf_output == "STDOUT":
-                        print(report)
-                    else:
-                        with open(self.__perf_output, "a") as f:
-                            f.write(report + "\n")
-
-            env = PerformanceTestWrapper(
-                env, output=perf_output, duration=perf_duration
+            env = __wrap_env_in_performance_test(
+                env=env,  # type: ignore
+                sim_app=launcher.app,
+                perf_output=perf_output,
+                perf_duration=perf_duration,
             )
 
         # Add keyboard callbacks
@@ -329,7 +199,7 @@ def run_agent_with_env(
             "collect",
             "train",
         ]:
-            _cb_keyboard = EventKeyboardTeleopInterface({"L": env.reset})
+            _cb_keyboard = EventOmniKeyboardTeleopInterface({"L": env.reset})
 
         # Create interfaces
         if interface:
@@ -404,7 +274,9 @@ def run_agent_with_env(
                 case "collect":
                     raise NotImplementedError()
 
-        agent_impl(env=env, sim_app=launcher.app, logdir=logdir, **kwargs)
+        agent_impl(
+            env=env, sim_app=launcher.app, logdir=logdir, headless=headless, **kwargs
+        )
 
         # Close the environment
         env.close()
@@ -978,7 +850,16 @@ def eval_agent(algo: str, **kwargs):
 
 ### Sim-to-Real ###
 def run_sim_to_real(
-    sim_to_real_subcommand: Literal["generate"],
+    sim_to_real_subcommand: Literal[
+        "generate",
+        "zero",
+        "rand",
+        "teleop",
+        "ros",
+        "train",
+        "eval",
+        "collect",
+    ],
     **kwargs,
 ):
     # Run the implementation
@@ -986,13 +867,146 @@ def run_sim_to_real(
         match sim_to_real_subcommand:
             case "generate":
                 generate_sim_to_real(**kwargs)
+            case _:
+                run_sim_to_real_with_env(
+                    sim_to_real_subcommand=sim_to_real_subcommand, **kwargs
+                )
 
     sim_to_real_impl(**kwargs)
 
 
-def generate_sim_to_real(env_id: str, forwarded_args: Sequence[str] = ()):
+def run_sim_to_real_with_env(
+    sim_to_real_subcommand: Literal[
+        "zero",
+        "rand",
+        "teleop",
+        "ros",
+        "train",
+        "eval",
+        "collect",
+    ],
+    env_id: str,
+    logdir_path: str,
+    forwarded_args: Sequence[str] = (),
+    **kwargs,
+):
+    import hydra
+
+    from srb.utils import logging
+    from srb.utils.cfg import last_logdir, new_logdir
+
+    # Get the log directory based on the workflow
+    workflow = kwargs.get("algo") or sim_to_real_subcommand
+    logdir_root = Path(logdir_path).resolve()
+    if model := kwargs.get("model"):
+        model = Path(model).resolve()
+        assert model.exists(), f"Model path does not exist: {model}"
+        logdir = model.parent
+        while not (
+            logdir.parent.name == workflow
+            and (logdir.parent.parent.name == env_id.removeprefix("srb/"))
+        ):
+            _new_parent = logdir.parent
+            if logdir == _new_parent:
+                logdir = new_logdir(env_id=env_id, workflow=workflow, root=logdir_root)
+                model_symlink_path = logdir.joinpath(model.name)
+                model_symlink_path.parent.mkdir(parents=True, exist_ok=True)
+                os.symlink(model, model_symlink_path)
+                model = model_symlink_path
+                break
+            logdir = _new_parent
+        kwargs["model"] = model
+    elif (sim_to_real_subcommand == "train" and kwargs["continue_training"]) or (
+        sim_to_real_subcommand in ("eval", "teleop") and kwargs["algo"]
+    ):
+        logdir = last_logdir(env_id=env_id, workflow=workflow, root=logdir_root)
+    else:
+        logdir = new_logdir(env_id=env_id, workflow=workflow, root=logdir_root)
+
+    # Update Hydra output directory
+    if not any(arg.startswith("hydra.run.dir=") for arg in forwarded_args):
+        sys.argv.extend([f"hydra.run.dir={logdir.as_posix()}"])
+
+    # TODO[high]: Fix hydra for sim-to-real | extract from spec
+
+    @hydra.main(
+        config_path=None,
+        # config_name=task_name.rsplit("/", 1)[1],
+        version_base=None,
+    )
+    def hydra_main(agent_cfg: Dict[str, Any] | None = None):
+        import gymnasium
+
+        from srb.interfaces.sim_to_real import RealEnv
+        from srb.interfaces.sim_to_real import tasks as _  # noqa: F401
+        from srb.utils.registry import get_srb_tasks
+
+        # Ensure the environment is registered
+        env_name = env_id.removeprefix("srb/")
+        real_env_id = f"srb_real/{env_name}"
+        if real_env_id not in get_srb_tasks("srb_real"):
+            logging.critical(
+                f"The RealEnv for {env_name} is not registered. Generating it now..."
+            )
+            _generate_sim_to_real_subprocess(
+                env_id=env_name, forwarded_args=forwarded_args
+            )
+            logging.info(
+                f"Generated the RealEnv for {env_name}. Please re-run your desired workflow."
+            )
+            exit(0)
+
+        # Create the environment and initialize it
+        env: RealEnv = gymnasium.make(id=env_id, hardware=[])  # type: ignore
+        env.reset()
+
+        # Run the implementation
+        def agent_impl(**kwargs):
+            kwargs.update(
+                {
+                    "env_id": env_id,
+                    "agent_cfg": agent_cfg,
+                    "env_cfg": None,
+                }
+            )
+
+            match sim_to_real_subcommand:
+                case "zero":
+                    zero_agent(**kwargs)
+                case "rand":
+                    random_agent(**kwargs)
+                case "teleop":
+                    teleop_agent(**kwargs)
+                case "ros":
+                    ros_agent(**kwargs)
+                case "train":
+                    train_agent(**kwargs)
+                case "eval":
+                    eval_agent(**kwargs)
+                case "collect":
+                    raise NotImplementedError()
+
+        class FakeSimulationApp:
+            def is_running(self):
+                return True
+
+        agent_impl(
+            env=env,
+            sim_app=FakeSimulationApp(),
+            logdir=logdir,
+            headless=False,
+            **kwargs,
+        )
+
+        # Close the environment
+        env.close()
+
+    hydra_main()  # type: ignore
+
+
+def generate_sim_to_real(env_id: str, forwarded_args: Sequence[str] = (), **kwargs):
     if env_id.removeprefix("srb/").upper() == "ALL":
-        generate_sim_to_real_all(forwarded_args=forwarded_args)
+        _generate_sim_to_real_subprocess(env_id="ALL", forwarded_args=forwarded_args)
         return
 
     from srb.core.app import AppLauncher
@@ -1012,20 +1026,14 @@ def generate_sim_to_real(env_id: str, forwarded_args: Sequence[str] = ()):
 
     from omni.physx import acquire_physx_interface
 
-    from srb.utils.cfg import hydra_task_config, new_logdir
+    from srb.utils.cfg import hydra_task_config
 
     # Post-launch configuration
     acquire_physx_interface().overwrite_gpu_setting(1)
 
-    # Get the log directory based on the workflow
-    logdir_root = Path(SRB_LOGS_DIR).resolve()
-    logdir = new_logdir(
-        env_id=env_id, workflow="sim_to_real_generate", root=logdir_root
-    )
-
-    # Update Hydra output directory
-    if not any(arg.startswith("hydra.run.dir=") for arg in forwarded_args):
-        sys.argv.extend([f"hydra.run.dir={logdir.as_posix()}"])
+    # Disable Hydra output
+    if not any(arg.startswith("hydra.output_subdir=") for arg in forwarded_args):
+        sys.argv.extend(["hydra.output_subdir=null"])
 
     @hydra_task_config(
         task_name=env_id,
@@ -1038,12 +1046,14 @@ def generate_sim_to_real(env_id: str, forwarded_args: Sequence[str] = ()):
         from srb.interfaces.sim_to_real.env.generator import RealEnvGenerator
 
         # Create the environment and initialize it
+        env_spec = gymnasium.spec(env_id)
         env = gymnasium.make(id=env_id, cfg=env_cfg, render_mode=None)
         env.reset()
 
         # Generate RealEnv classes
         RealEnvGenerator().generate_offline(
             env=env,  # type: ignore
+            env_spec=env_spec,
             output=Path(__mod_sim_to_real_tasks.__file__).parent.joinpath(
                 f"{env_id.removeprefix('srb/')}.py"
             ),
@@ -1058,27 +1068,35 @@ def generate_sim_to_real(env_id: str, forwarded_args: Sequence[str] = ()):
     launcher.app.close()
 
 
-def generate_sim_to_real_all(forwarded_args: Sequence[str] = ()):
+def _generate_sim_to_real_subprocess(env_id: str, forwarded_args: Sequence[str] = ()):
     import subprocess
 
     from srb.utils import logging
     from srb.utils.isaacsim import get_isaacsim_python
 
     # Get all registered environments
-    env_list = read_offline_srb_env_cache()
-    if not env_list:
-        logging.warning(
-            "No environments found in cache. Please run an environment first to populate the cache."
-        )
-        return
+    if env_id == "ALL":
+        env_list = read_offline_srb_env_cache()
+        if not env_list:
+            logging.warning(
+                "No environments found in cache. Please run an environment first to populate the cache."
+            )
+            return
 
-    # Filter out templates
-    env_list = [env for env in env_list if not env.removeprefix("srb/").startswith("_")]
-    logging.info(f"Generating sim-to-real setup for {len(env_list)} environments...")
+        # Filter out templates
+        env_list = [
+            env for env in env_list if not env.removeprefix("srb/").startswith("_")
+        ]
+        logging.info(
+            f"Generating sim-to-real setup for {len(env_list)} environments..."
+        )
+        env_list.sort()
+    else:
+        env_list = (env_id,)
 
     successful_envs = []
     failed_envs = []
-    for i, env in enumerate(sorted(env_list), 1):
+    for i, env in enumerate(env_list, 1):
         logging.info(f"[{i}/{len(env_list)}] Processing environment: {env}")
         cmd = [
             get_isaacsim_python(),
@@ -1402,7 +1420,9 @@ def launch_gui(forwarded_args: Sequence[str] = ()):
 
 
 ### REPL ###
-def enter_repl(hide_ui: bool, forwarded_args: Sequence[str] = (), **kwargs):
+def enter_repl(
+    headless: bool, hide_ui: bool, forwarded_args: Sequence[str] = (), **kwargs
+):
     from srb.core.app import AppLauncher
 
     if not find_spec("ptpython"):
@@ -1413,7 +1433,7 @@ def enter_repl(hide_ui: bool, forwarded_args: Sequence[str] = (), **kwargs):
     # Preprocess kwargs
     kwargs["enable_cameras"] = True
     kwargs["experience"] = SRB_APPS_DIR.joinpath(
-        f"srb.{'headless.' if kwargs['headless'] else ''}rendering.kit"
+        f"srb.{'headless.' if headless else ''}rendering.kit"
     )
 
     # Launch Isaac Sim
@@ -1521,6 +1541,154 @@ def run_tests(language: Sequence[str], forwarded_args: Sequence[str] = ()):
                 f"Running {str(lang)} tests failed due to the exception above"
             )
             exit(e.returncode)
+
+
+### Misc ###
+def __wrap_env_in_performance_test(
+    env: "AnyEnv", sim_app: "SimulationApp", perf_output: str, perf_duration: float
+):
+    import sys
+    import time
+    from collections import deque
+
+    import torch
+    from gymnasium.core import ActType, Env, ObsType, Wrapper
+
+    class PerformanceTestWrapper(Wrapper):
+        def __init__(
+            self,
+            env: Env[ObsType, ActType],
+            output: str,
+            duration: float,
+            min_report_interval_fraction: float = 0.1,
+            max_buffer_size: int = 1000000,
+        ):
+            super().__init__(env)
+            self.__perf_output = output
+            self.__perf_duration = duration
+            self.__perf_min_report_interval = duration * min_report_interval_fraction
+
+            _env: "AnyEnv" = env.unwrapped  # type: ignore
+            self.__num_envs = _env.num_envs
+            self.__agent_rate = _env.cfg.agent_rate
+
+            self._perf_num_steps = 0
+            self._perf_num_episodes = 0
+            self._perf_total_time = 0.0
+            self._perf_step_timings = deque(maxlen=max_buffer_size)
+            self._perf_start_time = time.perf_counter()
+            self._perf_last_report_time = self._perf_start_time
+
+            if self.__perf_output != "STDOUT":
+                parent_dir = os.path.dirname(self.__perf_output)
+                if not os.path.exists(parent_dir):
+                    os.makedirs(parent_dir, exist_ok=True)
+
+        def step(self, action):
+            # Step timing
+            t_start = time.perf_counter()
+            obs, reward, terminated, truncated, info = super().step(action)
+            t_end = time.perf_counter()
+            step_timing = t_end - t_start
+            self._perf_step_timings.append(step_timing)
+            self._perf_num_steps += self.__num_envs
+            self._perf_total_time += step_timing
+
+            # Episode end detection
+            done: torch.Tensor = terminated | truncated  # type: ignore
+            num_done = torch.sum(done).item()
+            self._perf_num_episodes += num_done
+            episode_ended = num_done > 0.5 * self.__num_envs
+
+            if episode_ended or (
+                t_end - self._perf_last_report_time > self.__perf_min_report_interval
+            ):
+                self.__perf_report(episode_end=episode_ended)
+                self._perf_last_report_time = t_end
+
+            # Check for duration limit
+            if self._perf_total_time >= self.__perf_duration:
+                self.__perf_report(final=True)
+                print("The performance test has finished (duration limit reached).")
+                env.close()
+                sim_app.close()
+                sys.exit(0)
+
+            return obs, reward, terminated, truncated, info
+
+        def __perf_report(self, episode_end: bool = False, final: bool = False):
+            steps = self._perf_num_steps
+            episodes = self._perf_num_episodes
+            total_time = self._perf_total_time
+            timings = torch.tensor(list(self._perf_step_timings))
+            steps_per_sec = steps / total_time if total_time > 0 else 0
+            mean_step_time = torch.mean(timings).item() if timings.numel() > 0 else 0
+            median_step_time = (
+                torch.median(timings).item() if timings.numel() > 0 else 0
+            )
+            min_step_time = torch.min(timings).item() if timings.numel() > 0 else 0
+            max_step_time = torch.max(timings).item() if timings.numel() > 0 else 0
+
+            def torch_percentiles(t, percentiles):
+                if t.numel() == 0:
+                    return [0 for _ in percentiles]
+                t_sorted, _ = torch.sort(t)
+                n = t.numel()
+                result = []
+                for p in percentiles:
+                    k = (n - 1) * (p / 100)
+                    f = torch.floor(torch.tensor(k)).long()
+                    c = torch.ceil(torch.tensor(k)).long()
+                    if f == c:
+                        val = t_sorted[f]
+                    else:
+                        d0 = t_sorted[f] * (c.float() - k)
+                        d1 = t_sorted[c] * (k - f.float())
+                        val = d0 + d1
+                    result.append(val.item())
+                return result
+
+            step_time_percentiles = torch_percentiles(timings, [10, 20, 80, 90])
+            if not hasattr(self, "_perf_episode_lengths"):
+                self._perf_episode_lengths = []
+            if episode_end and self._perf_num_episodes > 0:
+                last_episode_len = self._perf_num_steps / self._perf_num_episodes
+                self._perf_episode_lengths.append(last_episode_len)
+            episode_lengths = torch.tensor(self._perf_episode_lengths)
+            mean_episode_len = (
+                torch.mean(episode_lengths).item() if episode_lengths.numel() > 0 else 0
+            )
+            median_episode_len = (
+                torch.median(episode_lengths).item()
+                if episode_lengths.numel() > 0
+                else 0
+            )
+            min_episode_len = (
+                torch.min(episode_lengths).item() if episode_lengths.numel() > 0 else 0
+            )
+            max_episode_len = (
+                torch.max(episode_lengths).item() if episode_lengths.numel() > 0 else 0
+            )
+            episode_len_percentiles = torch_percentiles(
+                episode_lengths, [10, 20, 80, 90]
+            )
+            report = (
+                f"\nPerformance Report{' (final)' if final else ''}:\n"
+                f"    Elapsed time (s)       : {total_time:.2f}\n"
+                f"    Total steps (#)        : {steps}\n"
+                f"    Total episodes (#)     : {episodes}\n"
+                f"    Steps per second (#/s) : {steps_per_sec:.2f}\n"
+                f"    Step time (ms)         : min={min_step_time * 1000:.3f}, p10={step_time_percentiles[0] * 1000:.3f}, p20={step_time_percentiles[1] * 1000:.3f}, mean={mean_step_time * 1000:.3f}, median={median_step_time * 1000:.3f}, p80={step_time_percentiles[2] * 1000:.3f}, p90={step_time_percentiles[3] * 1000:.3f}, max={max_step_time * 1000:.3f}\n"
+                f"    Episode length (steps) : min={min_episode_len:.1f}, p10={episode_len_percentiles[0]:.1f}, p20={episode_len_percentiles[1]:.1f}, mean={mean_episode_len:.1f}, median={median_episode_len:.1f}, p80={episode_len_percentiles[2]:.1f}, p90={episode_len_percentiles[3]:.1f}, max={max_episode_len:.1f}\n"
+                f"    Episode length (s)     : min={self.__agent_rate * min_episode_len:.1f}, p10={self.__agent_rate * episode_len_percentiles[0]:.1f}, p20={self.__agent_rate * episode_len_percentiles[1]:.1f}, mean={self.__agent_rate * mean_episode_len:.1f}, median={self.__agent_rate * median_episode_len:.1f}, p80={self.__agent_rate * episode_len_percentiles[2]:.1f}, p90={self.__agent_rate * episode_len_percentiles[3]:.1f}, max={self.__agent_rate * max_episode_len:.1f}\n"
+            )
+            if self.__perf_output == "STDOUT":
+                print(report)
+            else:
+                with open(self.__perf_output, "a") as f:
+                    f.write(report + "\n")
+
+    return PerformanceTestWrapper(env, output=perf_output, duration=perf_duration)
 
 
 ### CLI ###

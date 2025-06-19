@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
+import gymnasium
 from isaacsim.simulation_app import SimulationApp
 from skrl.utils.runner.torch import Runner
 
@@ -16,10 +17,10 @@ FRAMEWORK_NAME = "skrl"
 
 def run(
     workflow: Literal["train", "eval"],
-    env: "AnyEnv",
+    env: "AnyEnv | gymnasium.Env",
     sim_app: SimulationApp,
     env_id: str,
-    env_cfg: "AnyEnvCfg",
+    env_cfg: "AnyEnvCfg | None",
     agent_cfg: dict,
     logdir: Path,
     model: Path,
@@ -43,7 +44,7 @@ def run(
         logdir = stamp_dir(logdir.joinpath("eval"))
 
     # Update agent config
-    agent_cfg["seed"] = env_cfg.seed
+    agent_cfg["seed"] = env_cfg.seed if env_cfg else 0
     agent_cfg["agent"]["experiment"]["directory"] = logdir.parent
     agent_cfg["agent"]["experiment"]["experiment_name"] = logdir
 

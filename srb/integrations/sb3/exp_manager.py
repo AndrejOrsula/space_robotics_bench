@@ -3,6 +3,7 @@ from collections import OrderedDict
 from pprint import pprint
 from typing import TYPE_CHECKING, Any, Dict, Tuple
 
+import gymnasium
 import yaml
 from gymnasium import spaces
 from rl_zoo3.exp_manager import ExperimentManager as __ExperimentManager
@@ -22,7 +23,9 @@ if TYPE_CHECKING:
 
 
 class ExperimentManager(__ExperimentManager):
-    def __init__(self, *args, env: "AnyEnv", tensorboard_log: str = "", **kwargs):
+    def __init__(
+        self, *args, env: "AnyEnv | gymnasium.Env", tensorboard_log: str = "", **kwargs
+    ):
         super().__init__(*args, tensorboard_log=tensorboard_log, **kwargs)
         self._env = env
 

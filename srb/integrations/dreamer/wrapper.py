@@ -25,8 +25,8 @@ class EmbodiedEnvWrapper(embodied.Env):
         # Extract spaces
         self._obs_space = self.unwrapped.single_observation_space  # type: ignore
         self._action_space = self.unwrapped.single_action_space  # type: ignore
-        self._is_obs_dict = hasattr(self._obs_space, "spaces")
-        self._is_act_dict = hasattr(self._action_space, "spaces")
+        self._is_obs_dict = isinstance(self._obs_space, gymnasium.spaces.Dict)
+        self._is_act_dict = isinstance(self._action_space, gymnasium.spaces.Dict)
 
         # Extract useful information
         self._num_envs = self.unwrapped.num_envs

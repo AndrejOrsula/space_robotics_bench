@@ -11,15 +11,15 @@ from srb.interfaces.sim_to_real.core.hardware import (
 from srb.utils import logging
 
 
-class CmdVelInterfaceCfg(HardwareInterfaceCfg):
+class RosCmdVelInterfaceCfg(HardwareInterfaceCfg):
     topic: str = "cmd_vel"
 
 
-class CmdVelInterface(HardwareInterface):
-    cfg: CmdVelInterfaceCfg
+class RosCmdVelInterface(HardwareInterface):
+    cfg: RosCmdVelInterfaceCfg
     CUSTOM_ALIASES: Sequence[Sequence[str]] = ()
 
-    def __init__(self, cfg: CmdVelInterfaceCfg = CmdVelInterfaceCfg()):
+    def __init__(self, cfg: RosCmdVelInterfaceCfg = RosCmdVelInterfaceCfg()):
         super().__init__(cfg)
         from geometry_msgs.msg import Twist
 

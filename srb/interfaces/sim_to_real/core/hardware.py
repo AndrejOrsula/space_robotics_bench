@@ -34,6 +34,7 @@ class HardwareInterface:
 
     def __init__(self, cfg: HardwareInterfaceCfg = HardwareInterfaceCfg()):
         self.cfg = cfg
+        self._is_paused: bool = False
 
     def start(
         self,
@@ -55,6 +56,14 @@ class HardwareInterface:
     def reset(self):
         logging.debug(f"[{self.name}] Reset")
 
+    def pause(self):
+        logging.debug(f"[{self.name}] Pause")
+        self._is_paused = True
+
+    def resume(self):
+        logging.debug(f"[{self.name}] Resume")
+        self._is_paused = False
+
     @property
     def supported_action_spaces(self) -> gymnasium.spaces.Dict:
         return gymnasium.spaces.Dict()
@@ -75,6 +84,14 @@ class HardwareInterface:
         raise NotImplementedError()
 
     @property
+    def pause_signal(self) -> bool:
+        raise NotImplementedError()
+
+    @property
+    def resume_signal(self) -> bool:
+        raise NotImplementedError()
+
+    @property
     def info(self) -> Dict[str, Any]:
         return {}
 
@@ -91,6 +108,10 @@ class HardwareInterface:
             return convert_to_snake_case(self.cfg.name)
         else:
             return self.class_name()
+
+    @property
+    def is_paused(self) -> bool:
+        return self._is_paused
 
     @property
     def ros_node(self) -> "RosNode":
@@ -146,6 +167,22 @@ class HardwareInterface:
     def _has_io_termination(self) -> bool:
         try:
             _ = self.termination
+        except NotImplementedError:
+            return False
+        return True
+
+    @cached_property
+    def _has_io_pause(self) -> bool:
+        try:
+            _ = self.pause_signal
+        except NotImplementedError:
+            return False
+        return True
+
+    @cached_property
+    def _has_io_resume(self) -> bool:
+        try:
+            _ = self.resume_signal
         except NotImplementedError:
             return False
         return True
@@ -215,6 +252,8 @@ class HardwareInterface:
         )
         out += "  Reward: " + ("Yes" if self._has_io_reward else "No") + "\n"
         out += "  Termination: " + ("Yes" if self._has_io_termination else "No") + "\n"
+        out += "  Pause Signal: " + ("Yes" if self._has_io_pause else "No") + "\n"
+        out += "  Resume Signal: " + ("Yes" if self._has_io_resume else "No") + "\n"
 
         return out
 

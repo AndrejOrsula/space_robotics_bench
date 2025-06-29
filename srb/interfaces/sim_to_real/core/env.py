@@ -40,6 +40,7 @@ class RealEnv(gymnasium.Env):
     HARDWARE: ClassVar[Sequence[str]]
 
     _MIN_SLEEP_DURATION: ClassVar[float] = 1.0 / 1000.0
+    _PAUSE_SLEEP_DURATION: ClassVar[float] = 1.0 / 100.0
     _FREQ_EST_EMA_ALPHA: ClassVar[float] = 0.9
 
     def __init__(
@@ -132,6 +133,8 @@ class RealEnv(gymnasium.Env):
         self._src_observation: Sequence[HardwareInterface] = []
         self._src_reward: Sequence[HardwareInterface] = []
         self._src_termination: Sequence[HardwareInterface] = []
+        self._src_pause: Sequence[HardwareInterface] = []
+        self._src_resume: Sequence[HardwareInterface] = []
         for hw in self._hardware:
             if hw._has_io_observation:
                 self._src_observation.append(hw)
@@ -139,14 +142,22 @@ class RealEnv(gymnasium.Env):
                 self._src_reward.append(hw)
             if hw._has_io_termination:
                 self._src_termination.append(hw)
+            if hw._has_io_pause:
+                self._src_pause.append(hw)
+            if hw._has_io_resume:
+                self._src_resume.append(hw)
         self._src_observation = tuple(self._src_observation)
         self._src_reward = tuple(self._src_reward)
         self._src_termination = tuple(self._src_termination)
+        self._src_pause = tuple(self._src_pause)
+        self._src_resume = tuple(self._src_resume)
         logging.info(
             f"Action interfaces: {', '.join(hw.name for hw in self._sink_action)}\n"
             f"Observation interfaces: {', '.join(hw.name for hw in self._src_observation)}\n"
             f"Reward interfaces: {', '.join(hw.name for hw in self._src_reward)}\n"
-            f"Termination interfaces: {', '.join(hw.name for hw in self._src_termination)}"
+            f"Termination interfaces: {', '.join(hw.name for hw in self._src_termination)}\n"
+            f"Pause interfaces: {', '.join(hw.name for hw in self._src_pause)}\n"
+            f"Resume interfaces: {', '.join(hw.name for hw in self._src_resume)}"
         )
 
         # Map each observation to a single hardware interface
@@ -164,6 +175,7 @@ class RealEnv(gymnasium.Env):
         }
 
         # Misc
+        self._is_running: bool = True
         self._extract_duration_ema: float = 0.0
 
         # Spin up ROS executor
@@ -180,9 +192,36 @@ class RealEnv(gymnasium.Env):
         self,
         action: numpy.ndarray | torch.Tensor | Dict[str, numpy.ndarray | torch.Tensor],
     ) -> Tuple[Dict[str, numpy.ndarray], SupportsFloat, bool, bool, Dict[str, Any]]:
-        pre_action_time: float = time.time()
+        # Handle pause and resume signals
+        if self._is_running:
+            for hw in self._src_pause:
+                if hw.pause_signal:
+                    logging.info(f"Pause signal received from {hw.name}")
+                    for hw in self._hardware:
+                        hw.pause()
+                    self._is_running = False
+                    for hw in self._src_resume:
+                        _discard = hw.resume_signal
+                    break
+        if not self._is_running:
+            while True:
+                time.sleep(self._PAUSE_SLEEP_DURATION)
+                for hw in self._src_resume:
+                    hw.sync()
+                    if hw.resume_signal:
+                        logging.info(f"Resume signal received from {hw.name}")
+                        for hw in self._hardware:
+                            hw.resume()
+                        self._is_running = True
+                        for hw in self._src_pause:
+                            _discard = hw.pause_signal
+                        break
+                else:
+                    continue
+                break
 
         # Structure the action
+        pre_action_time: float = time.time()
         if isinstance(action, Mapping):
             if any(isinstance(v, torch.Tensor) for v in action.values()):
                 action = {

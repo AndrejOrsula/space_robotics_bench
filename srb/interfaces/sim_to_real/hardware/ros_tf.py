@@ -28,7 +28,7 @@ class RotationRepresentation(Enum):
         )
 
 
-class TfInterfaceCfg(HardwareInterfaceCfg):
+class RosTfInterfaceCfg(HardwareInterfaceCfg):
     timeout_duration: float = 0.2
     discovery_interval: float = 1.0
     rotation_repr: Sequence[RotationRepresentation] = (RotationRepresentation.ROT_6D,)
@@ -37,10 +37,10 @@ class TfInterfaceCfg(HardwareInterfaceCfg):
     blocklist: Sequence[str] = ("world", "map")
 
 
-class TfInterface(HardwareInterface):
-    cfg: TfInterfaceCfg
+class RosTfInterface(HardwareInterface):
+    cfg: RosTfInterfaceCfg
 
-    def __init__(self, cfg: TfInterfaceCfg = TfInterfaceCfg()):
+    def __init__(self, cfg: RosTfInterfaceCfg = RosTfInterfaceCfg()):
         super().__init__(cfg)
 
         self.last_discovery_time: float = 0.0

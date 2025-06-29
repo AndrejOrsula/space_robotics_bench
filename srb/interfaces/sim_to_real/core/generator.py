@@ -153,7 +153,7 @@ class Env(RealEnv):
     SIM_ROBOT: ClassVar[str] = {repr(env_info.robot)}
     HARDWARE: ClassVar[Sequence[str]] = ({
             ", ".join(f'"{hw}"' for hw in sorted(set(hardware)))
-        },)
+        }{"," if hardware else ""})
 
 gymnasium.register(
     id="srb_real/{env_spec.id.rsplit("/", 1)[-1]}",

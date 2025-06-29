@@ -6,6 +6,7 @@ from srb.utils.isaacsim import is_isaacsim_initialized
 from srb.utils.path import (
     SRB_CACHE_PATH,
     SRB_ENV_CACHE_PATH,
+    SRB_HARDWARE_INTERFACE_CACHE_PATH,
     SRB_OBJECT_CACHE_PATH,
     SRB_ROBOT_CACHE_PATH,
     SRB_SCENERY_CACHE_PATH,
@@ -30,6 +31,7 @@ def update_offline_srb_cache():
     update_offline_srb_robot_cache()
     update_offline_srb_scenery_cache()
     update_offline_srb_object_cache()
+    update_offline_srb_hardware_interface_cache()
 
 
 def update_offline_srb_env_cache():
@@ -197,6 +199,34 @@ def update_offline_srb_object_cache():
     logging.debug(f"Updated the cache of registered objects to {SRB_OBJECT_CACHE_PATH}")
 
 
+def update_offline_srb_hardware_interface_cache():
+    from srb.interfaces.sim_to_real import hardware as _  # noqa: F401
+    from srb.interfaces.sim_to_real.core.hardware import HardwareInterfaceRegistry
+    from srb.utils import logging
+
+    hardware_interfaces = sorted(
+        hardware_interface.class_name()
+        for hardware_interface in HardwareInterfaceRegistry.registry
+    )
+
+    if not hardware_interfaces:
+        logging.warning(
+            "Cannot update the cache of registered hardware interfaces because no hardware interfaces are registered"
+        )
+        return
+
+    current_cache = read_offline_srb_hardware_interface_cache()
+    if hardware_interfaces == current_cache:
+        logging.trace("The cache of registered hardware interfaces is up-to-date")
+        return
+
+    with SRB_HARDWARE_INTERFACE_CACHE_PATH.open("wb") as f:
+        f.write(json.dumps(hardware_interfaces))
+    logging.debug(
+        f"Updated the cache of registered hardware interfaces to {SRB_HARDWARE_INTERFACE_CACHE_PATH}"
+    )
+
+
 def read_offline_srb_env_cache() -> Sequence[str] | None:
     if not SRB_ENV_CACHE_PATH.exists():
         return None
@@ -355,3 +385,19 @@ def read_offline_srb_object_cache() -> Dict["ObjectType", Sequence[str]] | None:
         return None
 
     return converted_cache
+
+
+def read_offline_srb_hardware_interface_cache() -> Sequence[str] | None:
+    if not SRB_HARDWARE_INTERFACE_CACHE_PATH.exists():
+        return None
+    try:
+        with SRB_HARDWARE_INTERFACE_CACHE_PATH.open("rb") as f:
+            data = json.loads(f.read())
+        if isinstance(data, list) and all(isinstance(item, str) for item in data):
+            return data
+        else:
+            SRB_HARDWARE_INTERFACE_CACHE_PATH.unlink()
+            return None
+    except Exception:
+        SRB_HARDWARE_INTERFACE_CACHE_PATH.unlink()
+        return None

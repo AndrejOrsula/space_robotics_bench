@@ -12,7 +12,11 @@ from typing import TYPE_CHECKING, Any, Dict, Literal, Mapping, Sequence, Tuple
 from typing_extensions import Self
 
 from srb.interfaces import InterfaceType, TeleopDeviceType
-from srb.utils.cache import read_offline_srb_env_cache, update_offline_srb_cache
+from srb.utils.cache import (
+    read_offline_srb_env_cache,
+    read_offline_srb_hardware_interface_cache,
+    update_offline_srb_cache,
+)
 from srb.utils.path import SRB_APPS_DIR, SRB_DIR, SRB_LOGS_DIR
 
 if TYPE_CHECKING:
@@ -24,7 +28,10 @@ if TYPE_CHECKING:
 
 def main():
     def impl(
-        subcommand: Literal["agent", "ls", "gui", "repl", "docs", "test"], **kwargs
+        subcommand: Literal[
+            "agent", "real_agent", "list", "ls", "gui", "repl", "python", "docs", "test"
+        ],
+        **kwargs,
     ):
         if not find_spec("omni"):
             raise ImportError(
@@ -33,15 +40,14 @@ def main():
 
         match subcommand:
             case "agent":
-                if kwargs["agent_subcommand"] == "learn":
-                    raise NotImplementedError()
-                else:
-                    run_agent_with_env(**kwargs)
-            case "ls":
+                run_agent(**kwargs)
+            case "real_agent":
+                run_real_agent(**kwargs)
+            case "ls" | "list":
                 list_registered(**kwargs)
             case "gui":
                 launch_gui(**kwargs)
-            case "repl":
+            case "repl" | "python":
                 enter_repl(**kwargs)
             case "docs":
                 serve_docs(**kwargs)
@@ -52,6 +58,30 @@ def main():
 
 
 ### Agent ###
+def run_agent(
+    agent_subcommand: Literal[
+        "zero",
+        "rand",
+        "teleop",
+        "ros",
+        "train",
+        "eval",
+        "collect",
+        "learn",
+    ],
+    **kwargs,
+):
+    # Run the implementation
+    def agent_impl(**kwargs):
+        match agent_subcommand:
+            case "learn":
+                raise NotImplementedError()
+            case _:
+                run_agent_with_env(agent_subcommand=agent_subcommand, **kwargs)
+
+    agent_impl(**kwargs)
+
+
 def run_agent_with_env(
     agent_subcommand: Literal[
         "zero",
@@ -69,6 +99,7 @@ def run_agent_with_env(
     perf_enable: bool,
     perf_output: str,
     perf_duration: float,
+    headless: bool,
     hide_ui: bool,
     forwarded_args: Sequence[str] = (),
     **kwargs,
@@ -78,19 +109,20 @@ def run_agent_with_env(
     # Preprocess kwargs
     kwargs["enable_cameras"] = video_enable or env_id.endswith("_visual")
     kwargs["experience"] = SRB_APPS_DIR.joinpath(
-        f"srb.{'headless.' if kwargs['headless'] else ''}{'rendering.' if video_enable or kwargs['enable_cameras'] else ''}kit"
+        f"srb.{'headless.' if headless else ''}{'rendering.' if kwargs['enable_cameras'] else ''}kit"
     )
 
     # Launch Isaac Sim
-    launcher = AppLauncher(launcher_args=kwargs)
+    launcher = AppLauncher(headless=headless, **kwargs)
 
     # Update the offline registry cache
     update_offline_srb_cache()
 
     from omni.physx import acquire_physx_interface
 
-    from srb.interfaces.teleop import EventKeyboardTeleopInterface
-    from srb.utils.cfg import hydra_task_config, last_logdir, new_logdir
+    from srb.interfaces.teleop import EventOmniKeyboardTeleopInterface
+    from srb.utils.cfg import last_logdir, new_logdir
+    from srb.utils.hydra.sim import hydra_task_config
     from srb.utils.isaacsim import hide_isaacsim_ui
 
     # Post-launch configuration
@@ -107,7 +139,7 @@ def run_agent_with_env(
         logdir = model.parent
         while not (
             logdir.parent.name == workflow
-            and (logdir.parent.parent.name == env_id.removeprefix("srb/"))
+            and (logdir.parent.parent.name == env_id.rsplit("/", 1)[-1])
         ):
             _new_parent = logdir.parent
             if logdir == _new_parent:
@@ -129,10 +161,14 @@ def run_agent_with_env(
     # Update Hydra output directory
     if not any(arg.startswith("hydra.run.dir=") for arg in forwarded_args):
         sys.argv.extend([f"hydra.run.dir={logdir.as_posix()}"])
+    maybe_config_path = Path(logdir).joinpath(".hydra", "config.yaml").resolve()
 
     @hydra_task_config(
         task_name=env_id,
         agent_cfg_entry_point=f"{kwargs['algo']}_cfg" if kwargs.get("algo") else None,
+        config_path=maybe_config_path.as_posix()
+        if maybe_config_path.exists()
+        else None,
     )
     def hydra_main(env_cfg: Dict[str, Any], agent_cfg: Dict[str, Any] | None = None):
         import gymnasium
@@ -148,183 +184,26 @@ def run_agent_with_env(
             env = gymnasium.wrappers.RecordVideo(
                 env,
                 video_folder=logdir.joinpath("videos").as_posix(),
-                name_prefix=env_id.removeprefix("srb/"),
+                name_prefix=env_id.rsplit("/", 1)[-1],
                 disable_logger=True,
             )
 
         # Add wrapper for performance tests
         if perf_enable:
-            import sys
-            import time
-            from collections import deque
-
-            import torch
-            from gymnasium.core import ActType, Env, ObsType, Wrapper
-
-            class PerformanceTestWrapper(Wrapper):
-                def __init__(
-                    self,
-                    env: Env[ObsType, ActType],
-                    output: str,
-                    duration: float,
-                    min_report_interval_fraction: float = 0.1,
-                    max_buffer_size: int = 1000000,
-                ):
-                    super().__init__(env)
-                    self.__perf_output = output
-                    self.__perf_duration = duration
-                    self.__perf_min_report_interval = (
-                        duration * min_report_interval_fraction
-                    )
-
-                    _env: "AnyEnv" = env.unwrapped  # type: ignore
-                    self.__num_envs = _env.num_envs
-                    self.__agent_rate = _env.cfg.agent_rate
-
-                    self._perf_num_steps = 0
-                    self._perf_num_episodes = 0
-                    self._perf_total_time = 0.0
-                    self._perf_step_timings = deque(maxlen=max_buffer_size)
-                    self._perf_start_time = time.perf_counter()
-                    self._perf_last_report_time = self._perf_start_time
-
-                    if self.__perf_output != "STDOUT":
-                        parent_dir = os.path.dirname(self.__perf_output)
-                        if not os.path.exists(parent_dir):
-                            os.makedirs(parent_dir, exist_ok=True)
-
-                def step(self, action):
-                    # Step timing
-                    t_start = time.perf_counter()
-                    obs, reward, terminated, truncated, info = super().step(action)
-                    t_end = time.perf_counter()
-                    step_timing = t_end - t_start
-                    self._perf_step_timings.append(step_timing)
-                    self._perf_num_steps += self.__num_envs
-                    self._perf_total_time += step_timing
-
-                    # Episode end detection
-                    done: torch.Tensor = terminated | truncated  # type: ignore
-                    num_done = torch.sum(done).item()
-                    self._perf_num_episodes += num_done
-                    episode_ended = num_done > 0.5 * self.__num_envs
-
-                    if episode_ended or (
-                        t_end - self._perf_last_report_time
-                        > self.__perf_min_report_interval
-                    ):
-                        self.__perf_report(episode_end=episode_ended)
-                        self._perf_last_report_time = t_end
-
-                    # Check for duration limit
-                    if self._perf_total_time >= self.__perf_duration:
-                        self.__perf_report(final=True)
-                        print(
-                            "The performance test has finished (duration limit reached)."
-                        )
-                        env.close()
-                        launcher.app.close()
-                        sys.exit(0)
-
-                    return obs, reward, terminated, truncated, info
-
-                def __perf_report(self, episode_end: bool = False, final: bool = False):
-                    steps = self._perf_num_steps
-                    episodes = self._perf_num_episodes
-                    total_time = self._perf_total_time
-                    timings = torch.tensor(list(self._perf_step_timings))
-                    steps_per_sec = steps / total_time if total_time > 0 else 0
-                    mean_step_time = (
-                        torch.mean(timings).item() if timings.numel() > 0 else 0
-                    )
-                    median_step_time = (
-                        torch.median(timings).item() if timings.numel() > 0 else 0
-                    )
-                    min_step_time = (
-                        torch.min(timings).item() if timings.numel() > 0 else 0
-                    )
-                    max_step_time = (
-                        torch.max(timings).item() if timings.numel() > 0 else 0
-                    )
-
-                    def torch_percentiles(t, percentiles):
-                        if t.numel() == 0:
-                            return [0 for _ in percentiles]
-                        t_sorted, _ = torch.sort(t)
-                        n = t.numel()
-                        result = []
-                        for p in percentiles:
-                            k = (n - 1) * (p / 100)
-                            f = torch.floor(torch.tensor(k)).long()
-                            c = torch.ceil(torch.tensor(k)).long()
-                            if f == c:
-                                val = t_sorted[f]
-                            else:
-                                d0 = t_sorted[f] * (c.float() - k)
-                                d1 = t_sorted[c] * (k - f.float())
-                                val = d0 + d1
-                            result.append(val.item())
-                        return result
-
-                    step_time_percentiles = torch_percentiles(timings, [10, 20, 80, 90])
-                    if not hasattr(self, "_perf_episode_lengths"):
-                        self._perf_episode_lengths = []
-                    if episode_end and self._perf_num_episodes > 0:
-                        last_episode_len = (
-                            self._perf_num_steps / self._perf_num_episodes
-                        )
-                        self._perf_episode_lengths.append(last_episode_len)
-                    episode_lengths = torch.tensor(self._perf_episode_lengths)
-                    mean_episode_len = (
-                        torch.mean(episode_lengths).item()
-                        if episode_lengths.numel() > 0
-                        else 0
-                    )
-                    median_episode_len = (
-                        torch.median(episode_lengths).item()
-                        if episode_lengths.numel() > 0
-                        else 0
-                    )
-                    min_episode_len = (
-                        torch.min(episode_lengths).item()
-                        if episode_lengths.numel() > 0
-                        else 0
-                    )
-                    max_episode_len = (
-                        torch.max(episode_lengths).item()
-                        if episode_lengths.numel() > 0
-                        else 0
-                    )
-                    episode_len_percentiles = torch_percentiles(
-                        episode_lengths, [10, 20, 80, 90]
-                    )
-                    report = (
-                        f"\nPerformance Report{' (final)' if final else ''}:\n"
-                        f"    Elapsed time (s)       : {total_time:.2f}\n"
-                        f"    Total steps (#)        : {steps}\n"
-                        f"    Total episodes (#)     : {episodes}\n"
-                        f"    Steps per second (#/s) : {steps_per_sec:.2f}\n"
-                        f"    Step time (ms)         : min={min_step_time * 1000:.3f}, p10={step_time_percentiles[0] * 1000:.3f}, p20={step_time_percentiles[1] * 1000:.3f}, mean={mean_step_time * 1000:.3f}, median={median_step_time * 1000:.3f}, p80={step_time_percentiles[2] * 1000:.3f}, p90={step_time_percentiles[3] * 1000:.3f}, max={max_step_time * 1000:.3f}\n"
-                        f"    Episode length (steps) : min={min_episode_len:.1f}, p10={episode_len_percentiles[0]:.1f}, p20={episode_len_percentiles[1]:.1f}, mean={mean_episode_len:.1f}, median={median_episode_len:.1f}, p80={episode_len_percentiles[2]:.1f}, p90={episode_len_percentiles[3]:.1f}, max={max_episode_len:.1f}\n"
-                        f"    Episode length (s)     : min={self.__agent_rate * min_episode_len:.1f}, p10={self.__agent_rate * episode_len_percentiles[0]:.1f}, p20={self.__agent_rate * episode_len_percentiles[1]:.1f}, mean={self.__agent_rate * mean_episode_len:.1f}, median={self.__agent_rate * median_episode_len:.1f}, p80={self.__agent_rate * episode_len_percentiles[2]:.1f}, p90={self.__agent_rate * episode_len_percentiles[3]:.1f}, max={self.__agent_rate * max_episode_len:.1f}\n"
-                    )
-                    if self.__perf_output == "STDOUT":
-                        print(report)
-                    else:
-                        with open(self.__perf_output, "a") as f:
-                            f.write(report + "\n")
-
-            env = PerformanceTestWrapper(
-                env, output=perf_output, duration=perf_duration
+            env = __wrap_env_in_performance_test(
+                env=env,  # type: ignore
+                sim_app=launcher.app,
+                perf_output=perf_output,
+                perf_duration=perf_duration,
             )
 
         # Add keyboard callbacks
-        if not kwargs["headless"] and agent_subcommand not in [
+        if not headless and agent_subcommand not in [
             "teleop",
             "collect",
             "train",
         ]:
-            _cb_keyboard = EventKeyboardTeleopInterface({"L": env.reset})
+            _cb_keyboard = EventOmniKeyboardTeleopInterface({"L": env.reset})
 
         # Create interfaces
         if interface:
@@ -389,7 +268,7 @@ def run_agent_with_env(
                 case "rand":
                     random_agent(**kwargs)
                 case "teleop":
-                    teleop_agent(**kwargs)
+                    teleop_agent(headless=headless, **kwargs)
                 case "ros":
                     ros_agent(**kwargs)
                 case "train":
@@ -971,6 +850,319 @@ def eval_agent(algo: str, **kwargs):
             sbx.run(workflow=WORKFLOW, algo=algo.removeprefix("sbx_"), **kwargs)
 
 
+### Sim-to-Real ###
+def run_real_agent(
+    real_agent_subcommand: Literal[
+        "gen",
+        "sim2real_gen",
+        "zero",
+        "rand",
+        "teleop",
+        "ros",
+        "train",
+        "eval",
+        "collect",
+    ],
+    **kwargs,
+):
+    # Run the implementation
+    def real_agent_impl(**kwargs):
+        match real_agent_subcommand:
+            case "gen" | "sim2real_gen":
+                generate_real_agent(**kwargs)
+            case _:
+                run_real_agent_with_env(
+                    real_agent_subcommand=real_agent_subcommand, **kwargs
+                )
+
+    real_agent_impl(**kwargs)
+
+
+def run_real_agent_with_env(
+    real_agent_subcommand: Literal[
+        "zero",
+        "rand",
+        "teleop",
+        "ros",
+        "train",
+        "eval",
+        "collect",
+    ],
+    env_id: str,
+    hardware: Sequence[str],
+    logdir_path: str,
+    forwarded_args: Sequence[str] = (),
+    **kwargs,
+):
+    import gymnasium
+
+    from srb.interfaces.sim_to_real import RealEnv
+    from srb.interfaces.sim_to_real import env as srb_real_env  # noqa: F401
+    from srb.interfaces.sim_to_real import hardware as srb_real_hw  # noqa: F401
+    from srb.utils import logging
+    from srb.utils.cfg import last_logdir, new_logdir
+    from srb.utils.hydra.real import hydra_task_config
+    from srb.utils.registry import get_srb_tasks
+
+    # Ensure the environment is registered
+    if env_id not in get_srb_tasks("srb_real"):
+        env_name = env_id.rsplit("/", 1)[-1]
+        logging.critical(
+            f"The RealEnv for {env_name} is not registered. Generating it now..."
+        )
+        _generate_real_agent_subprocess(
+            env_id=env_name,
+            forwarded_args=(*forwarded_args, "--hardware", *hardware)
+            if hardware
+            else forwarded_args,
+        )
+        logging.critical(
+            f"Generated the missing RealEnv for {env_name}. Please re-run your desired workflow."
+        )
+        exit(0)
+
+    # Get the log directory based on the workflow
+    workflow = kwargs.get("algo") or real_agent_subcommand
+    logdir_root = Path(logdir_path).resolve()
+    if model := kwargs.get("model"):
+        model = Path(model).resolve()
+        assert model.exists(), f"Model path does not exist: {model}"
+        logdir = model.parent
+        while not (
+            logdir.parent.name == workflow
+            and (logdir.parent.parent.name == env_id.rsplit("/", 1)[-1])
+        ):
+            _new_parent = logdir.parent
+            if logdir == _new_parent:
+                logdir = new_logdir(
+                    env_id=env_id,
+                    workflow=workflow,
+                    root=logdir_root,
+                    namespace="srb_real",
+                )
+                model_symlink_path = logdir.joinpath(model.name)
+                model_symlink_path.parent.mkdir(parents=True, exist_ok=True)
+                os.symlink(model, model_symlink_path)
+                model = model_symlink_path
+                break
+            logdir = _new_parent
+        kwargs["model"] = model
+    elif (real_agent_subcommand == "train" and kwargs["continue_training"]) or (
+        real_agent_subcommand in ("eval", "teleop") and kwargs["algo"]
+    ):
+        logdir = last_logdir(
+            env_id=env_id, workflow=workflow, root=logdir_root, namespace="srb_real"
+        )
+    else:
+        logdir = new_logdir(
+            env_id=env_id, workflow=workflow, root=logdir_root, namespace="srb_real"
+        )
+
+    # Update Hydra output directory
+    if not any(arg.startswith("hydra.run.dir=") for arg in forwarded_args):
+        sys.argv.extend([f"hydra.run.dir={logdir.as_posix()}"])
+    maybe_config_path = Path(logdir).joinpath(".hydra", "config.yaml").resolve()
+
+    @hydra_task_config(
+        task_name=env_id,
+        agent_cfg_entry_point=f"{kwargs['algo']}_cfg" if kwargs.get("algo") else None,
+        config_path=maybe_config_path.as_posix()
+        if maybe_config_path.exists()
+        else None,
+    )
+    def hydra_main(agent_cfg: Dict[str, Any] | None = None):
+        # Create the environment and initialize it
+        env: RealEnv = gymnasium.make(id=env_id, hardware=hardware)  # type: ignore
+        env.reset()
+
+        # Run the implementation
+        def agent_impl(**kwargs):
+            kwargs.update(
+                {
+                    "env_id": env_id,
+                    "agent_cfg": agent_cfg,
+                    "env_cfg": None,
+                }
+            )
+
+            match real_agent_subcommand:
+                case "zero":
+                    zero_agent(**kwargs)
+                case "rand":
+                    random_agent(**kwargs)
+                case "teleop":
+                    teleop_agent(**kwargs)
+                case "ros":
+                    ros_agent(**kwargs)
+                case "train":
+                    train_agent(**kwargs)
+                case "eval":
+                    eval_agent(**kwargs)
+                case "collect":
+                    raise NotImplementedError()
+
+        class FakeSimulationApp:
+            def is_running(self):
+                return True
+
+        agent_impl(
+            env=env,
+            sim_app=FakeSimulationApp(),
+            logdir=logdir,
+            headless=False,
+            **kwargs,
+        )
+
+        # Close the environment
+        env.close()
+
+    hydra_main()  # type: ignore
+
+
+def generate_real_agent(
+    env_id: str,
+    hardware: Sequence[str] = (),
+    forwarded_args: Sequence[str] = (),
+    **kwargs,
+):
+    if env_id.rsplit("/", 1)[-1].upper() == "ALL":
+        _generate_real_agent_subprocess(
+            env_id="ALL",
+            forwarded_args=(*forwarded_args, "--hardware", *hardware)
+            if hardware
+            else forwarded_args,
+        )
+        return
+
+    from srb.core.app import AppLauncher
+
+    # Launch Isaac Sim
+    enable_cameras = env_id.endswith("_visual")
+    launcher = AppLauncher(
+        headless=True,
+        enable_cameras=env_id.endswith("_visual"),
+        experience=SRB_APPS_DIR.joinpath(
+            f"srb.headless.{'rendering.' if enable_cameras else ''}kit"
+        ),
+    )
+
+    # Update the offline registry cache
+    update_offline_srb_cache()
+
+    from omni.physx import acquire_physx_interface
+
+    from srb.utils.hydra.sim import hydra_task_config
+
+    # Post-launch configuration
+    acquire_physx_interface().overwrite_gpu_setting(1)
+
+    # Disable Hydra output
+    if not any(arg.startswith("hydra.output_subdir=") for arg in forwarded_args):
+        sys.argv.extend(["hydra.output_subdir=null"])
+
+    @hydra_task_config(
+        task_name=env_id,
+        agent_cfg_entry_point=None,
+    )
+    def hydra_main(env_cfg: Dict[str, Any], agent_cfg: Dict[str, Any] | None = None):
+        import gymnasium
+
+        from srb.interfaces.sim_to_real import env as srb_real_env
+        from srb.interfaces.sim_to_real.core.generator import RealEnvGenerator
+
+        # Create the environment and initialize it
+        env_spec = gymnasium.spec(env_id)
+        env = gymnasium.make(id=env_id, cfg=env_cfg, render_mode=None)
+        env.reset()
+
+        # Generate RealEnv classes
+        RealEnvGenerator().generate_offline(
+            env=env,  # type: ignore
+            env_spec=env_spec,
+            output=Path(srb_real_env.__file__).parent.joinpath(
+                f"{env_id.removeprefix('srb/')}.py"
+            ),
+            hardware=hardware,
+        )
+
+        # Close the environment
+        env.close()
+
+    hydra_main()  # type: ignore
+
+    # Shutdown Isaac Sim
+    launcher.app.close()
+
+
+def _generate_real_agent_subprocess(env_id: str, forwarded_args: Sequence[str] = ()):
+    import subprocess
+
+    from srb.utils import logging
+    from srb.utils.isaacsim import get_isaacsim_python
+
+    # Get all registered environments
+    if env_id == "ALL":
+        env_list = read_offline_srb_env_cache()
+        if not env_list:
+            logging.warning(
+                "No environments found in cache. Please run an environment first to populate the cache."
+            )
+            return
+
+        # Filter out templates
+        env_list = [
+            env for env in env_list if not env.rsplit("/", 1)[-1].startswith("_")
+        ]
+        logging.info(
+            f"Generating sim-to-real setup for {len(env_list)} environments..."
+        )
+        env_list.sort()
+    else:
+        env_list = (env_id,)
+
+    successful_envs = []
+    failed_envs = []
+    for i, env in enumerate(env_list, 1):
+        logging.info(f"[{i}/{len(env_list)}] Processing environment: {env}")
+        cmd = [
+            get_isaacsim_python(),
+            "-m",
+            "srb",
+            "real_agent",
+            "gen",
+            "--env",
+            env,
+            *forwarded_args,
+        ]
+        try:
+            _result = subprocess.run(cmd, check=True, timeout=300)
+            successful_envs.append(env)
+            logging.info(f"✓ Successfully generated sim-to-real setup for {env}")
+        except subprocess.TimeoutExpired:
+            failed_envs.append((env, "Timeout after 5 minutes"))
+            logging.error(f"✗ Timeout generating sim-to-real setup for {env}")
+        except subprocess.CalledProcessError as e:
+            failed_envs.append((env, f"Process failed with code {e.returncode}"))
+            logging.error(
+                f"✗ Failed to generate sim-to-real setup for {env}: {e.stderr}"
+            )
+        except Exception as e:
+            failed_envs.append((env, str(e)))
+            logging.error(f"✗ Exception while processing {env}: {e}")
+
+    # Summary report
+    logging.info("\n=== Generation Summary ===")
+    logging.info(
+        f"Successfully processed: {len(successful_envs)}/{len(env_list)} environments"
+    )
+    if successful_envs:
+        logging.info(f"Successful environments: {', '.join(successful_envs)}")
+    if failed_envs:
+        logging.warning("Failed environments:")
+        for env, reason in failed_envs:
+            logging.warning(f"  - {env}: {reason}")
+
+
 ### List ###
 def list_registered(
     category: str | Sequence[str], show_hidden: bool, forwarded_args: Sequence[str] = ()
@@ -978,9 +1170,7 @@ def list_registered(
     from srb.core.app import AppLauncher
 
     if not find_spec("rich"):
-        raise ImportError(
-            'The "rich" package is required to list registered entities of the Space Robotics Bench'
-        )
+        raise ImportError('The "rich" package is required to list registered entities')
 
     # Launch Isaac Sim
     launcher = AppLauncher(
@@ -1027,7 +1217,7 @@ def list_registered(
     ):
         from srb.core.asset import AssetType
 
-        table = Table(title="Assets of the Space Robotics Bench")
+        table = Table(title="Assets")
         table.add_column("#", justify="right", style="cyan", no_wrap=True)
         table.add_column("Name", justify="left", style="blue", no_wrap=True)
         table.add_column("Type", justify="left", style="magenta", no_wrap=True)
@@ -1141,7 +1331,7 @@ def list_registered(
         from srb.core.action import ActionGroupRegistry
         from srb.core.action import group as srb_action_groups
 
-        table = Table(title="Action Groups of the Space Robotics Bench")
+        table = Table(title="Action Groups")
         table.add_column("#", justify="right", style="cyan", no_wrap=True)
         table.add_column("Name", justify="left", style="blue", no_wrap=True)
         table.add_column("Path", justify="left", style="white")
@@ -1166,13 +1356,47 @@ def list_registered(
             )
         print(table)
 
+    # Print table for hardware interfaces
+    if EntityToList.ACTION in category:
+        from srb.interfaces.sim_to_real import hardware as srb_hardware_interfaces
+        from srb.interfaces.sim_to_real.core.hardware import HardwareInterfaceRegistry
+
+        table = Table(title="Hardware Interfaces")
+        table.add_column("#", justify="right", style="cyan", no_wrap=True)
+        table.add_column("Name", justify="left", style="blue", no_wrap=True)
+        table.add_column("Path", justify="left", style="white")
+
+        for i, hardware_interface_class in enumerate(
+            HardwareInterfaceRegistry.registry, 1
+        ):
+            hardware_interface_name = hardware_interface_class.class_name()
+            hardware_interface_path = Path(
+                inspect.getabsfile(
+                    importlib.import_module(hardware_interface_class.__module__)
+                )
+            )
+            try:
+                hardware_interface_relpath = hardware_interface_path.relative_to(
+                    Path(inspect.getabsfile(srb_hardware_interfaces)).parent
+                )
+            except ValueError:
+                hardware_interface_relpath = path.join(
+                    "EXT", hardware_interface_path.name
+                )
+            table.add_row(
+                str(i),
+                f"[link=vscode://file/{inspect.getabsfile(hardware_interface_class)}:{inspect.getsourcelines(hardware_interface_class)[1]}]{hardware_interface_name}[/link]",
+                f"[link=vscode://file/{hardware_interface_path}]{hardware_interface_relpath}[/link]",
+            )
+        print(table)
+
     # Print table for environments
     if EntityToList.ENV in category:
         import gymnasium
 
         from srb.utils.registry import get_srb_tasks
 
-        table = Table(title="Environments of the Space Robotics Bench")
+        table = Table(title="Environments")
         table.add_column("#", justify="right", style="cyan", no_wrap=True)
         table.add_column("ID", justify="left", style="blue", no_wrap=True)
         table.add_column("Entrypoint", justify="left", style="green")
@@ -1204,12 +1428,8 @@ def list_registered(
             cfg_parent = cfg_class.__bases__[0]
             table.add_row(
                 str(i),
-                task_id.removeprefix("srb/")
-                + (
-                    " <template>"
-                    if task_id.removeprefix("srb/").startswith("_")
-                    else ""
-                ),
+                task_id.rsplit("/", 1)[-1]
+                + (" <template>" if task_id.rsplit("/", 1)[-1].startswith("_") else ""),
                 f"[link=vscode://file/{inspect.getabsfile(entrypoint_class)}:{inspect.getsourcelines(entrypoint_class)[1]}]{entrypoint_class.__name__}[/link]([red][link=vscode://file/{inspect.getabsfile(entrypoint_parent)}:{inspect.getsourcelines(entrypoint_parent)[1]}]{entrypoint_parent.__name__}[/link][/red])",
                 f"[link=vscode://file/{inspect.getabsfile(cfg_class)}:{inspect.getsourcelines(cfg_class)[1]}]{cfg_class.__name__}[/link]([magenta][link=vscode://file/{inspect.getabsfile(cfg_parent)}:{inspect.getsourcelines(cfg_parent)[1]}]{cfg_parent.__name__}[/link][/magenta])",
                 f"[link=vscode://file/{env_module_path}]{env_module_relpath}[/link]",
@@ -1239,7 +1459,7 @@ def launch_gui(forwarded_args: Sequence[str] = ()):
         *forwarded_args,
     )
     logging.info(
-        "Launching GUI of the Space Robotics Bench with the following command: "
+        "Launching GUI with the following command: "
         + " ".join(
             (f'"{arg}"' if any(c in string.whitespace for c in arg) else arg)
             for arg in cmd
@@ -1254,22 +1474,22 @@ def launch_gui(forwarded_args: Sequence[str] = ()):
 
 
 ### REPL ###
-def enter_repl(hide_ui: bool, forwarded_args: Sequence[str] = (), **kwargs):
+def enter_repl(
+    headless: bool, hide_ui: bool, forwarded_args: Sequence[str] = (), **kwargs
+):
     from srb.core.app import AppLauncher
 
     if not find_spec("ptpython"):
-        raise ImportError(
-            'The "ptpython" package is required to enter REPL of the Space Robotics Bench'
-        )
+        raise ImportError('The "ptpython" package is required to enter REPL')
 
     # Preprocess kwargs
     kwargs["enable_cameras"] = True
     kwargs["experience"] = SRB_APPS_DIR.joinpath(
-        f"srb.{'headless.' if kwargs['headless'] else ''}rendering.kit"
+        f"srb.{'headless.' if headless else ''}rendering.kit"
     )
 
     # Launch Isaac Sim
-    launcher = AppLauncher(launcher_args=kwargs)
+    launcher = AppLauncher(headless=headless, **kwargs)
 
     # Update the offline registry cache
     update_offline_srb_cache()
@@ -1299,9 +1519,7 @@ def serve_docs(forwarded_args: Sequence[str] = ()):
     from srb.utils import logging
 
     if not shutil.which("mdbook"):
-        raise FileNotFoundError(
-            'The "mdbook" tool is required to serve the docs of the Space Robotics Bench'
-        )
+        raise FileNotFoundError('The "mdbook" tool is required to serve the docs')
 
     cmd = (
         "mdbook",
@@ -1311,7 +1529,7 @@ def serve_docs(forwarded_args: Sequence[str] = ()):
         *forwarded_args,
     )
     logging.info(
-        "Serving the docs of the Space Robotics Bench with the following command: "
+        "Serving the docs with the following command: "
         + " ".join(
             (f'"{arg}"' if any(c in string.whitespace for c in arg) else arg)
             for arg in cmd
@@ -1334,9 +1552,7 @@ def run_tests(language: Sequence[str], forwarded_args: Sequence[str] = ()):
     from srb.utils.isaacsim import get_isaacsim_python
 
     if not find_spec("pytest"):
-        raise ImportError(
-            'The "pytest" package is required to run tests of the Space Robotics Bench'
-        )
+        raise ImportError('The "pytest" package is required to run tests')
 
     language = list(set(map(Lang.from_str, language)))  # type: ignore
 
@@ -1359,7 +1575,7 @@ def run_tests(language: Sequence[str], forwarded_args: Sequence[str] = ()):
                     *forwarded_args,
                 )
         logging.info(
-            f"Running {str(lang)} tests of the Space Robotics Bench with the following command: "
+            f"Running {str(lang)} tests with the following command: "
             + " ".join(
                 (f'"{arg}"' if any(c in string.whitespace for c in arg) else arg)
                 for arg in cmd
@@ -1375,11 +1591,161 @@ def run_tests(language: Sequence[str], forwarded_args: Sequence[str] = ()):
             exit(e.returncode)
 
 
+### Misc ###
+def __wrap_env_in_performance_test(
+    env: "AnyEnv", sim_app: "SimulationApp", perf_output: str, perf_duration: float
+):
+    import sys
+    import time
+    from collections import deque
+
+    import torch
+    from gymnasium.core import ActType, Env, ObsType, Wrapper
+
+    class PerformanceTestWrapper(Wrapper):
+        def __init__(
+            self,
+            env: Env[ObsType, ActType],
+            output: str,
+            duration: float,
+            min_report_interval_fraction: float = 0.1,
+            max_buffer_size: int = 1000000,
+        ):
+            super().__init__(env)
+            self.__perf_output = output
+            self.__perf_duration = duration
+            self.__perf_min_report_interval = duration * min_report_interval_fraction
+
+            _env: "AnyEnv" = env.unwrapped  # type: ignore
+            self.__num_envs = _env.num_envs
+            self.__agent_rate = _env.cfg.agent_rate
+
+            self._perf_num_steps = 0
+            self._perf_num_episodes = 0
+            self._perf_total_time = 0.0
+            self._perf_step_timings = deque(maxlen=max_buffer_size)
+            self._perf_start_time = time.perf_counter()
+            self._perf_last_report_time = self._perf_start_time
+
+            if self.__perf_output != "STDOUT":
+                parent_dir = os.path.dirname(self.__perf_output)
+                if not os.path.exists(parent_dir):
+                    os.makedirs(parent_dir, exist_ok=True)
+
+        def step(self, action):
+            # Step timing
+            t_start = time.perf_counter()
+            obs, reward, terminated, truncated, info = super().step(action)
+            t_end = time.perf_counter()
+            step_timing = t_end - t_start
+            self._perf_step_timings.append(step_timing)
+            self._perf_num_steps += self.__num_envs
+            self._perf_total_time += step_timing
+
+            # Episode end detection
+            done: torch.Tensor = terminated | truncated  # type: ignore
+            num_done = torch.sum(done).item()
+            self._perf_num_episodes += num_done
+            episode_ended = num_done > 0.5 * self.__num_envs
+
+            if episode_ended or (
+                t_end - self._perf_last_report_time > self.__perf_min_report_interval
+            ):
+                self.__perf_report(episode_end=episode_ended)
+                self._perf_last_report_time = t_end
+
+            # Check for duration limit
+            if self._perf_total_time >= self.__perf_duration:
+                self.__perf_report(final=True)
+                print("The performance test has finished (duration limit reached).")
+                env.close()
+                sim_app.close()
+                sys.exit(0)
+
+            return obs, reward, terminated, truncated, info
+
+        def __perf_report(self, episode_end: bool = False, final: bool = False):
+            steps = self._perf_num_steps
+            episodes = self._perf_num_episodes
+            total_time = self._perf_total_time
+            timings = torch.tensor(list(self._perf_step_timings))
+            steps_per_sec = steps / total_time if total_time > 0 else 0
+            mean_step_time = torch.mean(timings).item() if timings.numel() > 0 else 0
+            median_step_time = (
+                torch.median(timings).item() if timings.numel() > 0 else 0
+            )
+            min_step_time = torch.min(timings).item() if timings.numel() > 0 else 0
+            max_step_time = torch.max(timings).item() if timings.numel() > 0 else 0
+
+            def torch_percentiles(t, percentiles):
+                if t.numel() == 0:
+                    return [0 for _ in percentiles]
+                t_sorted, _ = torch.sort(t)
+                n = t.numel()
+                result = []
+                for p in percentiles:
+                    k = (n - 1) * (p / 100)
+                    f = torch.floor(torch.tensor(k)).long()
+                    c = torch.ceil(torch.tensor(k)).long()
+                    if f == c:
+                        val = t_sorted[f]
+                    else:
+                        d0 = t_sorted[f] * (c.float() - k)
+                        d1 = t_sorted[c] * (k - f.float())
+                        val = d0 + d1
+                    result.append(val.item())
+                return result
+
+            step_time_percentiles = torch_percentiles(timings, [10, 20, 80, 90])
+            if not hasattr(self, "_perf_episode_lengths"):
+                self._perf_episode_lengths = []
+            if episode_end and self._perf_num_episodes > 0:
+                last_episode_len = self._perf_num_steps / self._perf_num_episodes
+                self._perf_episode_lengths.append(last_episode_len)
+            episode_lengths = torch.tensor(self._perf_episode_lengths)
+            mean_episode_len = (
+                torch.mean(episode_lengths).item() if episode_lengths.numel() > 0 else 0
+            )
+            median_episode_len = (
+                torch.median(episode_lengths).item()
+                if episode_lengths.numel() > 0
+                else 0
+            )
+            min_episode_len = (
+                torch.min(episode_lengths).item() if episode_lengths.numel() > 0 else 0
+            )
+            max_episode_len = (
+                torch.max(episode_lengths).item() if episode_lengths.numel() > 0 else 0
+            )
+            episode_len_percentiles = torch_percentiles(
+                episode_lengths, [10, 20, 80, 90]
+            )
+            report = (
+                f"\nPerformance Report{' (final)' if final else ''}:\n"
+                f"    Elapsed time (s)       : {total_time:.2f}\n"
+                f"    Total steps (#)        : {steps}\n"
+                f"    Total episodes (#)     : {episodes}\n"
+                f"    Steps per second (#/s) : {steps_per_sec:.2f}\n"
+                f"    Step time (ms)         : min={min_step_time * 1000:.3f}, p10={step_time_percentiles[0] * 1000:.3f}, p20={step_time_percentiles[1] * 1000:.3f}, mean={mean_step_time * 1000:.3f}, median={median_step_time * 1000:.3f}, p80={step_time_percentiles[2] * 1000:.3f}, p90={step_time_percentiles[3] * 1000:.3f}, max={max_step_time * 1000:.3f}\n"
+                f"    Episode length (steps) : min={min_episode_len:.1f}, p10={episode_len_percentiles[0]:.1f}, p20={episode_len_percentiles[1]:.1f}, mean={mean_episode_len:.1f}, median={median_episode_len:.1f}, p80={episode_len_percentiles[2]:.1f}, p90={episode_len_percentiles[3]:.1f}, max={max_episode_len:.1f}\n"
+                f"    Episode length (s)     : min={self.__agent_rate * min_episode_len:.1f}, p10={self.__agent_rate * episode_len_percentiles[0]:.1f}, p20={self.__agent_rate * episode_len_percentiles[1]:.1f}, mean={self.__agent_rate * mean_episode_len:.1f}, median={self.__agent_rate * median_episode_len:.1f}, p80={self.__agent_rate * episode_len_percentiles[2]:.1f}, p90={self.__agent_rate * episode_len_percentiles[3]:.1f}, max={self.__agent_rate * max_episode_len:.1f}\n"
+            )
+            if self.__perf_output == "STDOUT":
+                print(report)
+            else:
+                with open(self.__perf_output, "a") as f:
+                    f.write(report + "\n")
+
+    return PerformanceTestWrapper(env, output=perf_output, duration=perf_duration)
+
+
 ### CLI ###
 def parse_cli_args() -> argparse.Namespace:
-    """
-    Parse command-line arguments for this script.
-    """
+    env_choices = read_offline_srb_env_cache()
+    interface_choices = sorted(map(str, InterfaceType))
+    teleop_device_choices = sorted(map(str, TeleopDeviceType))
+    algo_choices = sorted(map(str, SupportedAlgo))
+    hardware_choices = read_offline_srb_hardware_interface_cache()
 
     parser = argparse.ArgumentParser(
         description="Space Robotics Bench",
@@ -1434,7 +1800,7 @@ def parse_cli_args() -> argparse.Namespace:
     )
     collect_agent_parser = agent_subparsers.add_parser(
         "collect",
-        help="Collect demonstrations",
+        help="Collect demonstrations with agent",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     learn_agent_parser = agent_subparsers.add_parser(
@@ -1442,29 +1808,104 @@ def parse_cli_args() -> argparse.Namespace:
         help="Learn from demonstrations",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
+    agent_parsers_with_env = (
+        zero_agent_parser,
+        rand_agent_parser,
+        teleop_agent_parser,
+        ros_agent_parser,
+        train_agent_parser,
+        eval_agent_parser,
+        collect_agent_parser,
+        learn_agent_parser,
+    )
 
-    ## List subcommand
-    list_parser = subparsers.add_parser(
-        "ls",
-        help="List registered assets and environments"
-        + ("" if find_spec("rich") else ' (MISSING: "rich" Python package)'),
+    ## Sim-to-Real subcommand
+    real_agent_parser = subparsers.add_parser(
+        "real_agent",
+        help="Sim-to-real subcommands",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    list_parser.add_argument(
-        "category",
-        help="Filter of categories to list",
-        nargs="*",
-        type=str,
-        choices=sorted(map(str, EntityToList)),
-        default=str(EntityToList.ALL),
+    real_agent_subparsers = real_agent_parser.add_subparsers(
+        title="Sim-to-real subcommands",
+        dest="real_agent_subcommand",
+        required=True,
     )
-    list_parser.add_argument(
-        "-a",
-        "--show_hidden",
-        help='Show hidden entities ("*_visual" environments are hidden by default)',
-        action="store_true",
-        default=False,
+    real_env_gen_parsers = []
+    for i, alias in enumerate(("gen", "sim2real_gen")):
+        real_env_gen_parser = real_agent_subparsers.add_parser(
+            alias,
+            help=("Alias: gen" if i > 0 else "Generate sim-to-real setup"),
+            formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        )
+        real_env_gen_parsers.append(real_env_gen_parser)
+    zero_real_agent_parser = real_agent_subparsers.add_parser(
+        "zero",
+        help="Real agent with zero-valued actions",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
+    rand_real_agent_parser = real_agent_subparsers.add_parser(
+        "rand",
+        help="Real agent with random actions",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    teleop_real_agent_parser = real_agent_subparsers.add_parser(
+        "teleop",
+        help="Teleoperate real agent",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    ros_real_agent_parser = real_agent_subparsers.add_parser(
+        "ros",
+        help="Real agent with actions from ROS 2 | Space ROS",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    train_real_agent_parser = real_agent_subparsers.add_parser(
+        "train",
+        help="Train real agent",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    eval_real_agent_parser = real_agent_subparsers.add_parser(
+        "eval",
+        help="Evaluate real agent",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    collect_real_agent_parser = real_agent_subparsers.add_parser(
+        "collect",
+        help="Collect demonstrations with real agent",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    real_agent_parsers_with_env = (
+        zero_real_agent_parser,
+        rand_real_agent_parser,
+        teleop_real_agent_parser,
+        ros_real_agent_parser,
+        train_real_agent_parser,
+        eval_real_agent_parser,
+        collect_real_agent_parser,
+    )
+
+    ## List subcommand
+    for i, alias in enumerate(("list", "ls")):
+        list_parser = subparsers.add_parser(
+            alias,
+            help=("Alias: list" if i > 0 else "List registered assets and environments")
+            + ("" if find_spec("rich") else ' (MISSING: "rich" Python package)'),
+            formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        )
+        list_parser.add_argument(
+            "category",
+            help="Filter of categories to list",
+            nargs="*",
+            type=str,
+            choices=sorted(map(str, EntityToList)),
+            default=str(EntityToList.ALL),
+        )
+        list_parser.add_argument(
+            "-a",
+            "--show_hidden",
+            help='Show hidden entities ("*_visual" environments are hidden by default)',
+            action="store_true",
+            default=False,
+        )
 
     ## GUI subcommand
     _gui_parser = subparsers.add_parser(
@@ -1474,12 +1915,17 @@ def parse_cli_args() -> argparse.Namespace:
     )
 
     ## REPL subcommand
-    repl_parser = subparsers.add_parser(
-        "repl",
-        help="Enter REPL"
-        + ("" if find_spec("ptpython") else ' (MISSING: "ptpython" Python package)'),
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    )
+    repl_parsers = []
+    for i, alias in enumerate(("repl", "python")):
+        repl_parser = subparsers.add_parser(
+            alias,
+            help=("Alias: repl" if i > 0 else "Enter Python REPL")
+            + (
+                "" if find_spec("ptpython") else ' (MISSING: "ptpython" Python package)'
+            ),
+            formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        )
+        repl_parsers.append(repl_parser)
 
     ## Docs subcommand
     _docs_parser = subparsers.add_parser(
@@ -1507,19 +1953,12 @@ def parse_cli_args() -> argparse.Namespace:
         default=[str(Lang.PYTHON)],
     )
 
-    ## Launcher args
-    for _agent_parser in (
-        zero_agent_parser,
-        rand_agent_parser,
-        teleop_agent_parser,
-        ros_agent_parser,
-        train_agent_parser,
-        eval_agent_parser,
-        collect_agent_parser,
-        learn_agent_parser,
-        repl_parser,
+    ## Simulation launcher args
+    for _parser in (
+        *agent_parsers_with_env,
+        *repl_parsers,
     ):
-        launcher_group = _agent_parser.add_argument_group("Launcher")
+        launcher_group = _parser.add_argument_group("Launcher")
         launcher_group.add_argument(
             "--headless",
             help="Run the simulation without display output",
@@ -1547,18 +1986,12 @@ def parse_cli_args() -> argparse.Namespace:
         )
 
     ## Environment args
-    _env_choices = read_offline_srb_env_cache()
-    _interface_choices = sorted(map(str, InterfaceType))
-    for _agent_parser in (
-        zero_agent_parser,
-        rand_agent_parser,
-        teleop_agent_parser,
-        ros_agent_parser,
-        train_agent_parser,
-        eval_agent_parser,
-        collect_agent_parser,
+    for _parser in (
+        *agent_parsers_with_env,
+        *real_agent_parsers_with_env,
+        *real_env_gen_parsers,
     ):
-        environment_group = _agent_parser.add_argument_group("Environment")
+        environment_group = _parser.add_argument_group("Environment")
         environment_group.add_argument(
             "-e",
             "--env",
@@ -1566,12 +1999,81 @@ def parse_cli_args() -> argparse.Namespace:
             dest="env_id",
             help="Name of the environment to select",
             type=str,
-            action=AutoNamespaceTaskAction,
-            choices=_env_choices,
+            action=AutoRealNamespaceTaskAction
+            if _parser in real_agent_parsers_with_env
+            else AutoNamespaceTaskAction,
+            choices=(
+                env_choices
+                if _parser not in real_env_gen_parsers
+                else (("all", "ALL", *env_choices) if env_choices else ())
+            ),
             required=True,
         )
 
-        logging_group = _agent_parser.add_argument_group("Logging")
+    ## Environment args (extras)
+    for _parser in agent_parsers_with_env:
+        interfaces_group = _parser.add_argument_group("Interface")
+        interfaces_group.add_argument(
+            "--interface",
+            help="Sequence of interfaces to enable",
+            type=str,
+            nargs="*",
+            choices=interface_choices,
+            default=[],
+        )
+
+        video_recording_group = _parser.add_argument_group("Video Recording")
+        video_recording_group.add_argument(
+            "--video",
+            dest="video_enable",
+            help="Record videos",
+            action="store_true",
+            default=False,
+        )
+
+        performance_group = _parser.add_argument_group("Performance")
+        performance_group.add_argument(
+            "--perf",
+            dest="perf_enable",
+            help="Test the performance of the environment",
+            action="store_true",
+            default=False,
+        )
+        performance_group.add_argument(
+            "--perf_output",
+            help='Path to the output of the performance test (special keys: "STDOUT")',
+            type=str,
+            default="STDOUT",
+        )
+        performance_group.add_argument(
+            "--perf_duration",
+            help="Maximum duration of the performance test in seconds (0: No limit)",
+            type=float,
+            default=150.0,
+        )
+
+    ## Hardware args
+    for _parser in (
+        *real_agent_parsers_with_env,
+        *real_env_gen_parsers,
+    ):
+        hardware_group = _parser.add_argument_group("Hardware")
+        hardware_group.add_argument(
+            "--hardware",
+            "--hw",
+            help="Sequence of hardware interfaces to use",
+            type=str,
+            nargs="*",
+            choices=hardware_choices,
+            default=[],
+        )
+
+    ## Logging
+    for _parser in (
+        *agent_parsers_with_env,
+        *real_agent_parsers_with_env,
+    ):
+        logging_group = _parser.add_argument_group("Logging")
         logging_group.add_argument(
             "--logdir",
             "--logs",
@@ -1581,56 +2083,20 @@ def parse_cli_args() -> argparse.Namespace:
             default=SRB_LOGS_DIR,
         )
 
-        interfaces_group = _agent_parser.add_argument_group("Interface")
-        interfaces_group.add_argument(
-            "--interface",
-            help="Sequence of interfaces to enable",
-            type=str,
-            nargs="*",
-            choices=_interface_choices,
-            default=[],
-        )
-
-        video_recording_group = _agent_parser.add_argument_group("Video Recording")
-        video_recording_group.add_argument(
-            "--video",
-            dest="video_enable",
-            help="Record videos",
-            action="store_true",
-            default=False,
-        )
-
-        performance_group = _agent_parser.add_argument_group("Performance")
-        performance_group.add_argument(
-            "--perf",
-            dest="perf_enable",
-            help="Test the performance of the environment",
-            action="store_true",
-            default=False,
-        )
-        logging_group.add_argument(
-            "--perf_output",
-            help='Path to the output of the performance test (special keys: "STDOUT")',
-            type=str,
-            default="STDOUT",
-        )
-        logging_group.add_argument(
-            "--perf_duration",
-            help="Maximum duration of the performance test in seconds (0: No limit)",
-            type=float,
-            default=150.0,
-        )
-
     ## Teleop args
-    _teleop_device_choices = sorted(map(str, TeleopDeviceType))
-    for _agent_parser in (teleop_agent_parser, collect_agent_parser):
-        teleop_group = _agent_parser.add_argument_group("Teleop")
+    for _parser in (
+        teleop_agent_parser,
+        collect_agent_parser,
+        teleop_real_agent_parser,
+        collect_real_agent_parser,
+    ):
+        teleop_group = _parser.add_argument_group("Teleop")
         teleop_group.add_argument(
             "--teleop_device",
             help="Device for interacting with environment",
             type=str,
             nargs="+",
-            choices=_teleop_device_choices,
+            choices=teleop_device_choices,
             default=[str(TeleopDeviceType.KEYBOARD)],
         )
         teleop_group.add_argument(
@@ -1654,27 +2120,46 @@ def parse_cli_args() -> argparse.Namespace:
         )
 
     ## Algorithm args
-    _algo_choices = sorted(map(str, SupportedAlgo))
-    for _agent_parser in (
+    for _parser in (
         train_agent_parser,
         eval_agent_parser,
         teleop_agent_parser,
         collect_agent_parser,
         learn_agent_parser,
+        train_real_agent_parser,
+        eval_real_agent_parser,
+        teleop_real_agent_parser,
+        collect_real_agent_parser,
     ):
-        algorithm_group = _agent_parser.add_argument_group(
+        algorithm_group = _parser.add_argument_group(
             "Teleop Policy"
-            if _agent_parser in (teleop_agent_parser, collect_agent_parser)
+            if _parser
+            in (
+                teleop_agent_parser,
+                collect_agent_parser,
+                teleop_real_agent_parser,
+                collect_real_agent_parser,
+            )
             else "Algorithm"
         )
         algorithm_group.add_argument(
             "--algo",
             help="Name of the algorithm",
             type=str,
-            choices=_algo_choices,
-            required=_agent_parser not in (teleop_agent_parser, collect_agent_parser),
+            choices=algo_choices,
+            required=_parser
+            not in (
+                teleop_agent_parser,
+                collect_agent_parser,
+                teleop_real_agent_parser,
+                collect_real_agent_parser,
+            ),
         )
-        if _agent_parser != train_agent_parser:
+        if _parser not in (
+            train_agent_parser,
+            learn_agent_parser,
+            train_real_agent_parser,
+        ):
             algorithm_group.add_argument(
                 "--model",
                 type=str,
@@ -1682,20 +2167,24 @@ def parse_cli_args() -> argparse.Namespace:
             )
 
     ## Train args
-    train_group = train_agent_parser.add_argument_group("Train")
-    mutex_group = train_group.add_mutually_exclusive_group()
-    mutex_group.add_argument(
-        "--continue_training",
-        "--continue",
-        help="Continue training the model from the last checkpoint",
-        action="store_true",
-        default=False,
-    )
-    mutex_group.add_argument(
-        "--model",
-        help="Continue training the model from the specified checkpoint",
-        type=str,
-    )
+    for _parser in (
+        train_agent_parser,
+        train_real_agent_parser,
+    ):
+        train_group = _parser.add_argument_group("Train")
+        mutex_group = train_group.add_mutually_exclusive_group()
+        mutex_group.add_argument(
+            "--continue_training",
+            "--continue",
+            help="Continue training the model from the last checkpoint",
+            action="store_true",
+            default=False,
+        )
+        mutex_group.add_argument(
+            "--model",
+            help="Continue training the model from the specified checkpoint",
+            type=str,
+        )
 
     # Trigger argcomplete
     if find_spec("argcomplete"):
@@ -1760,6 +2249,8 @@ def parse_cli_args() -> argparse.Namespace:
 
 
 class AutoNamespaceTaskAction(argparse.Action):
+    NAMESPACE: str = "srb"
+
     def __call__(
         self,
         parser: argparse.ArgumentParser,
@@ -1768,8 +2259,12 @@ class AutoNamespaceTaskAction(argparse.Action):
         option_string: str | None = None,
     ):
         if "/" not in values:
-            values = f"srb/{values}"
+            values = f"{self.NAMESPACE}/{values}"
         setattr(namespace, self.dest, values)
+
+
+class AutoRealNamespaceTaskAction(AutoNamespaceTaskAction):
+    NAMESPACE: str = "srb_real"
 
 
 class EntityToList(str, Enum):

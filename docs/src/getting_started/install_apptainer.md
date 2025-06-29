@@ -83,7 +83,7 @@ Now you can run the Apptainer image with the provided [script](https://github.co
 
 ### 4. Verify Installation
 
-Once you enter the Apptainer container, verify that everything works as expected.
+Once you enter the Apptainer container, verify that everything works as expected. If you encounter any issues, please refer to the [Troubleshooting](../misc/troubleshooting.md) guide.
 
 #### Isaac Sim
 

@@ -101,7 +101,7 @@ Make the `srb` CLI command available in your shell through the provided [script]
 
 ## 6. Verify Installation
 
-After the installation, verify that everything works as expected.
+After the installation, verify that everything works as expected. If you encounter any issues, please refer to the [Troubleshooting](../misc/troubleshooting.md) guide.
 
 ### Isaac Sim
 

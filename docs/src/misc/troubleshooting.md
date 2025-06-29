@@ -42,3 +42,10 @@ Alternatively for users of the provided Docker setup, you can set the environmen
 ### Teleoperation Stuck
 
 During teleoperation with the keyboard, if you change your window focus, Omniverse may fail to register a button release, causing the robot to move continuously in one direction. To fix this, press the `L` key to reset the environment.
+
+______________________________________________________________________
+
+Haven't found a solution to your problem? You can search for help or ask any questions by joining our [Discord community](https://discord.gg/p9gZAPWa65) or by seeking assistance through [GitHub Issues](https://github.com/AndrejOrsula/space_robotics_bench/issues).
+
+[![Discord](https://img.shields.io/badge/Discord-invite-5865F2?logo=discord)](https://discord.gg/p9gZAPWa65)
+[![GitHub Issues](https://img.shields.io/badge/GitHub%20Issues-new-blue?logo=github)](https://github.com/AndrejOrsula/space_robotics_bench/issues/new)

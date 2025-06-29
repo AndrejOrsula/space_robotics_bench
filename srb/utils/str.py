@@ -25,6 +25,11 @@ def sanitize_cam_name(name: str) -> str:
     return _REGEX_SANITIZE_CAM_NAME.sub("", name)
 
 
+@functools.cache
+def sanitize_action_term_name(name: str) -> str:
+    return convert_to_snake_case(name.removesuffix("Action"))
+
+
 _REGEX_ENV_PRIM_PATH_PATTERN = re.compile(r"({ENV_REGEX_NS}|/World/envs/env_.*)")
 
 

@@ -50,9 +50,9 @@ class TeleopDeviceType(str, Enum):
     def implementer(self) -> Type:
         match self:
             case TeleopDeviceType.KEYBOARD:
-                from .teleop.keyboard import KeyboardTeleopInterface
+                from .teleop.keyboard_omni import OmniKeyboardTeleopInterface
 
-                return KeyboardTeleopInterface
+                return OmniKeyboardTeleopInterface
             case TeleopDeviceType.ROS | TeleopDeviceType.GAMEPAD:
                 from .teleop.ros import ROSTeleopInterface
 

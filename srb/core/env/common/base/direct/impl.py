@@ -348,7 +348,11 @@ def _flatten_observations(
 ) -> Dict[str, torch.Tensor]:
     return {
         obs_cat: torch.cat(
-            [torch.flatten(tensor, start_dim=1) for tensor in obs_group.values()], dim=1
+            [
+                torch.flatten(obs_group[obs_key], start_dim=1)
+                for obs_key in sorted(obs_group.keys())
+            ],
+            dim=1,
         )
         for obs_cat, obs_group in obs_dict.items()
     }

@@ -39,10 +39,6 @@ class ActionGroupRegistry:
     registry: ClassVar[List[Type[ActionGroup]]] = []
 
     @classmethod
-    def __len__(cls) -> int:
-        return len(cls.registry)
-
-    @classmethod
     def registered_modules(cls) -> Iterable[str]:
         return {action_group.__module__ for action_group in cls.registry}
 

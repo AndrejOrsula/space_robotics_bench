@@ -6,6 +6,7 @@ from srb.core.action import (
     OperationalSpaceControllerActionCfg,
 )
 from srb.core.asset import CombinedMobileManipulator
+from srb.core.domain import Domain
 from srb.core.manager import EventTermCfg, SceneEntityCfg
 from srb.core.mdp import follow_xform_orientation_linear_trajectory  # noqa F401
 from srb.core.mdp import reset_scene_to_default  # noqa F401
@@ -129,10 +130,11 @@ class BaseEventCfg:
                 term.mode = "reset" if env_cfg.num_envs == 1 else "interval"
 
     def _update_gravity(self, env_cfg: "AnyEnvCfg"):
-        if env_cfg.domain.gravity_variation <= 0.0:
+        domain: Domain = env_cfg.gravity or env_cfg.domain  # type: ignore
+        if domain.gravity_variation <= 0.0:
             self.randomize_gravity = None
         elif self.randomize_gravity:
-            gravity_z_range = env_cfg.domain.gravity_range
+            gravity_z_range = domain.gravity_range
             self.randomize_gravity.params["distribution_params"] = (
                 (0.0, 0.0, -gravity_z_range[0]),
                 (0.0, 0.0, -gravity_z_range[1]),

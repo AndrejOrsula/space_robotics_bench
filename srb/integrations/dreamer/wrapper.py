@@ -25,8 +25,8 @@ class EmbodiedEnvWrapper(embodied.Env):
         # Extract spaces
         self._obs_space = self.unwrapped.single_observation_space  # type: ignore
         self._action_space = self.unwrapped.single_action_space  # type: ignore
-        self._is_obs_dict = hasattr(self._obs_space, "spaces")
-        self._is_act_dict = hasattr(self._action_space, "spaces")
+        self._is_obs_dict = isinstance(self._obs_space, gymnasium.spaces.Dict)
+        self._is_act_dict = isinstance(self._action_space, gymnasium.spaces.Dict)
 
         # Extract useful information
         self._num_envs = self.unwrapped.num_envs
@@ -35,8 +35,6 @@ class EmbodiedEnvWrapper(embodied.Env):
         # Init buffers
         self._done = numpy.ones(self._num_envs, dtype=bool)
         self._info = [None for _ in range(self._num_envs)]
-        self._ep_len_buf = torch.zeros(self._num_envs, device=self._device)
-        self._ep_rew_buf = torch.zeros(self._num_envs, device=self._device)
 
     def __len__(self) -> int:
         return self._num_envs
@@ -54,12 +52,6 @@ class EmbodiedEnvWrapper(embodied.Env):
     @property
     def unwrapped(self) -> "AnyEnv":
         return self.env.unwrapped  # type: ignore
-
-    def get_episode_rewards(self) -> List[float]:
-        return self._ep_rew_buf.cpu().tolist()
-
-    def get_episode_lengths(self) -> List[int]:
-        return self._ep_len_buf.cpu().tolist()
 
     @property
     def info(self) -> Mapping[str, Any]:
@@ -121,18 +113,22 @@ class EmbodiedEnvWrapper(embodied.Env):
 
         obs, reward, terminated, truncated, self._info = self.env.step(act)  # type: ignore
 
-        self._ep_rew_buf += reward
-        self._ep_len_buf += 1
+        if isinstance(reward, torch.Tensor):
+            reward = reward.detach().cpu()
+        elif not isinstance(reward, numpy.ndarray):
+            reward = numpy.array((reward,), dtype=numpy.float32)
 
-        self._done = (terminated | truncated).detach().cpu()  # type: ignore
-        reset_ids = (self._done > 0).nonzero()
+        if isinstance(terminated, torch.Tensor):
+            terminated = terminated.detach().cpu()
+        elif not isinstance(terminated, numpy.ndarray):
+            terminated = numpy.array((terminated,), dtype=bool)
 
-        reward = reward.detach().cpu()  # type: ignore
-        terminated = terminated.detach().cpu()  # type: ignore
-        truncated = truncated.detach().cpu()  # type: ignore
+        if isinstance(truncated, torch.Tensor):
+            truncated = truncated.detach().cpu()
+        elif not isinstance(truncated, numpy.ndarray):
+            truncated = numpy.array((truncated,), dtype=bool)
 
-        self._ep_rew_buf[reset_ids] = 0
-        self._ep_len_buf[reset_ids] = 0
+        self._done = terminated | truncated
 
         return self._obs(
             obs=obs,  # type: ignore
@@ -188,7 +184,14 @@ class EmbodiedEnvWrapper(embodied.Env):
         if not self._is_obs_dict:
             obs = {self._obs_key: obs}  # type: ignore
         obs = self._flatten(obs)
-        obs = {k: v.detach().cpu() for k, v in obs.items()}  # type: ignore
+
+        _first_obs = next(iter(obs.values()))
+        if isinstance(_first_obs, torch.Tensor):
+            obs = {k: v.detach().cpu() for k, v in obs.items()}  # type: ignore
+
+        if self._num_envs == 1 and _first_obs.ndim == 1:
+            obs = {k: v.reshape((1, *v.shape)) for k, v in obs.items()}
+
         obs.update(
             reward=reward,
             is_first=is_first,

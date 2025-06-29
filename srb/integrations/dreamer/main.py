@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any, Dict, Literal
 
 import elements
 import embodied
+import gymnasium
 import numpy
 import portal
 from dreamerv3 import agent as dreamer_agent
@@ -26,10 +27,10 @@ UPSTREAM_CONFIG_PATH = Path(dreamer_agent.__file__).parent.joinpath("configs.yam
 
 def run(
     workflow: Literal["train", "eval"],
-    env: "AnyEnv",
+    env: "AnyEnv | gymnasium.Env",
     sim_app: SimulationApp,
     env_id: str,
-    env_cfg: "AnyEnvCfg",
+    env_cfg: "AnyEnvCfg | None",
     agent_cfg: dict,
     logdir: Path,
     model: Path,
@@ -67,12 +68,12 @@ def run(
     config = config.update(
         {
             **agent_cfg,
-            "seed": env_cfg.seed,
+            "seed": env_cfg.seed if env_cfg else 0,
             "task": env_id.replace("/", "_"),
             "logdir": logdir,
             "run.from_checkpoint": from_checkpoint,
-            "run.envs": env_cfg.scene.num_envs,  # type: ignore
-            "run.eval_envs": env_cfg.scene.num_envs,  # type: ignore
+            "run.envs": env_cfg.scene.num_envs if env_cfg else 1,  # type: ignore
+            "run.eval_envs": env_cfg.scene.num_envs if env_cfg else 0,  # type: ignore
         }
     )
 

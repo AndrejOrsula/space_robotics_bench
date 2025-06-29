@@ -143,7 +143,7 @@ class BaseEnvCfg:
         if isinstance(self.gravity, str):
             _gravity = Domain.from_str(self.gravity)
             assert _gravity is not None, (
-                f"Gravity domain '{self.gravity}' must be one of {Domain.__members__.keys()}"
+                f"Gravity '{self.gravity}' must be a valid member of {{{Domain.__name__}: {' | '.join(Domain.__members__.keys())}}}"
             )
             self.gravity = _gravity
 

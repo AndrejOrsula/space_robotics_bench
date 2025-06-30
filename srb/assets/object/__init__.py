@@ -19,8 +19,8 @@ from .peg_in_hole import (  # noqa: F401
 from .rock import (  # noqa: F401
     ApolloSample,
     LunalabBoulder,
-    LunarRock,
     MarsRock,
+    MoonRock,
     SpaceportMoonRock,
 )
 from .sample import SampleTube  # noqa: F401

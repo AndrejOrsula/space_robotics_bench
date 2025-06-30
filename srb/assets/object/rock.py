@@ -13,7 +13,7 @@ from srb.core.sim import (
 from srb.utils.path import SRB_ASSETS_DIR_SRB_OBJECT
 
 
-class LunarRock(Object):
+class MoonRock(Object):
     asset_cfg: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/rock",
         spawn=SimforgeAssetCfg(

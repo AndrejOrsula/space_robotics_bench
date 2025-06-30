@@ -9,6 +9,7 @@ from srb.core.asset import AssetVariant, Object, RigidObjectCfg
 from srb.core.domain import Domain
 from srb.core.manager import EventTermCfg, SceneEntityCfg
 from srb.core.mdp import reset_root_state_uniform
+from srb.core.sim import SimforgeAssetCfg
 
 if TYPE_CHECKING:
     from .task import TaskCfg
@@ -83,7 +84,7 @@ def select_sample(
             pose_range["z"] = (0.06, 0.06)
             match env_cfg.domain:
                 case Domain.MOON:
-                    sample_cfg = assets.LunarRock(
+                    sample_cfg = assets.MoonRock(
                         scale=scale, texture_resolution=texture_resolution
                     ).asset_cfg
 
@@ -92,7 +93,8 @@ def select_sample(
                         scale=scale, texture_resolution=texture_resolution
                     ).asset_cfg
 
-            sample_cfg.spawn.seed = seed  # type: ignore
+    if isinstance(sample_cfg.spawn, SimforgeAssetCfg):
+        sample_cfg.spawn.seed = seed
 
     sample_cfg.prim_path = prim_path
     sample_cfg.init_state = init_state

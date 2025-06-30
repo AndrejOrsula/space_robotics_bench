@@ -174,10 +174,10 @@ Eventually, Isaac Sim will open with the selected environment, and you will be g
 > Reference: [Environment Configuration](../config/env_cfg.md)\
 > Reference: [Environment Configuration — Domain](../config/domain.md)
 
-What if we want to collect natural samples on the Moon instead? Luckily, you can easily configure many aspects of the environment through [Hydra](https://hydra.cc). For instance, you can adjust the **domain** and configure the **sample** asset to spawn procedurally generated Lunar rock samples (`lunar_rock`):
+What if we want to collect natural samples on the Moon instead? Luckily, you can easily configure many aspects of the environment through [Hydra](https://hydra.cc). For instance, you can adjust the **domain** and configure the **sample** asset to spawn procedurally generated Lunar rock samples (`moon_rock`):
 
 ```bash
-srb agent teleop --env sample_collection env.domain=moon env.sample=lunar_rock
+srb agent teleop --env sample_collection env.domain=moon env.sample=moon_rock
 ```
 
 <iframe style="width:100%;aspect-ratio:16/9" src="https://www.youtube.com/embed/d6KhKuB-XAs?si=DM0I2IFinw-rqgdD&mute=1&autoplay=1&loop=1&playlist=d6KhKuB-XAs" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>

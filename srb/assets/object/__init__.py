@@ -16,7 +16,13 @@ from .peg_in_hole import (  # noqa: F401
     ProfilePeg,
     ShortProfilePeg,
 )
-from .rock import LunarRock, MarsRock  # noqa: F401
+from .rock import (  # noqa: F401
+    ApolloSample,
+    LunalabBoulder,
+    LunarRock,
+    MarsRock,
+    SpaceportMoonRock,
+)
 from .sample import SampleTube  # noqa: F401
 from .shape import RandomShape  # noqa: F401
 from .solar_panel import SolarPanel  # noqa: F401

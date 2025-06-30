@@ -268,18 +268,33 @@ class BaseEnvCfg:
                     prim_path=prim_path,
                     spawn=DomeLightCfg(
                         intensity=0.25 * self.domain.light_intensity,
-                        texture_file=skydome_dir.joinpath("cloudy_sky.exr").as_posix(),
+                        texture_file=skydome_dir.joinpath(
+                            # "spaceport_moon_lab.exr",
+                            "cloudy_sky.exr",
+                        ).as_posix(),
                         **kwargs,
                     ),
                 )
-            case Domain.MOON:
+                self.events.randomize_skydome_orientation = EventTermCfg(
+                    func=reset_xform_orientation_uniform,
+                    mode="interval",
+                    is_global_time=True,
+                    interval_range_s=(10.0, 60.0),
+                    params={
+                        "asset_cfg": SceneEntityCfg("skydome"),
+                        "orientation_distribution_params": {
+                            "yaw": (-torch.pi, torch.pi),
+                        },
+                    },
+                )
+            case Domain.MOON | Domain.ASTEROID:
                 self.scene.skydome = AssetBaseCfg(
                     prim_path=prim_path,
                     spawn=DomeLightCfg(
                         intensity=0.25 * self.domain.light_intensity,
                         texture_file=skydome_dir.joinpath(
-                            "stars.exr"
-                            # "milky_way.exr
+                            "stars.exr",
+                            # "milky_way.exr",
                         ).as_posix(),
                         **kwargs,
                     ),
@@ -303,19 +318,32 @@ class BaseEnvCfg:
                     prim_path=prim_path,
                     spawn=DomeLightCfg(
                         intensity=0.25 * self.domain.light_intensity,
-                        texture_file=skydome_dir.joinpath("mars_sky.exr").as_posix(),
+                        texture_file=skydome_dir.joinpath(
+                            "mars_sky.exr",
+                        ).as_posix(),
                         **kwargs,
                     ),
                 )
-                self.events.randomize_skydome_orientation = None
+                self.events.randomize_skydome_orientation = EventTermCfg(
+                    func=reset_xform_orientation_uniform,
+                    mode="interval",
+                    is_global_time=True,
+                    interval_range_s=(10.0, 60.0),
+                    params={
+                        "asset_cfg": SceneEntityCfg("skydome"),
+                        "orientation_distribution_params": {
+                            "yaw": (-torch.pi, torch.pi),
+                        },
+                    },
+                )
             case Domain.ORBIT:
                 self.scene.skydome = AssetBaseCfg(
                     prim_path=prim_path,
                     spawn=DomeLightCfg(
                         intensity=0.25 * self.domain.light_intensity,
                         texture_file=skydome_dir.joinpath(
-                            "low_earth_orbit.exr"
-                            # "low_lunar_orbit.jpg"
+                            "low_earth_orbit.exr",
+                            # "low_lunar_orbit.jpg",
                         ).as_posix(),
                         **kwargs,
                     ),

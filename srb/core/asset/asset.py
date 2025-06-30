@@ -47,22 +47,8 @@ class Asset(BaseModel):
         "scale",
         "texture_resolution",
     )
-    size: Tuple[PositiveFloat, PositiveFloat] | None = None
     scale: Tuple[PositiveFloat, PositiveFloat, PositiveFloat] | None = None
     texture_resolution: TexResConfig | None = None
-
-    def extra_scene_setup(self, env_cfg: "AnyEnvCfg"):
-        """
-        This method allows for additional scene setup that is specific to the asset.
-        It is called after the asset has been added to the scene, but before the simulation starts.
-        The intended use for this method is to create additional scene elements or modify existing ones.
-        """
-        pass
-
-    @classmethod
-    @cache
-    def name(cls) -> str:
-        return convert_to_snake_case(cls.__name__)
 
     def __new__(cls, *args, **kwargs):
         if cls in (
@@ -72,6 +58,26 @@ class Asset(BaseModel):
         ):
             raise TypeError(f"Cannot instantiate abstract class {cls.__name__}")
         return super().__new__(cls)
+
+    @classmethod
+    @cache
+    def name(cls) -> str:
+        return convert_to_snake_case(cls.__name__)
+
+    @property
+    def size(self) -> Tuple[PositiveFloat, PositiveFloat] | None:
+        if self.scale is not None:
+            return (self.scale[0], self.scale[1])
+        else:
+            return None
+
+    def setup_extras(self, env_cfg: "AnyEnvCfg"):
+        """
+        This method allows for additional scene setup that is specific to the asset.
+        It is called after the asset has been added to the scene, but before the simulation starts.
+        The intended use for this method is to create additional scene elements or modify existing ones.
+        """
+        pass
 
     def __init_subclass__(
         cls,

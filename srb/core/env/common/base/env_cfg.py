@@ -34,8 +34,6 @@ from srb.core.asset import (
 from srb.core.domain import Domain
 from srb.core.manager import EventTermCfg, SceneEntityCfg
 from srb.core.marker import VisualizationMarkersCfg
-from srb.core.mdp import follow_xform_orientation_linear_trajectory  # noqa F401
-from srb.core.mdp import reset_scene_to_default  # noqa F401
 from srb.core.mdp import reset_xform_orientation_uniform
 from srb.core.sensor import SensorBaseCfg
 from srb.core.sim import (
@@ -185,7 +183,7 @@ class BaseEnvCfg:
         self._update_memory_allocation()
 
         ## Additional setup
-        self._call_extra_asset_setup()
+        self._setup_asset_extras()
 
         ## Misc
         self._update_procedural_assets()
@@ -406,7 +404,6 @@ class BaseEnvCfg:
 
             ## Attributes
             assert self.spacing is not None
-            size = (self.spacing, self.spacing)
             scale = (
                 self.spacing,
                 self.spacing,
@@ -448,7 +445,6 @@ class BaseEnvCfg:
                         if issubclass(registered_scenery, typ):
                             try:
                                 _scenery = registered_scenery(
-                                    size=size,
                                     scale=scale,
                                     texture_resolution=texture_resolution,
                                     density=density,
@@ -837,10 +833,10 @@ class BaseEnvCfg:
                 init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 0.5)),
             )
 
-    def _call_extra_asset_setup(self):
+    def _setup_asset_extras(self):
         def _recursive_impl(attr: Any):
             if isinstance(attr, Asset):
-                attr.extra_scene_setup(self)
+                attr.setup_extras(self)
             elif isinstance(attr, Iterable) and not isinstance(attr, (str, bytes)):
                 for item in attr:
                     _recursive_impl(item)

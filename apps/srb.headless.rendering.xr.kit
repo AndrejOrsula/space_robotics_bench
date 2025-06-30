@@ -1,0 +1,31 @@
+[package]
+title = "Space Robotics Bench | Headless + XR"
+description = "Headless experience with OpenXR support for the Space Robotics Bench"
+version = "0.0.1"
+keywords = ["benchmark", "robotics", "simulation", "space"]
+
+
+[dependencies]
+## OpenXR
+"isaacsim.xr.openxr" = {}
+
+## Inheritance
+"srb.headless.rendering" = {}
+
+
+[settings]
+## Extensions
+app.exts.folders = [
+    "${app}",
+    "${exe-path}/exts",
+    "${exe-path}/extscore",
+    "${exe-path}/../exts",
+    "${exe-path}/../extscache",
+    "${exe-path}/../extsPhysics",
+    "${exe-path}/../isaacsim/exts",
+    "${exe-path}/../isaacsim/extscache",
+    "${exe-path}/../isaacsim/extsPhysics",
+]
+
+## XR settings
+xr.profile.ar.enabled = true

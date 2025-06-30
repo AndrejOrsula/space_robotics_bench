@@ -1,0 +1,39 @@
+[package]
+title = "Space Robotics Bench | XR"
+description = "Experience with OpenXR support for the Space Robotics Bench"
+version = "0.0.1"
+keywords = ["benchmark", "robotics", "simulation", "space"]
+
+
+[dependencies]
+## OpenXR
+"isaacsim.xr.openxr" = {}
+"omni.kit.xr.system.openxr" = {}
+"omni.kit.xr.profile.ar" = {}
+
+## Inheritance
+"srb.rendering" = {}
+
+
+[settings]
+## Extensions
+app.exts.folders = [
+    "${app}",
+    "${exe-path}/exts",
+    "${exe-path}/extscore",
+    "${exe-path}/../exts",
+    "${exe-path}/../extscache",
+    "${exe-path}/../extsPhysics",
+    "${exe-path}/../isaacsim/exts",
+    "${exe-path}/../isaacsim/extscache",
+    "${exe-path}/../isaacsim/extsPhysics",
+]
+
+## XR settings
+app.xr.enabled = true
+defaults.xr.profile.ar.anchorMode = "custom anchor"
+defaults.xr.profile.ar.renderQuality = "off"
+persistent.xr.profile.ar.render.nearPlane = 0.15
+rtx.rendermode = "RaytracedLighting"
+xr.depth.aov = "GBufferDepth"
+xr.ui.enabled = false

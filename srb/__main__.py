@@ -109,7 +109,7 @@ def run_agent_with_env(
     # Preprocess kwargs
     kwargs["enable_cameras"] = video_enable or env_id.endswith("_visual")
     kwargs["experience"] = SRB_APPS_DIR.joinpath(
-        f"srb.{'headless.' if headless else ''}{'rendering.' if kwargs['enable_cameras'] else ''}kit"
+        f"srb.{'headless.' if headless else ''}{'rendering.' if kwargs['enable_cameras'] else ''}{'xr.' if kwargs['xr'] else ''}kit"
     )
 
     # Launch Isaac Sim
@@ -1979,6 +1979,21 @@ def parse_cli_args() -> argparse.Namespace:
             default=-1,
         )
         launcher_group.add_argument(
+            "--rendering_mode",
+            help=(
+                f"Configure the rendering parameters with one of the predefined presets in the {SRB_APPS_DIR.joinpath('rendering_modes').resolve().as_posix()} directory. "
+            ),
+            type=str,
+            action=ExplicitAction,
+            choices={"performance", "balanced", "quality", "xr"},
+        )
+        launcher_group.add_argument(
+            "--xr",
+            help="Enable XR mode for VR/AR applications.",
+            action="store_true",
+            default=False,
+        )
+        launcher_group.add_argument(
             "--kit_args",
             help="CLI args for the Omniverse Kit as a string separated by a space delimiter (e.g., '--ext-folder=/path/to/ext1 --ext-folder=/path/to/ext2')",
             type=str,
@@ -2265,6 +2280,18 @@ class AutoNamespaceTaskAction(argparse.Action):
 
 class AutoRealNamespaceTaskAction(AutoNamespaceTaskAction):
     NAMESPACE: str = "srb_real"
+
+
+class ExplicitAction(argparse.Action):
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: str,
+        option_string: str | None = None,
+    ):
+        setattr(namespace, self.dest, values)
+        setattr(namespace, f"{self.dest}_explicit", True)
 
 
 class EntityToList(str, Enum):

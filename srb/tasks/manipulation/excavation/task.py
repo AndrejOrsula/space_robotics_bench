@@ -81,6 +81,9 @@ class TaskCfg(ManipulationEnvCfg):
     particles_settle_vel_threshold: float = 0.01
     particles_update_interval: float = 2.0
 
+    ## Assemblies (dynamic joints)
+    assemble_rigid_end_effector: bool = False
+
     def __post_init__(self):
         super().__post_init__()
 

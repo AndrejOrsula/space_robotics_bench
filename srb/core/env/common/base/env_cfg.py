@@ -79,6 +79,7 @@ class BaseEnvCfg:
 
     ## Assemblies (dynamic joints)
     joint_assemblies: Dict[str, RobotAssemblerCfg] = {}
+    assemble_rigid_end_effector: bool = True
 
     ## Scene
     scene: BaseSceneCfg = BaseSceneCfg()
@@ -675,7 +676,11 @@ class BaseEnvCfg:
             if isinstance(manipulator.end_effector, Tool):
                 if isinstance(
                     manipulator.end_effector.asset_cfg,
-                    (RigidObjectCfg, ArticulationCfg),
+                    (
+                        (RigidObjectCfg, ArticulationCfg)
+                        if self.assemble_rigid_end_effector
+                        else ArticulationCfg
+                    ),
                 ):
                     manipulator.end_effector.asset_cfg.prim_path = (
                         prim_path_end_effector
@@ -707,6 +712,9 @@ class BaseEnvCfg:
                     )
                 else:
                     self.joint_assemblies.pop(end_effector_name, None)
+                    manipulator.end_effector.asset_cfg = (  # type: ignore
+                        manipulator.end_effector.as_asset_base_cfg()
+                    )
                     manipulator.end_effector.asset_cfg.prim_path = f"{manipulator.asset_cfg.prim_path}/{manipulator.frame_flange.prim_relpath}/{end_effector_name}"
                     (
                         manipulator.end_effector.asset_cfg.init_state.pos,

@@ -9,6 +9,7 @@ from srb.core.asset import (
     MobileRobot,
     Pedestal,
     RigidObject,
+    RigidObjectCfg,
 )
 from srb.core.env import BaseEventCfg, BaseSceneCfg, DirectEnv, DirectEnvCfg, ViewerCfg
 from srb.core.manager import EventTermCfg, SceneEntityCfg
@@ -88,23 +89,7 @@ class ManipulationEnvCfg(DirectEnvCfg):
 
         ## Add pedestal and offset the robot
         if self.pedestal is not None:
-            if isinstance(self.pedestal.asset_cfg, AssetBaseCfg):
-                self.scene.pedestal = self.pedestal.asset_cfg
-            else:
-                self.scene.pedestal = AssetBaseCfg(
-                    prim_path=self.pedestal.asset_cfg.prim_path,
-                    spawn=self.pedestal.asset_cfg.spawn,
-                    init_state=self.pedestal.asset_cfg.init_state,
-                )
-                for props in (
-                    "articulation_props",
-                    "deformable_props",
-                    "fixed_tendons_props",
-                    "joint_drive_props",
-                    "mass_props",
-                    "rigid_props",
-                ):
-                    setattr(self.scene.pedestal.spawn, props, None)
+            self.scene.pedestal = self.pedestal.as_asset_base_cfg()
             self.scene.robot.init_state.pos, self.scene.robot.init_state.rot = (
                 combine_frame_transforms_tuple(
                     self._robot.asset_cfg.init_state.pos,
@@ -154,6 +139,7 @@ class ManipulationEnvCfg(DirectEnvCfg):
                 prim_path=f"{self._robot.end_effector.asset_cfg.prim_path}/.*",
             )
             if self._robot.end_effector is not None
+            and isinstance(self._robot.end_effector, RigidObjectCfg)
             else None
         )
 

@@ -269,9 +269,9 @@ def reconstruct_object(obj: Any, updates: Any) -> Any:
                                             f'Asset "{manipulator_name}" is supposed to update an instance of "{Manipulator.__name__}" but it is not registered under this type'
                                         )
 
-                                    if end_effector:
+                                    if end_effector is not None:
                                         manipulator.end_effector = end_effector
-                                    elif manipulator.end_effector is None:
+                                    elif obj.end_effector is not None:
                                         manipulator.end_effector = obj.end_effector
 
                                     return manipulator

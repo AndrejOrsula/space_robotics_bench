@@ -10,7 +10,7 @@ from srb.core.env import OrbitalEnv, OrbitalEnvCfg, OrbitalEventCfg, OrbitalScen
 from srb.core.manager import EventTermCfg, SceneEntityCfg
 from srb.core.marker import VisualizationMarkers, VisualizationMarkersCfg
 from srb.core.mdp import reset_root_state_uniform
-from srb.core.sim import ArrowCfg, PreviewSurfaceCfg
+from srb.core.sim import ArrowCfg, PreviewSurfaceCfg, SimforgeAssetCfg
 from srb.utils.cfg import configclass
 from srb.utils.math import (
     combine_frame_transforms,
@@ -92,8 +92,8 @@ class TaskCfg(OrbitalEnvCfg):
         super().__post_init__()
 
         # Scene: Target
-        if hasattr(self.scene.target.spawn, "seed"):
-            self.scene.target.spawn.seed = self.seed + self.scene.num_envs  # type: ignore
+        if isinstance(self.scene.target.spawn, SimforgeAssetCfg):
+            self.scene.target.spawn.seed = self.seed + self.scene.num_envs
 
 
 ############

@@ -4,6 +4,7 @@ from simforge import TexResConfig
 
 from srb import assets
 from srb.core.asset import RigidObjectCfg
+from srb.core.sim import SimforgeAssetCfg
 
 if TYPE_CHECKING:
     from .task import TaskCfg
@@ -23,7 +24,9 @@ def select_obstacle(
         scale=scale, texture_resolution=texture_resolution
     ).asset_cfg
 
-    obstacle_cfg.spawn.seed = seed  # type: ignore
+    if isinstance(obstacle_cfg.spawn, SimforgeAssetCfg):
+        obstacle_cfg.spawn.seed = seed
+
     obstacle_cfg.prim_path = prim_path
     obstacle_cfg.init_state = init_state
     obstacle_cfg.spawn.replace(**kwargs)  # type: ignore

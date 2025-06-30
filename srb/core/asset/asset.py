@@ -6,6 +6,7 @@ import types
 from functools import cache, cached_property
 from itertools import chain
 from typing import (
+    TYPE_CHECKING,
     Any,
     ClassVar,
     Dict,
@@ -29,6 +30,9 @@ from srb.core.sim import MultiAssetSpawnerCfg, ShapeCfg, SimforgeAssetCfg, Spawn
 from srb.utils import logging
 from srb.utils.str import convert_to_snake_case
 
+if TYPE_CHECKING:
+    from srb._typing import AnyEnvCfg
+
 
 class Asset(BaseModel):
     ## Scenario
@@ -46,6 +50,14 @@ class Asset(BaseModel):
     size: Tuple[PositiveFloat, PositiveFloat] | None = None
     scale: Tuple[PositiveFloat, PositiveFloat, PositiveFloat] | None = None
     texture_resolution: TexResConfig | None = None
+
+    def extra_scene_setup(self, env_cfg: "AnyEnvCfg"):
+        """
+        This method allows for additional scene setup that is specific to the asset.
+        It is called after the asset has been added to the scene, but before the simulation starts.
+        The intended use for this method is to create additional scene elements or modify existing ones.
+        """
+        pass
 
     @classmethod
     @cache

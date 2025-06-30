@@ -5,6 +5,7 @@ from simforge import TexResConfig
 
 from srb import assets
 from srb.core.asset import AssetVariant, RigidObjectCfg
+from srb.core.sim import SimforgeAssetCfg
 
 if TYPE_CHECKING:
     from .task import TaskCfg
@@ -68,12 +69,14 @@ def select_peg_in_hole_assembly(
                 scale=scale, texture_resolution=texture_resolution
             ).asset_cfg
 
-            peg_cfg.spawn.seed = seed  # type: ignore
-            hole_cfg.spawn.seed = seed  # type: ignore
-
             rot_symmetry_n = 1
             offset_pos_ends = ((0.0, 0.0, 0.0), (0.0, 0.0, 0.0))
             offset_pos_entrance = (0.0, 0.0, 0.0)
+
+    if isinstance(peg_cfg.spawn, SimforgeAssetCfg):
+        peg_cfg.spawn.seed = seed
+    if isinstance(hole_cfg.spawn, SimforgeAssetCfg):
+        hole_cfg.spawn.seed = seed
 
     peg_cfg.prim_path = prim_path_peg
     peg_kwargs.update(**kwargs)

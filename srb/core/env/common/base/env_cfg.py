@@ -3,7 +3,7 @@ import math
 import types
 from dataclasses import MISSING
 from os import environ
-from typing import Dict, Literal, get_type_hints
+from typing import Any, Dict, Iterable, Literal, Mapping, get_type_hints
 
 import torch
 from simforge import BakeType
@@ -19,6 +19,7 @@ from srb.core.action.term import DummyActionCfg
 from srb.core.asset import (
     ActiveTool,
     ArticulationCfg,
+    Asset,
     AssetBaseCfg,
     AssetVariant,
     CombinedMobileManipulator,
@@ -40,6 +41,7 @@ from srb.core.sensor import SensorBaseCfg
 from srb.core.sim import (
     DistantLightCfg,
     DomeLightCfg,
+    MultiAssetSpawnerCfg,
     ParticlesSpawnerCfg,
     PhysxCfg,
     PyramidParticlesSpawnerCfg,
@@ -160,12 +162,9 @@ class BaseEnvCfg:
         self._add_skydome()
         self._add_scenery()
         self._add_robot()
-        # Update seed & number of variants for procedural assets
-        self._update_procedural_assets()
 
         ## Particles
         self._maybe_add_particles()
-        self._maybe_disable_fabric_for_particles()
 
         ## Events
         self.events.update(self)
@@ -185,8 +184,13 @@ class BaseEnvCfg:
         )
         self._update_memory_allocation()
 
+        ## Additional setup
+        self._call_extra_asset_setup()
+
         ## Misc
+        self._update_procedural_assets()
         self._update_debug_vis()
+        self._maybe_disable_fabric_for_particles()
 
     def _update_memory_allocation(self):
         _pow = math.floor(self.scene.num_envs**0.375) - 1
@@ -225,6 +229,23 @@ class BaseEnvCfg:
         self.sim.physx.gpu_max_num_partitions = 1 << bisect.bisect_left(
             (3, 15, 127, 511, 1023), self.scene.num_envs
         )
+
+    def _maybe_disable_fabric_for_particles(self):
+        for asset_cfg in self.scene.__dict__.values():
+            if isinstance(asset_cfg, AssetBaseCfg) and isinstance(
+                asset_cfg.spawn, ParticlesSpawnerCfg
+            ):
+                self.sim.use_fabric = False
+                return
+            elif isinstance(asset_cfg, RigidObjectCollectionCfg):
+                if not isinstance(asset_cfg.rigid_objects, Dict):
+                    continue
+                for rigid_object_cfg in asset_cfg.rigid_objects.values():
+                    if isinstance(rigid_object_cfg, AssetBaseCfg) and isinstance(
+                        rigid_object_cfg.spawn, ParticlesSpawnerCfg
+                    ):
+                        self.sim.use_fabric = False
+                        return
 
     def _add_sunlight(self, *, prim_path: str = "/World/sunlight", **kwargs):
         if self.domain.light_intensity <= 0.0:
@@ -796,27 +817,6 @@ class BaseEnvCfg:
         # Store the updated config in an internal state
         self._robot = robot
 
-    def _update_procedural_assets(self):
-        def _update_simforge_asset(asset_cfg: AssetBaseCfg):
-            if not isinstance(asset_cfg.spawn, SimforgeAssetCfg):
-                return
-            if asset_cfg.spawn.seed == 0:
-                asset_cfg.spawn.seed = self.seed
-            if asset_cfg.spawn.num_assets == 1 and (
-                asset_cfg.prim_path.startswith("{ENV_REGEX_NS}")
-                or asset_cfg.prim_path.startswith("/World/envs/env_.*")
-            ):
-                asset_cfg.spawn.num_assets = self.scene.num_envs
-
-        for asset_cfg in self.scene.__dict__.values():
-            if isinstance(asset_cfg, AssetBaseCfg):
-                _update_simforge_asset(asset_cfg)
-            elif isinstance(asset_cfg, RigidObjectCollectionCfg):
-                if not isinstance(asset_cfg.rigid_objects, Dict):
-                    continue
-                for rigid_object_cfg in asset_cfg.rigid_objects.values():
-                    _update_simforge_asset(rigid_object_cfg)
-
     def _maybe_add_particles(self):
         assert self.spacing is not None
         if self.scatter_particles and self.spacing > 0.0:
@@ -837,33 +837,73 @@ class BaseEnvCfg:
                 init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 0.5)),
             )
 
-    def _maybe_disable_fabric_for_particles(self):
-        for asset_cfg in self.scene.__dict__.values():
-            if isinstance(asset_cfg, AssetBaseCfg) and isinstance(
-                asset_cfg.spawn, ParticlesSpawnerCfg
-            ):
-                self.sim.use_fabric = False
-                return
-            elif isinstance(asset_cfg, RigidObjectCollectionCfg):
-                if not isinstance(asset_cfg.rigid_objects, Dict):
-                    continue
-                for rigid_object_cfg in asset_cfg.rigid_objects.values():
-                    if isinstance(rigid_object_cfg, AssetBaseCfg) and isinstance(
-                        rigid_object_cfg.spawn, ParticlesSpawnerCfg
-                    ):
-                        self.sim.use_fabric = False
-                        return
+    def _call_extra_asset_setup(self):
+        def _recursive_impl(attr: Any):
+            if isinstance(attr, Asset):
+                attr.extra_scene_setup(self)
+            elif isinstance(attr, Iterable) and not isinstance(attr, (str, bytes)):
+                for item in attr:
+                    _recursive_impl(item)
+            elif isinstance(attr, Mapping):
+                for item in attr.values():
+                    _recursive_impl(item)
+
+        _recursive_impl(self.__dict__.values())
+
+    def _update_procedural_assets(self):
+        def _recursive_impl(attr: Any, prim_path: str = ""):
+            if isinstance(attr, SimforgeAssetCfg):
+                assert prim_path
+                if attr.seed == 0:
+                    attr.seed = self.seed
+                if attr.num_assets == 1 and (
+                    prim_path.startswith("{ENV_REGEX_NS}")
+                    or prim_path.startswith("/World/envs/env_.*")
+                ):
+                    attr.num_assets = self.scene.num_envs
+            elif isinstance(attr, AssetBaseCfg):
+                if isinstance(attr.spawn, MultiAssetSpawnerCfg):
+                    for item in attr.spawn.assets_cfg:
+                        _recursive_impl(item, prim_path=attr.prim_path)
+                else:
+                    _recursive_impl(attr.spawn, prim_path=attr.prim_path)
+            elif isinstance(attr, RigidObjectCollectionCfg):
+                _recursive_impl(attr.rigid_objects)
+            elif isinstance(attr, Mapping):
+                for item in attr.values():
+                    _recursive_impl(item)
+            elif isinstance(attr, Iterable) and not isinstance(attr, (str, bytes)):
+                for item in attr:
+                    _recursive_impl(item)
+
+        _recursive_impl(self.scene.__dict__.values())
 
     def _update_debug_vis(self):
-        for asset_cfg in self.scene.__dict__.values():
-            if isinstance(asset_cfg, SensorBaseCfg):
-                asset_cfg.debug_vis = self.debug_vis
-
         for action_term in self.actions.__dict__.values():
             if isinstance(action_term, ActionTermCfg):
                 action_term.debug_vis = self.debug_vis
 
-        for attr in self.__dict__.values():
+        def _recursive_asset_impl(attr: Any):
+            if isinstance(attr, SensorBaseCfg):
+                attr.debug_vis = self.debug_vis
+            elif isinstance(attr, Mapping):
+                for item in attr.values():
+                    _recursive_asset_impl(item)
+            elif isinstance(attr, Iterable) and not isinstance(attr, (str, bytes)):
+                for item in attr:
+                    _recursive_asset_impl(item)
+
+        _recursive_asset_impl(self.scene.__dict__.values())
+
+        def _recursive_marker_impl(attr: Any):
             if isinstance(attr, VisualizationMarkersCfg):
                 for marker in attr.markers.values():
                     marker.visible = self.debug_vis
+            elif isinstance(attr, Mapping):
+                for item in attr.values():
+                    _recursive_marker_impl(item)
+            elif isinstance(attr, Iterable) and not isinstance(attr, (str, bytes)):
+                for item in attr:
+                    _recursive_marker_impl(item)
+
+        _recursive_marker_impl(self.__dict__.values())

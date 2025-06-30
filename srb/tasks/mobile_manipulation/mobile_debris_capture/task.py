@@ -24,6 +24,7 @@ from srb.core.env import (
 from srb.core.manager import EventTermCfg, SceneEntityCfg
 from srb.core.mdp import reset_root_state_uniform
 from srb.core.sensor import ContactSensor
+from srb.core.sim import SimforgeAssetCfg
 from srb.tasks.manipulation.debris_capture.asset import select_debris
 from srb.utils.cfg import configclass
 from srb.utils.math import (
@@ -105,8 +106,9 @@ class TaskCfg(OrbitalManipulationEnvCfg):
             init_state=RigidObjectCfg.InitialStateCfg(pos=(5.0, 0.0, 0.0)),
             activate_contact_sensors=True,
         )
-        if hasattr(self.scene.debris.spawn, "seed"):
-            self.scene.debris.spawn.seed = self.seed + self.scene.num_envs  # type: ignore
+
+        if isinstance(self.scene.debris.spawn, SimforgeAssetCfg):
+            self.scene.debris.spawn.seed = self.seed + self.scene.num_envs
 
         # Update seed & number of variants for procedural assets
         self._update_procedural_assets()

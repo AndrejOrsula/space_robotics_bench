@@ -231,7 +231,7 @@ ARG ISAACLAB_DEV=true
 ARG ISAACLAB_PATH="/root/isaaclab"
 ARG ISAACLAB_REMOTE="https://github.com/isaac-sim/IsaacLab.git"
 ARG ISAACLAB_BRANCH="main"
-ARG ISAACLAB_COMMIT_SHA="7de6d6fef9424c95fc68dc767af67ffbe0da6832" # 2025-04-11
+ARG ISAACLAB_COMMIT_SHA="3d6f55b9858dc1595c956d904577a364818f77bd" # 2025-06-28
 # hadolint ignore=SC2044
 RUN if [[ "${DEV,,}" = true && "${ISAACLAB_DEV,,}" = true ]]; then \
     echo -e "\n# Isaac Lab ${ISAACLAB_COMMIT_SHA}" >> /entrypoint.bash && \

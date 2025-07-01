@@ -71,12 +71,16 @@ class TaskCfg(GroundEnvCfg):
         super().__post_init__()
 
         # Event: Waypoint target
-        assert self.spacing is not None
-        for dim in ("x", "y"):
-            self.events.target_pos_evolution.params["pos_bounds"][dim] = (  # type: ignore
-                -0.5 * self.target_pos_range_ratio * self.spacing,
-                0.5 * self.target_pos_range_ratio * self.spacing,
-            )
+        if (
+            "hardcoded"
+            not in self.events.target_pos_evolution.params["pos_bounds"].keys()  # type: ignore
+        ):
+            assert self.spacing is not None
+            for dim in ("x", "y"):
+                self.events.target_pos_evolution.params["pos_bounds"][dim] = (  # type: ignore
+                    -0.5 * self.target_pos_range_ratio * self.spacing,
+                    0.5 * self.target_pos_range_ratio * self.spacing,
+                )
 
 
 ############

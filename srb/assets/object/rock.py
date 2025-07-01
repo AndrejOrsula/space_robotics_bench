@@ -20,7 +20,7 @@ class Asteroid(Object):
             assets=[simforge_foundry.Asteroid()],
             collision_props=CollisionPropertiesCfg(),
             mesh_collision_props=MeshCollisionPropertiesCfg(
-                mesh_approximation="convexDecomposition"
+                mesh_approximation="convexHull"
             ),
             rigid_props=RigidBodyPropertiesCfg(),
             mass_props=MassPropertiesCfg(density=2000.0),
@@ -35,7 +35,7 @@ class MoonRock(Object):
             assets=[simforge_foundry.MoonRock()],
             collision_props=CollisionPropertiesCfg(),
             mesh_collision_props=MeshCollisionPropertiesCfg(
-                mesh_approximation="convexDecomposition"
+                mesh_approximation="convexHull"
             ),
             rigid_props=RigidBodyPropertiesCfg(),
             mass_props=MassPropertiesCfg(density=2000.0),
@@ -50,7 +50,7 @@ class MarsRock(Object):
             assets=[simforge_foundry.MarsRock()],
             collision_props=CollisionPropertiesCfg(),
             mesh_collision_props=MeshCollisionPropertiesCfg(
-                mesh_approximation="convexDecomposition"
+                mesh_approximation="convexHull"
             ),
             rigid_props=RigidBodyPropertiesCfg(),
             mass_props=MassPropertiesCfg(density=2000.0),
@@ -77,30 +77,6 @@ class ApolloSample(Object):
                     mass_props=MassPropertiesCfg(density=2000.0),
                 )
                 for i in range(1, 23)
-            ],
-        ),
-    )
-
-
-class LunalabBoulder(Object):
-    asset_cfg: RigidObjectCfg = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/rock",
-        spawn=MultiAssetSpawnerCfg(
-            assets_cfg=[
-                UsdFileCfg(
-                    usd_path=(
-                        SRB_ASSETS_DIR_SRB_OBJECT.joinpath("rock")
-                        .joinpath(f"lunalab_boulder{i}.usdz")
-                        .as_posix()
-                    ),
-                    collision_props=CollisionPropertiesCfg(),
-                    mesh_collision_props=MeshCollisionPropertiesCfg(
-                        mesh_approximation="convexHull"
-                    ),
-                    rigid_props=RigidBodyPropertiesCfg(),
-                    mass_props=MassPropertiesCfg(density=2000.0),
-                )
-                for i in range(1, 5)
             ],
         ),
     )
@@ -139,11 +115,34 @@ class RandomRock(Object):
                 MoonRock().asset_cfg.spawn,
                 MarsRock().asset_cfg.spawn,
                 *ApolloSample().asset_cfg.spawn.assets_cfg,  # type: ignore
-                *LunalabBoulder().asset_cfg.spawn.assets_cfg,  # type: ignore
                 *SpaceportMoonRock().asset_cfg.spawn.assets_cfg,  # type: ignore
             ],
             collision_props=CollisionPropertiesCfg(),
             rigid_props=RigidBodyPropertiesCfg(),
             mass_props=MassPropertiesCfg(density=2000.0),
+        ),
+    )
+
+
+class LunalabBoulder(Object):
+    asset_cfg: RigidObjectCfg = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/rock",
+        spawn=MultiAssetSpawnerCfg(
+            assets_cfg=[
+                UsdFileCfg(
+                    usd_path=(
+                        SRB_ASSETS_DIR_SRB_OBJECT.joinpath("rock")
+                        .joinpath(f"lunalab_boulder{i}.usdz")
+                        .as_posix()
+                    ),
+                    collision_props=CollisionPropertiesCfg(),
+                    mesh_collision_props=MeshCollisionPropertiesCfg(
+                        mesh_approximation="convexHull"
+                    ),
+                    rigid_props=RigidBodyPropertiesCfg(),
+                    mass_props=MassPropertiesCfg(density=2000.0),
+                )
+                for i in range(1, 5)
+            ],
         ),
     )

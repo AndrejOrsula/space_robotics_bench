@@ -287,19 +287,25 @@ class Asset(BaseModel):
                 init_state=self.asset_cfg.init_state,
             )
 
-            for props in (
-                "articulation_props",
-                "deformable_props",
-                "fixed_tendons_props",
-                "joint_drive_props",
-                "mass_props",
-                "mesh_collision_props",
-                "rigid_props",
-            ):
-                if hasattr(asset_cfg.spawn, props):
-                    setattr(asset_cfg.spawn, props, None)
-            if hasattr(asset_cfg.spawn, "activate_contact_sensors"):
-                asset_cfg.spawn.activate_contact_sensors = False  # type: ignore
+            def remove_props(attr: Any):
+                for props in (
+                    "articulation_props",
+                    "deformable_props",
+                    "fixed_tendons_props",
+                    "joint_drive_props",
+                    "mass_props",
+                    "mesh_collision_props",
+                    "rigid_props",
+                ):
+                    if hasattr(attr, props):
+                        setattr(attr, props, None)
+                if hasattr(attr, "activate_contact_sensors"):
+                    attr.activate_contact_sensors = False  # type: ignore
+
+            remove_props(asset_cfg.spawn)
+            if isinstance(asset_cfg.spawn, MultiAssetSpawnerCfg):
+                for subspawner in asset_cfg.spawn.assets_cfg:
+                    remove_props(subspawner)
 
             new_annotation: Any | None = None
             if isinstance(self.__annotations__["asset_cfg"], types.UnionType):
@@ -327,7 +333,7 @@ class Asset(BaseModel):
 
             return asset_cfg
         elif isinstance(self.asset_cfg, AssetBaseCfg):
-            return self.asset_cfg
+            return self.asset_cfg.copy()  # type: ignore
         else:
             raise TypeError(
                 f"Cannot convert asset of type '{type(self.asset_cfg)}' to {AssetBaseCfg.__name__}"
@@ -341,13 +347,19 @@ class Asset(BaseModel):
                 init_state=self.asset_cfg.init_state,  # type: ignore
             )
 
-            for props in (
-                "articulation_props",
-                "fixed_tendons_props",
-                "joint_drive_props",
-            ):
-                if hasattr(asset_cfg.spawn, props):
-                    setattr(asset_cfg.spawn, props, None)
+            def remove_props(attr: Any):
+                for props in (
+                    "articulation_props",
+                    "fixed_tendons_props",
+                    "joint_drive_props",
+                ):
+                    if hasattr(attr, props):
+                        setattr(attr, props, None)
+
+            remove_props(asset_cfg.spawn)
+            if isinstance(asset_cfg.spawn, MultiAssetSpawnerCfg):
+                for subspawner in asset_cfg.spawn.assets_cfg:
+                    remove_props(subspawner)
 
             new_annotation: Any | None = None
             if isinstance(self.__annotations__["asset_cfg"], types.UnionType):
@@ -375,7 +387,7 @@ class Asset(BaseModel):
 
             return asset_cfg
         elif isinstance(self.asset_cfg, RigidObjectCfg):
-            return self.asset_cfg
+            return self.asset_cfg.copy()  # type: ignore
         else:
             raise TypeError(
                 f"Cannot convert asset of type '{type(self.asset_cfg)}' to {RigidObjectCfg.__name__}"
@@ -383,7 +395,7 @@ class Asset(BaseModel):
 
     def as_articulation_cfg(self) -> ArticulationCfg:
         if isinstance(self.asset_cfg, ArticulationCfg):
-            return self.asset_cfg
+            return self.asset_cfg.copy()  # type: ignore
         else:
             raise TypeError(
                 f"Cannot convert asset of type '{type(self.asset_cfg)}' to {ArticulationCfg.__name__}"

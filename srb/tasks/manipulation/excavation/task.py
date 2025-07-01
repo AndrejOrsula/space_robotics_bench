@@ -86,6 +86,7 @@ class TaskCfg(ManipulationEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
+        assert self.particles, "Particles must be enabled for this task"
 
         # Scene: Regolith
         assert self.spacing is not None

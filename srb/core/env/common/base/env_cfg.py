@@ -135,6 +135,7 @@ class BaseEnvCfg:
 
     ## Particles
     # Note: This option is likely to be removed in the future
+    particles: bool = True
     scatter_particles: bool = False
     particles_size: float = 0.025
     particles_ratio: float = 0.001
@@ -215,13 +216,13 @@ class BaseEnvCfg:
             self.malloc_scale * 2 ** min(19 + _pow, 31),
         )
         self.sim.physx.gpu_temp_buffer_capacity = math.floor(
-            self.malloc_scale * 2 ** min(10 + _pow, 31),
+            self.malloc_scale * 2 ** min(14 + _pow, 31),
         )
         self.sim.physx.gpu_max_soft_body_contacts = math.floor(
-            self.malloc_scale * 2 ** min(10 + _pow, 31),
+            self.malloc_scale * 2 ** min(14 + _pow, 31),
         )
         self.sim.physx.gpu_max_particle_contacts = math.floor(
-            self.malloc_scale * 2 ** min(10 + _pow, 31),
+            self.malloc_scale * 2 ** min(14 + _pow, 31),
         )
 
         self.sim.physx.gpu_max_num_partitions = 1 << bisect.bisect_left(
@@ -815,7 +816,7 @@ class BaseEnvCfg:
 
     def _maybe_add_particles(self):
         assert self.spacing is not None
-        if self.scatter_particles and self.spacing > 0.0:
+        if self.particles and self.scatter_particles and self.spacing > 0.0:
             self.scene.particles = AssetBaseCfg(  # type: ignore
                 prim_path="{ENV_REGEX_NS}/particles",
                 spawn=PyramidParticlesSpawnerCfg(
@@ -832,6 +833,8 @@ class BaseEnvCfg:
                 ),
                 init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 0.5)),
             )
+        else:
+            self.scene.particles = None  # type: ignore
 
     def _setup_asset_extras(self):
         def _recursive_impl(attr: Any):

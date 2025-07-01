@@ -50,8 +50,8 @@ class WheeledDriveAction(ActionTerm):
     def process_actions(self, actions: torch.Tensor):
         self._raw_actions = actions
         self._processed_actions = actions.clone()
-        self._processed_actions[:, 0:3] *= self.cfg.scale_linear
-        self._processed_actions[:, 3:6] *= self.cfg.scale_linear
+        self._processed_actions[:, 0] *= self.cfg.scale_linear
+        self._processed_actions[:, 1] *= self.cfg.scale_angular
         if self.cfg.max_linear_velocity is not None:
             self._processed_actions[:, 0].clamp_(
                 -self.cfg.max_linear_velocity, self.cfg.max_linear_velocity
@@ -66,15 +66,15 @@ class WheeledDriveAction(ActionTerm):
         match self.drive_type:
             case DriveType.SKID_STEER:
                 drive_velocities, steer_angles = self._skid_steer_drive(
-                    self._processed_actions[:, 0], self._processed_actions[:, 1]
+                    self.processed_actions[:, 0], self.processed_actions[:, 1]
                 )
             case DriveType.ACKERMANN:
                 drive_velocities, steer_angles = self._ackermann_drive(
-                    self._processed_actions[:, 0], self._processed_actions[:, 1]
+                    self.processed_actions[:, 0], self.processed_actions[:, 1]
                 )
             case DriveType.ROVER:
                 drive_velocities, steer_angles = self._rover_drive(
-                    self._processed_actions[:, 0], self._processed_actions[:, 1]
+                    self.processed_actions[:, 0], self.processed_actions[:, 1]
                 )
 
         ## Apply drive commands

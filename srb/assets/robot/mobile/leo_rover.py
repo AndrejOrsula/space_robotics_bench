@@ -65,8 +65,7 @@ class LeoRover(WheeledRobot):
                 "wheel_joint_RR",
             ],
             scale_linear=0.4,
-            # Note: The angular scale is unrealistic (2x the realistic value)
-            scale_angular=2.0 * deg_to_rad(60),
+            scale_angular=deg_to_rad(60),
         )
     )
 

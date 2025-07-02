@@ -18,7 +18,7 @@ class BeneficiationUnit(Object):
             mesh_collision_props=MeshCollisionPropertiesCfg(
                 mesh_approximation="convexDecomposition"
             ),
-            rigid_props=RigidBodyPropertiesCfg(kinematic_enabled=True),
+            rigid_props=RigidBodyPropertiesCfg(),
             mass_props=MassPropertiesCfg(density=1000.0),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(

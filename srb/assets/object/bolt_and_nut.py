@@ -46,6 +46,7 @@ class NutM8(Object):
                 mesh_approximation="sdf",
                 sdf_resolution=512,
             ),
+            # TODO[high]: Do not use kinematic rigid objects
             rigid_props=RigidBodyPropertiesCfg(kinematic_enabled=True),
             mass_props=MassPropertiesCfg(mass=0.05),
         ),

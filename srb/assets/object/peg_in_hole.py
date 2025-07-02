@@ -32,6 +32,7 @@ class Hole(Object):
         spawn=SimforgeAssetCfg(
             assets=[simforge_foundry.HoleGeo()],
             collision_props=CollisionPropertiesCfg(),
+            # TODO[high]: Do not use kinematic rigid objects
             rigid_props=RigidBodyPropertiesCfg(kinematic_enabled=True),
         ),
     )
@@ -87,6 +88,7 @@ class ProfileHole(Object):
                 .as_posix()
             ),
             collision_props=CollisionPropertiesCfg(),
+            # TODO[high]: Do not use kinematic rigid objects
             rigid_props=RigidBodyPropertiesCfg(kinematic_enabled=True),
             visual_material=PreviewSurfaceCfg(diffuse_color=(0.6, 0.6, 0.6)),
         ),

@@ -481,6 +481,67 @@ def reset_root_state_uniform_poisson_disk_2d(
             asset.write_root_velocity_to_sim(velocity, env_ids=env_ids)  # type: ignore
 
 
+def reset_xforms_uniform_poisson_disk_2d(
+    env: "AnyEnv",
+    env_ids: torch.Tensor,
+    pose_range: dict[str, tuple[float, float]],
+    radius: float,
+    asset_cfg: List[SceneEntityCfg],
+):
+    # Extract the used quantities (to enable type-hinting)
+    assets: List[XFormPrim] = [env.scene[cfg.name] for cfg in asset_cfg]
+    asset_count = assets[0].count
+
+    # Poses
+    range_list = [
+        pose_range.get(key, (0.0, 0.0))
+        for key in ["x", "y", "z", "roll", "pitch", "yaw"]
+    ]
+    ranges = torch.tensor(range_list, dtype=torch.float32, device=env.device)
+    samples_pos_xy = torch.tensor(
+        sample_poisson_disk_2d_looped(
+            (asset_count, len(asset_cfg)),
+            (
+                (range_list[0][0], range_list[1][0]),
+                (range_list[0][1], range_list[1][1]),
+            ),
+            radius,
+        ),
+        device=env.device,
+    )
+    rand_samples = sample_uniform(
+        ranges[2:, 0],
+        ranges[2:, 1],
+        (asset_count, len(asset_cfg), 4),
+        device=env.device,
+    )
+    rand_samples = torch.cat([samples_pos_xy, rand_samples], dim=-1)
+
+    positions = (
+        rand_samples[:, :, 0:3]
+        if env.cfg.stack
+        else (
+            env.scene.env_origins[env_ids].repeat(len(asset_cfg), 1, 1).swapaxes(0, 1)
+            + rand_samples[:, :, 0:3]
+        )
+    )
+    orientations = quat_from_euler_xyz(
+        rand_samples[:, :, 3], rand_samples[:, :, 4], rand_samples[:, :, 5]
+    )
+
+    # Set into the physics simulation
+    for asset, position, orientation in zip(
+        assets,
+        positions.unbind(1),
+        orientations.unbind(1),
+    ):
+        asset.set_world_poses(
+            positions=position,
+            orientations=orientation,
+            indices=None if env.cfg.stack else env_ids,
+        )
+
+
 def reset_collection_root_state_uniform_poisson_disk_2d(
     env: "AnyEnv",
     env_ids: torch.Tensor,
@@ -548,6 +609,65 @@ def reset_collection_root_state_uniform_poisson_disk_2d(
         )
         velocities = root_states[:, :, 7:13] + rand_samples
         assets.write_object_velocity_to_sim(velocities, env_ids=env_ids)
+
+
+def reset_xforms_uniform_poisson_disk_3d(
+    env: "AnyEnv",
+    env_ids: torch.Tensor,
+    pose_range: dict[str, tuple[float, float, float]],
+    radius: float,
+    asset_cfg: List[SceneEntityCfg],
+):
+    # Extract the used quantities (to enable type-hinting)
+    assets: List[XFormPrim] = [env.scene[cfg.name] for cfg in asset_cfg]
+    asset_count = assets[0].count
+
+    # Poses
+    range_list = [
+        pose_range.get(key, (0.0, 0.0))
+        for key in ["x", "y", "z", "roll", "pitch", "yaw"]
+    ]
+    ranges = torch.tensor(range_list, dtype=torch.float32, device=env.device)
+    samples_pos = torch.tensor(
+        sample_poisson_disk_3d_looped(
+            (asset_count, len(asset_cfg)),
+            (
+                (range_list[0][0], range_list[1][0], range_list[2][0]),
+                (range_list[0][1], range_list[1][1], range_list[2][1]),
+            ),
+            radius,
+        ),
+        device=env.device,
+    )
+    rand_samples = sample_uniform(
+        ranges[3:, 0],
+        ranges[3:, 1],
+        (asset_count, len(asset_cfg), 3),
+        device=env.device,
+    )
+    rand_samples = torch.cat([samples_pos, rand_samples], dim=-1)
+
+    positions = (
+        rand_samples[:, :, 0:3]
+        if env.cfg.stack
+        else (
+            env.scene.env_origins[env_ids].repeat(len(asset_cfg), 1, 1).swapaxes(0, 1)
+            + rand_samples[:, :, 0:3]
+        )
+    )
+    orientations = quat_from_euler_xyz(
+        rand_samples[:, :, 3], rand_samples[:, :, 4], rand_samples[:, :, 5]
+    )
+
+    # Set into the physics simulation
+    for asset, position, orientation in zip(
+        assets, positions.unbind(1), orientations.unbind(1)
+    ):
+        asset.set_world_poses(
+            positions=position,
+            orientations=orientation,
+            indices=None if env.cfg.stack else env_ids,
+        )
 
 
 def reset_root_state_uniform_poisson_disk_3d(

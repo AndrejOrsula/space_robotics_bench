@@ -17,11 +17,7 @@ from srb.core.mdp import (  # noqa: F401
 from srb.core.sim import RigidBodyPropertiesCfg  # noqa: F401
 from srb.core.sim import CollisionPropertiesCfg, GridParticlesSpawnerCfg, UsdFileCfg
 from srb.utils.path import SRB_ASSETS_DIR_SRB_SCENERY
-from srb.utils.sampling import (
-    sample_poisson_disk_2d_looped,
-    sample_poisson_disk_3d,
-    sample_uniform,
-)
+from srb.utils.sampling import sample_poisson_disk_3d
 
 if TYPE_CHECKING:
     from srb._typing import AnyEnvCfg
@@ -95,30 +91,30 @@ class Lunalab(Subterrane):
                 if env_cfg.stack
                 else f"{{ENV_REGEX_NS}}/lunalab_boulder{i}"
             )
-            # boulder.init_state.pos = pos[i]
+            boulder.init_state.pos = pos[i]
             setattr(scene, f"lunalab_boulder{i}", boulder)
-        events.randomize_lunalab_boulders = (  # type: ignore
-            EventTermCfg(
-                func=reset_root_state_uniform_poisson_disk_3d,
-                mode="reset",
-                params={
-                    "asset_cfg": [
-                        SceneEntityCfg(f"lunalab_boulder{i}")
-                        for i in range(self.bounder_count)
-                    ],
-                    "pose_range": {
-                        "x": (-3.0, 3.0),
-                        "y": (-4.5, 4.5),
-                        "z": (-0.1, 0.0),
-                        "roll": (-torch.pi, torch.pi),
-                        "pitch": (-torch.pi, torch.pi),
-                        "yaw": (-torch.pi, torch.pi),
-                    },
-                    "velocity_range": None,
-                    "radius": (1.5),
-                },
-            )
-        )
+        # events.randomize_lunalab_boulders = (  # type: ignore
+        #     EventTermCfg(
+        #         func=reset_root_state_uniform_poisson_disk_3d,
+        #         mode="reset",
+        #         params={
+        #             "asset_cfg": [
+        #                 SceneEntityCfg(f"lunalab_boulder{i}")
+        #                 for i in range(self.bounder_count)
+        #             ],
+        #             "pose_range": {
+        #                 "x": (-3.0, 3.0),
+        #                 "y": (-4.5, 4.5),
+        #                 "z": (-0.1, 0.0),
+        #                 "roll": (-torch.pi, torch.pi),
+        #                 "pitch": (-torch.pi, torch.pi),
+        #                 "yaw": (-torch.pi, torch.pi),
+        #             },
+        #             "velocity_range": None,
+        #             "radius": (1.5),
+        #         },
+        #     )
+        # )
 
         # ## Boulders ~ Dynamic
         # rigid_objects = {}
@@ -170,11 +166,9 @@ class Lunalab(Subterrane):
             if hasattr(scene, "particles"):
                 scene.particles = None  # type: ignore
 
-            # Extract parameters
+            spawn_height = 0.1
             min_id = 0 if self.basalt_size[0] <= self.basalt_size[1] else 1
             max_id = (min_id + 1) % 2
-
-            spawn_height = 0.1
             for i in range(self.basalt_n_systems):
                 f = (self.basalt_n_systems - i) / self.basalt_n_systems
                 basalt_size = (

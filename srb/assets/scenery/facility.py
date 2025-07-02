@@ -61,6 +61,17 @@ class Lunalab(Subterrane):
             ViewerCfg(eye=(-4.0, -5.0, 1.5), lookat=(0.0, -1.0, 0.0), origin_type="env")
         )
 
+        ## Light
+        scene.sunlight = None
+        events.randomize_sunlight_orientation = None
+        events.randomize_sunlight_intensity = None
+        events.randomize_sunlight_angular_diameter = None
+        events.randomize_sunlight_color_temperature = None
+
+        ## Skydome
+        scene.skydome = None
+        events.randomize_skydome_orientation = None
+
         ## Terrain
         self.terrain.asset_cfg.prim_path = (
             "/World/lunalab_terrain"
@@ -104,8 +115,7 @@ class Lunalab(Subterrane):
         if env_cfg.particles:
             # Disable any existing particles
             env_cfg.scatter_particles = False
-            if hasattr(scene, "particles"):
-                scene.particles = None  # type: ignore
+            scene.particles = None  # type: ignore
 
             spawn_height = 0.1
             min_id = 0 if self.basalt_size[0] <= self.basalt_size[1] else 1

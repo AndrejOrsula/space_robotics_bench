@@ -3,7 +3,7 @@ import math
 import types
 from dataclasses import MISSING
 from os import environ
-from typing import Any, Dict, Iterable, Literal, Mapping, get_type_hints
+from typing import Any, Dict, Iterable, Literal, Mapping, Sequence, get_type_hints
 
 import torch
 from simforge import BakeType
@@ -34,7 +34,7 @@ from srb.core.asset import (
 from srb.core.domain import Domain
 from srb.core.manager import EventTermCfg, SceneEntityCfg
 from srb.core.marker import VisualizationMarkersCfg
-from srb.core.mdp import reset_xform_orientation_uniform
+from srb.core.mdp import reset_xform_orientation_uniform, settle_and_reset_particles
 from srb.core.sensor import SensorBaseCfg
 from srb.core.sim import (
     DistantLightCfg,
@@ -163,7 +163,7 @@ class BaseEnvCfg:
         self._add_robot()
 
         ## Particles
-        self._maybe_add_particles()
+        self._add_particles()
 
         ## Events
         self.events.update(self)
@@ -187,6 +187,7 @@ class BaseEnvCfg:
         self._setup_asset_extras()
 
         ## Misc
+        self._settle_down_particles()
         self._update_procedural_assets()
         self._update_debug_vis()
         self._maybe_disable_fabric_for_particles()
@@ -228,23 +229,6 @@ class BaseEnvCfg:
         self.sim.physx.gpu_max_num_partitions = 1 << bisect.bisect_left(
             (3, 15, 127, 511, 1023), self.scene.num_envs
         )
-
-    def _maybe_disable_fabric_for_particles(self):
-        for asset_cfg in self.scene.__dict__.values():
-            if isinstance(asset_cfg, AssetBaseCfg) and isinstance(
-                asset_cfg.spawn, ParticlesSpawnerCfg
-            ):
-                self.sim.use_fabric = False
-                return
-            elif isinstance(asset_cfg, RigidObjectCollectionCfg):
-                if not isinstance(asset_cfg.rigid_objects, Dict):
-                    continue
-                for rigid_object_cfg in asset_cfg.rigid_objects.values():
-                    if isinstance(rigid_object_cfg, AssetBaseCfg) and isinstance(
-                        rigid_object_cfg.spawn, ParticlesSpawnerCfg
-                    ):
-                        self.sim.use_fabric = False
-                        return
 
     def _add_sunlight(self, *, prim_path: str = "/World/sunlight", **kwargs):
         if self.domain.light_intensity <= 0.0:
@@ -814,7 +798,7 @@ class BaseEnvCfg:
         # Store the updated config in an internal state
         self._robot = robot
 
-    def _maybe_add_particles(self):
+    def _add_particles(self):
         assert self.spacing is not None
         if self.particles and self.spacing > 0.0:
             self.scene.particles = AssetBaseCfg(  # type: ignore
@@ -835,6 +819,32 @@ class BaseEnvCfg:
             )
         else:
             self.scene.particles = None  # type: ignore
+
+    def _settle_down_particles(self):
+        particle_asset_cfg: Sequence[SceneEntityCfg] = tuple(
+            SceneEntityCfg(attr_name)
+            for attr_name, asset_cfg in self.scene.__dict__.items()
+            if isinstance(asset_cfg, AssetBaseCfg)
+            and isinstance(asset_cfg.spawn, ParticlesSpawnerCfg)
+        )
+        if particle_asset_cfg:
+            self.events.settle_and_reset_particles = (  # type: ignore
+                EventTermCfg(
+                    func=settle_and_reset_particles,
+                    mode="reset",
+                    params={"asset_cfg": particle_asset_cfg},
+                )
+            )
+        else:
+            self.events.settle_and_reset_particles = None  # type: ignore
+
+    def _maybe_disable_fabric_for_particles(self):
+        for asset_cfg in self.scene.__dict__.values():
+            if isinstance(asset_cfg, AssetBaseCfg) and isinstance(
+                asset_cfg.spawn, ParticlesSpawnerCfg
+            ):
+                self.sim.use_fabric = False
+                return
 
     def _setup_asset_extras(self):
         def _recursive_impl(attr: Any):

@@ -3,7 +3,14 @@ from typing import TYPE_CHECKING, Dict, List, Sequence, Tuple
 import torch
 from pxr import Gf
 
-from srb.core.asset import Articulation, RigidObject, RigidObjectCollection, XFormPrim
+import srb.core.sim.spawners.particles.utils as particle_utils
+from srb.core.asset import (
+    Articulation,
+    AssetBase,
+    RigidObject,
+    RigidObjectCollection,
+    XFormPrim,
+)
 from srb.core.manager import SceneEntityCfg
 from srb.utils.math import quat_from_euler_xyz, quat_mul
 from srb.utils.sampling import (
@@ -401,7 +408,7 @@ def reset_root_state_uniform_poisson_disk_2d(
     pose_range: dict[str, tuple[float, float]],
     velocity_range: dict[str, tuple[float, float]] | None,
     radius: float,
-    asset_cfg: List[SceneEntityCfg],
+    asset_cfg: Sequence[SceneEntityCfg],
 ):
     # Extract the used quantities (to enable type-hinting)
     assets: List[RigidObject | Articulation] = [
@@ -486,7 +493,7 @@ def reset_xforms_uniform_poisson_disk_2d(
     env_ids: torch.Tensor,
     pose_range: dict[str, tuple[float, float]],
     radius: float,
-    asset_cfg: List[SceneEntityCfg],
+    asset_cfg: Sequence[SceneEntityCfg],
 ):
     # Extract the used quantities (to enable type-hinting)
     assets: List[XFormPrim] = [env.scene[cfg.name] for cfg in asset_cfg]
@@ -616,7 +623,7 @@ def reset_xforms_uniform_poisson_disk_3d(
     env_ids: torch.Tensor,
     pose_range: dict[str, tuple[float, float, float]],
     radius: float,
-    asset_cfg: List[SceneEntityCfg],
+    asset_cfg: Sequence[SceneEntityCfg],
 ):
     # Extract the used quantities (to enable type-hinting)
     assets: List[XFormPrim] = [env.scene[cfg.name] for cfg in asset_cfg]
@@ -676,7 +683,7 @@ def reset_root_state_uniform_poisson_disk_3d(
     pose_range: dict[str, tuple[float, float, float]],
     velocity_range: dict[str, tuple[float, float, float]] | None,
     radius: float,
-    asset_cfg: List[SceneEntityCfg],
+    asset_cfg: Sequence[SceneEntityCfg],
 ):
     # Extract the used quantities (to enable type-hinting)
     assets: List[RigidObject | Articulation] = [
@@ -823,3 +830,61 @@ def reset_collection_root_state_uniform_poisson_disk_3d(
         )
         velocities = root_states[:, :, 7:13] + rand_samples
         assets.write_object_velocity_to_sim(velocities, env_ids=env_ids)
+
+
+def settle_and_reset_particles(
+    env: "AnyEnv",
+    env_ids: torch.Tensor,
+    asset_cfg: Sequence[SceneEntityCfg],
+    particles_settle_max_steps: int = 50,
+    particles_settle_step_time: float = 20.0,
+    particles_settle_vel_threshold: float = 0.0025,
+):
+    num_particle_systems = len(asset_cfg)
+    particles: Sequence[AssetBase] = tuple(env.scene[cfg.name] for cfg in asset_cfg)
+    initial_pos_ident: Sequence[str] = tuple(
+        f"__particles_{cfg.name}_initial_pos" for cfg in asset_cfg
+    )
+    initial_vel_ident: Sequence[str] = tuple(
+        f"__particles_{cfg.name}_initial_vel" for cfg in asset_cfg
+    )
+
+    ## Let the particles settle on the first reset, then remember their positions for future resets
+    if not hasattr(env, initial_pos_ident[0]):
+        for _ in range(particles_settle_max_steps):
+            for _ in range(round(particles_settle_step_time / env.step_dt)):
+                env.sim.step(render=False)
+
+            for i in range(num_particle_systems):
+                if (
+                    torch.median(
+                        torch.linalg.norm(
+                            particle_utils.get_particles_vel_w(env, particles[i]),
+                            dim=-1,
+                        )
+                    )
+                    > particles_settle_vel_threshold
+                ):
+                    break
+            else:
+                break
+
+        # Extract statistics about the initial state of the particles
+        for i in range(num_particle_systems):
+            particles_pos = particle_utils.get_particles_pos_w(env, particles[i])
+            setattr(env, initial_pos_ident[i], particles_pos)
+            setattr(env, initial_vel_ident[i], torch.zeros_like(particles_pos))
+    else:
+        for i in range(num_particle_systems):
+            particle_utils.set_particles_pos_w(
+                env,
+                particles[i],
+                getattr(env, initial_pos_ident[i]),
+                env_ids=env_ids,  # type: ignore
+            )
+            particle_utils.set_particles_vel_w(
+                env,
+                particles[i],
+                getattr(env, initial_vel_ident[i]),
+                env_ids=env_ids,  # type: ignore
+            )

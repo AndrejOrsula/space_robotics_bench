@@ -90,6 +90,7 @@ class TaskCfg(ManipulationEnvCfg):
 
         # Disable default particles
         self.scene.particles = None  # type: ignore
+        self._settle_down_particles()
 
         # Scene: Regolith
         assert self.spacing is not None
@@ -119,6 +120,10 @@ class TaskCfg(ManipulationEnvCfg):
 class Task(ManipulationEnv):
     cfg: TaskCfg
 
+    # Note: Initial position of settled particles is coming from the `settle_and_reset_particles` event
+    INITIAL_PARTICLE_POS_IDENT: str = "__particles_regolith_initial_pos"
+    INITIAL_PARTICLE_VEL_IDENT: str = "__particles_regolith_initial_vel"
+
     def __init__(self, cfg: TaskCfg, **kwargs):
         super().__init__(cfg, **kwargs)
 
@@ -126,12 +131,10 @@ class Task(ManipulationEnv):
         self._regolith: AssetBase = self.scene["regolith"]
 
         ## Initialize buffers
-        self._initial_particle_pos: torch.Tensor | None = None
+        self._particle_update_counter: int = self.cfg._particle_update_interval_n_steps
         self._initial_particle_mean_pos: torch.Tensor = torch.zeros(
             self.num_envs, 3, dtype=torch.float32, device=self.device
         )
-
-        self._particle_update_counter = self.cfg._particle_update_interval_n_steps
         self._cached_particles_pos = torch.zeros(
             self.num_envs,
             1,
@@ -148,56 +151,33 @@ class Task(ManipulationEnv):
         )
 
     def _reset_idx(self, env_ids: Sequence[int]):
-        ## Let the particles settle on the first reset, then remember their positions for future resets
-        if self._initial_particle_pos is None:
+        ## Reset particles
+        if not hasattr(self, self.INITIAL_PARTICLE_POS_IDENT):
             super()._reset_idx(env_ids)
-            for _ in range(self.cfg.particles_settle_max_steps):
-                for _ in range(
-                    round(self.cfg.particles_settle_step_time / self.step_dt)
-                ):
-                    self.sim.step(render=False)
-                if (
-                    torch.median(
-                        torch.linalg.norm(
-                            particle_utils.get_particles_vel_w(self, self._regolith),
-                            dim=-1,
-                        )
-                    )
-                    < self.cfg.particles_settle_vel_threshold
-                ):
-                    for _ in range(
-                        round(self.cfg.particles_settle_extra_time / self.step_dt)
-                    ):
-                        self.sim.step(render=False)
-                    break
 
-            # Extract statistics about the initial state of the particles
-            self._initial_particle_pos = particle_utils.get_particles_pos_w(
-                self, self._regolith
-            )
-            self._initial_particle_vel = torch.zeros_like(self._initial_particle_pos)
-            self._initial_particle_mean_pos = self.scene.env_origins + torch.mean(
-                self._initial_particle_pos, dim=1
-            )
+            # Determine the mean position of the settled particles
+            initial_particle_pos = getattr(self, self.INITIAL_PARTICLE_POS_IDENT)
+            self._initial_particle_mean_pos[:, :2] = self.scene.env_origins[
+                :, :2
+            ] + torch.mean(initial_particle_pos[:, :, :2], dim=1)
             self._initial_particle_mean_pos[:, 2] = torch.quantile(
-                self._initial_particle_pos[:, 2], q=0.95
+                initial_particle_pos[:, :, 2], q=0.95
             )
 
             # Initialize the particle cache
-            self._cached_particles_pos = self._initial_particle_pos.clone()
-            self._cached_particles_vel = self._initial_particle_vel.clone()
+            self._particle_update_counter = self.cfg._particle_update_interval_n_steps
+            self._cached_particles_pos = initial_particle_pos.clone()
+            self._cached_particles_vel = getattr(
+                self, self.INITIAL_PARTICLE_VEL_IDENT
+            ).clone()
         else:
-            particle_utils.set_particles_pos_w(
-                self, self._regolith, self._initial_particle_pos, env_ids=env_ids
-            )
-            particle_utils.set_particles_vel_w(
-                self, self._regolith, self._initial_particle_vel, env_ids=env_ids
-            )
-
-        # Reset particle cache
-        self._particle_update_counter = self.cfg._particle_update_interval_n_steps
-        self._cached_particles_pos[env_ids] = self._initial_particle_pos[env_ids]
-        self._cached_particles_vel[env_ids] = self._initial_particle_vel[env_ids]
+            self._particle_update_counter = self.cfg._particle_update_interval_n_steps
+            self._cached_particles_pos[env_ids] = getattr(
+                self, self.INITIAL_PARTICLE_POS_IDENT
+            )[env_ids]
+            self._cached_particles_vel[env_ids] = getattr(
+                self, self.INITIAL_PARTICLE_VEL_IDENT
+            )[env_ids]
 
         super()._reset_idx(env_ids)
 
@@ -420,7 +400,7 @@ def _compute_step_return(
     MAX_SPLASHING_PENALTY = -2048.0
     penalty_particle_velocity = torch.clamp_min(
         WEIGHT_SPLASHING_PENALTY
-        * (torch.sum(torch.square(particles_vel_norm), dim=1) / num_particles),
+        * (torch.quantile(torch.square(particles_vel_norm), q=0.8, dim=1)),
         min=MAX_SPLASHING_PENALTY,
     )
 
@@ -451,8 +431,7 @@ def _compute_step_return(
 
     # Reward: Stabilization of excavated particles
     WEIGHT_STABILIZATION_REWARD = 65536.0
-    THRESHOLD_STABILIZATION_POSITION = 0.05
-    TANH_STD_STABILIZATION_VELOCITY = 0.025
+    TANH_STD_STABILIZATION_VELOCITY = 0.01
     reward_particle_stabilization = (
         WEIGHT_STABILIZATION_REWARD
         * torch.sum(
@@ -462,7 +441,7 @@ def _compute_step_return(
                     - particles_initial_mean_pos[:, 2].unsqueeze(1)
                     - HEIGHT_OFFSET_PARTICLE_LIFT
                 )
-                < THRESHOLD_STABILIZATION_POSITION
+                < HEIGHT_SPAN_PARTICLE_LIFT
             ).float()
             * (1.0 - torch.tanh(particles_vel_norm / TANH_STD_STABILIZATION_VELOCITY)),
             dim=1,

@@ -41,11 +41,11 @@ class Lunalab(Subterrane):
     terrain.asset_cfg.init_state.pos = (-0.5, -0.5, -0.2)
 
     ## Boulders
-    bounder_count: PositiveInt = 6
     boulder: Object = LunalabBoulder()
+    boulder_count: PositiveInt = 4
 
     ## Basalt
-    basalt_n_systems: PositiveInt = 5
+    basalt_n_systems: PositiveInt = 3
     basalt_size: Tuple[PositiveFloat, PositiveFloat] = (0.002, 0.01)
     basalt_ratio: Tuple[PositiveFloat, PositiveFloat] = (0.1, 0.001)
 
@@ -81,7 +81,7 @@ class Lunalab(Subterrane):
         scene.lunalab_terrain = self.terrain.as_asset_base_cfg()  # type: ignore
 
         ## Boulders
-        for i in range(self.bounder_count):
+        for i in range(self.boulder_count):
             boulder = self.boulder.as_asset_base_cfg()
             boulder.prim_path = (
                 f"/World/lunalab_boulder{i}"
@@ -96,7 +96,7 @@ class Lunalab(Subterrane):
                 params={
                     "asset_cfg": [
                         SceneEntityCfg(f"lunalab_boulder{i}")
-                        for i in range(self.bounder_count)
+                        for i in range(self.boulder_count)
                     ],
                     "pose_range": {
                         "x": (-3.0, 3.0),
@@ -113,10 +113,10 @@ class Lunalab(Subterrane):
 
         ## Basalt
         if env_cfg.particles:
-            # Disable any existing particles
-            env_cfg.scatter_particles = False
+            # Disable default particles
             scene.particles = None  # type: ignore
 
+            # Spawn multiple regolith layers with different granularity
             spawn_height = 0.1
             min_id = 0 if self.basalt_size[0] <= self.basalt_size[1] else 1
             max_id = (min_id + 1) % 2
@@ -152,7 +152,7 @@ class Lunalab(Subterrane):
                 setattr(scene, f"basalt_{i}", basalt)
                 spawn_height += dim_z * basalt_size
 
-        ## Events
+        ## Events | task: waypoint_navigation
         if hasattr(events, "target_pos_evolution"):
             events.target_pos_evolution.params["pos_bounds"] = {  # type: ignore
                 "hardcoded": True,

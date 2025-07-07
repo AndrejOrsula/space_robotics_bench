@@ -72,7 +72,7 @@ class TaskCfg(ManipulationEnvCfg):
     is_finite_horizon: bool = True
 
     ## Particles
-    scatter_particles: bool = False
+    particles: bool = True
     particles_ratio: float = 0.8
     particles_size: float = 0.01
     particles_settle_max_steps: int = 50
@@ -87,6 +87,9 @@ class TaskCfg(ManipulationEnvCfg):
     def __post_init__(self):
         super().__post_init__()
         assert self.particles, "Particles must be enabled for this task"
+
+        # Disable default particles
+        self.scene.particles = None  # type: ignore
 
         # Scene: Regolith
         assert self.spacing is not None

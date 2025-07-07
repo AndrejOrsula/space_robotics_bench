@@ -134,11 +134,11 @@ class BaseEnvCfg:
     ).lower() in ("true", "1")
 
     ## Particles
-    # Note: This option is likely to be removed in the future
-    particles: bool = True
-    scatter_particles: bool = False
+    particles: bool = False
     particles_size: float = 0.025
     particles_ratio: float = 0.001
+    # TODO[high]: Let all particle systems settle down.
+    # TODO[high]: Support multiple particle systems
 
     def __post_init__(self):
         ## Scenario
@@ -204,13 +204,13 @@ class BaseEnvCfg:
             self.malloc_scale * 2 ** min(17 + _pow, 31),
         )
         self.sim.physx.gpu_found_lost_aggregate_pairs_capacity = math.floor(
-            self.malloc_scale * 2 ** min(13 + _pow, 31),
+            self.malloc_scale * 2 ** min(14 + _pow, 31),
         )
         self.sim.physx.gpu_total_aggregate_pairs_capacity = math.floor(
             self.malloc_scale * 2 ** min(12 + _pow, 31),
         )
         self.sim.physx.gpu_collision_stack_size = math.floor(
-            self.malloc_scale * 2 ** min(19 + _pow, 31),
+            self.malloc_scale * 2 ** min(20 + _pow, 31),
         )
         self.sim.physx.gpu_heap_capacity = math.floor(
             self.malloc_scale * 2 ** min(19 + _pow, 31),
@@ -816,7 +816,7 @@ class BaseEnvCfg:
 
     def _maybe_add_particles(self):
         assert self.spacing is not None
-        if self.particles and self.scatter_particles and self.spacing > 0.0:
+        if self.particles and self.spacing > 0.0:
             self.scene.particles = AssetBaseCfg(  # type: ignore
                 prim_path="{ENV_REGEX_NS}/particles",
                 spawn=PyramidParticlesSpawnerCfg(

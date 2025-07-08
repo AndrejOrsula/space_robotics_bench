@@ -1,5 +1,5 @@
 from dataclasses import MISSING
-from typing import List, Sequence
+from typing import Sequence
 
 import torch
 
@@ -7,9 +7,11 @@ from srb._typing import StepReturn
 from srb.core.env import GroundEnv, GroundEnvCfg, GroundEventCfg, GroundSceneCfg
 from srb.core.manager import EventTermCfg
 from srb.core.marker import VisualizationMarkers, VisualizationMarkersCfg
-from srb.core.mdp import offset_pos_natural
-from srb.core.sim import CylinderCfg, PreviewSurfaceCfg
+from srb.core.mdp import offset_pose_natural
+from srb.core.sim import PreviewSurfaceCfg
+from srb.core.sim.spawners.shapes.extras.cfg import PinnedArrowCfg
 from srb.utils.cfg import configclass
+from srb.utils.math import quat_to_rot6d, subtract_frame_transforms
 
 ##############
 ### Config ###
@@ -23,20 +25,22 @@ class SceneCfg(GroundSceneCfg):
 
 @configclass
 class EventCfg(GroundEventCfg):
-    target_pos_evolution: EventTermCfg = EventTermCfg(
-        func=offset_pos_natural,
+    target_pose_evolution: EventTermCfg = EventTermCfg(
+        func=offset_pose_natural,
         mode="interval",
-        interval_range_s=(0.2, 0.8),
+        interval_range_s=(0.2, 0.4),
         is_global_time=True,
         params={
             "env_attr_name": "_goal",
-            "axes": ("x", "y"),
-            "step_range": (0.05, 0.5),
-            "smoothness": 0.8,
+            "pos_axes": ("x", "y"),
+            "pos_step_range": (0.05, 0.5),
+            "pos_smoothness": 0.9,
             "pos_bounds": {
                 "x": MISSING,
                 "y": MISSING,
             },
+            "orient_yaw_only": True,
+            "orient_smoothness": 0.8,
         },
     )
 
@@ -59,9 +63,13 @@ class TaskCfg(GroundEnvCfg):
     target_marker_cfg: VisualizationMarkersCfg = VisualizationMarkersCfg(
         prim_path="/Visuals/target",
         markers={
-            "target": CylinderCfg(
-                radius=0.02,
-                height=50.0,
+            "target": PinnedArrowCfg(
+                pin_radius=0.01,
+                pin_length=1.0,
+                tail_radius=0.01,
+                tail_length=0.25,
+                head_radius=0.025,
+                head_length=0.1,
                 visual_material=PreviewSurfaceCfg(emissive_color=(0.2, 0.2, 0.8)),
             )
         },
@@ -73,11 +81,11 @@ class TaskCfg(GroundEnvCfg):
         # Event: Waypoint target
         if (
             "hardcoded"
-            not in self.events.target_pos_evolution.params["pos_bounds"].keys()  # type: ignore
+            not in self.events.target_pose_evolution.params["pos_bounds"].keys()  # type: ignore
         ):
             assert self.spacing is not None
             for dim in ("x", "y"):
-                self.events.target_pos_evolution.params["pos_bounds"][dim] = (  # type: ignore
+                self.events.target_pose_evolution.params["pos_bounds"][dim] = (  # type: ignore
                     -0.5 * self.target_pos_range_ratio * self.spacing,
                     0.5 * self.target_pos_range_ratio * self.spacing,
                 )
@@ -100,21 +108,22 @@ class Task(GroundEnv):
         )
 
         ## Initialize buffers
-        self._goal = self.scene.env_origins + torch.zeros(
-            self.num_envs, 3, device=self.device
-        )
+        self._goal = torch.zeros(self.num_envs, 7, device=self.device)
+        self._goal[:, 0:3] = self.scene.env_origins
+        self._goal[:, 4] = 1.0
 
     def _reset_idx(self, env_ids: Sequence[int]):
         super()._reset_idx(env_ids)
 
         ## Reset goal position
-        self._goal[env_ids] = self.scene.env_origins[env_ids] + torch.zeros(
-            len(env_ids), 3, device=self.device
+        self._goal[env_ids, 0:3] = self.scene.env_origins[env_ids]
+        self._goal[env_ids, 3:7] = torch.tensor(
+            [1.0, 0.0, 0.0, 0.0], device=self.device
         )
 
     def extract_step_return(self) -> StepReturn:
         ## Visualize target
-        self._target_marker.visualize(self._goal)
+        self._target_marker.visualize(self._goal[:, :3], self._goal[:, 3:])
 
         return _compute_step_return(
             ## Time
@@ -127,15 +136,15 @@ class Task(GroundEnv):
             ## States
             # Root
             tf_pos_robot=self._robot.data.root_pos_w,
+            tf_quat_robot=self._robot.data.root_quat_w,
             vel_lin_robot=self._robot.data.root_lin_vel_b,
             vel_ang_robot=self._robot.data.root_ang_vel_b,
             # Transforms (world frame)
-            tf_pos_target=self._goal,
+            tf_pos_target=self._goal[:, 0:3],
+            tf_quat_target=self._goal[:, 3:7],
             # IMU
             imu_lin_acc=self._imu_robot.data.lin_acc_b,
             imu_ang_vel=self._imu_robot.data.ang_vel_b,
-            ## Robot descriptors
-            forward_drive_indices=self._forward_drive_indices,
         )
 
 
@@ -152,15 +161,15 @@ def _compute_step_return(
     ## States
     # Root
     tf_pos_robot: torch.Tensor,
+    tf_quat_robot: torch.Tensor,
     vel_lin_robot: torch.Tensor,
     vel_ang_robot: torch.Tensor,
     # Transforms (world frame)
     tf_pos_target: torch.Tensor,
+    tf_quat_target: torch.Tensor,
     # IMU
     imu_lin_acc: torch.Tensor,
     imu_ang_vel: torch.Tensor,
-    ## Robot descriptors
-    forward_drive_indices: List[int],
 ) -> StepReturn:
     num_envs = episode_length.size(0)
     # dtype = episode_length.dtype
@@ -170,9 +179,15 @@ def _compute_step_return(
     ## States ##
     ############
     ## Transforms (world frame)
+    # World -> Robot
+    tf_rot6d_world_to_robot = quat_to_rot6d(tf_quat_robot)
     # Robot -> Target
-    tf_pos_robot_to_target = tf_pos_robot[:, :2] - tf_pos_target[:, :2]
-    dist_robot_to_target = torch.norm(tf_pos_robot_to_target, dim=-1)
+    tf_pos_robot_to_target, _tf_quat_robot_to_target = subtract_frame_transforms(
+        t01=tf_pos_robot, q01=tf_quat_robot, t02=tf_pos_target, q02=tf_quat_target
+    )
+    tf_pos2d_robot_to_target = tf_pos_robot_to_target[:, :2]
+    dist2d_robot_to_target = torch.norm(tf_pos2d_robot_to_target, dim=-1)
+    # tf_rot6d_robot_to_target = quat_to_rot6d(_tf_quat_robot_to_target)
 
     #############
     ## Rewards ##
@@ -183,24 +198,10 @@ def _compute_step_return(
         torch.square(act_current - act_previous), dim=1
     )
 
-    # Penalty: Angular velocity
-    WEIGHT_ANGULAR_VELOCITY = -0.25
-    MAX_ANGULAR_VELOCITY_PENALTY = -5.0
-    penalty_angular_velocity = torch.clamp_min(
-        WEIGHT_ANGULAR_VELOCITY * torch.sum(torch.square(vel_ang_robot[:, :2]), dim=1),
-        min=MAX_ANGULAR_VELOCITY_PENALTY,
-    )
-
     # Penalty: Distance | Robot <--> Target
-    WEIGHT_DISTANCE_ROBOT_TO_TARGET = -16.0
+    WEIGHT_DISTANCE_ROBOT_TO_TARGET = -8.0
     penalty_distance_robot_to_target = (
-        WEIGHT_DISTANCE_ROBOT_TO_TARGET * dist_robot_to_target
-    )
-
-    # Penalty: Backward motion
-    WEIGHT_BACKWARD_MOTION = -0.5
-    penalty_backward_motion = WEIGHT_BACKWARD_MOTION * torch.norm(
-        torch.clamp_max(act_current[:, forward_drive_indices], 0.0), dim=-1
+        WEIGHT_DISTANCE_ROBOT_TO_TARGET * dist2d_robot_to_target
     )
 
     # Reward: Distance | Robot <--> Target (precision)
@@ -211,7 +212,34 @@ def _compute_step_return(
         * (
             1.0
             - torch.tanh(
-                dist_robot_to_target / TANH_STD_DISTANCE_ROBOT_TO_TARGET_PRECISION
+                dist2d_robot_to_target / TANH_STD_DISTANCE_ROBOT_TO_TARGET_PRECISION
+            )
+        )
+    )
+
+    # Reward: Stopping at target
+    WEIGHT_STOPPING_AT_TARGET = 32.0
+    TANH_STD_STOPPING_AT_TARGET_DISTANCE = 0.05
+    TANH_STD_STOPPING_AT_TARGET_VELOCITY_LINEAR = 0.025
+    TANH_STD_STOPPING_AT_TARGET_VELOCITY_ANGULAR = 0.06283
+    reward_stop_at_target = (
+        WEIGHT_STOPPING_AT_TARGET
+        * (
+            1.0
+            - torch.tanh(dist2d_robot_to_target / TANH_STD_STOPPING_AT_TARGET_DISTANCE)
+        )
+        * (
+            1.0
+            - torch.tanh(
+                torch.norm(vel_lin_robot[:, :2], dim=-1)
+                / TANH_STD_STOPPING_AT_TARGET_VELOCITY_LINEAR
+            )
+        )
+        * (
+            1.0
+            - torch.tanh(
+                torch.norm(vel_ang_robot[:, :2], dim=-1)
+                / TANH_STD_STOPPING_AT_TARGET_VELOCITY_ANGULAR
             )
         )
     )
@@ -233,7 +261,9 @@ def _compute_step_return(
             "state": {
                 "vel_lin_robot": vel_lin_robot,
                 "vel_ang_robot": vel_ang_robot,
-                "tf_pos_robot_to_target": tf_pos_robot_to_target,
+                "tf_pos2d_robot_to_target": tf_pos2d_robot_to_target,
+                "tf_rot6d_world_to_robot": tf_rot6d_world_to_robot,
+                # "tf_rot6d_robot_to_target": tf_rot6d_robot_to_target,
             },
             "proprio": {
                 "imu_lin_acc": imu_lin_acc,
@@ -242,10 +272,9 @@ def _compute_step_return(
         },
         {
             "penalty_action_rate": penalty_action_rate,
-            "penalty_angular_velocity": penalty_angular_velocity,
             "penalty_distance_robot_to_target": penalty_distance_robot_to_target,
-            "penalty_backward_motion": penalty_backward_motion,
             "reward_distance_robot_to_target_precision": reward_distance_robot_to_target_precision,
+            "reward_stop_at_target": reward_stop_at_target,
         },
         termination,
         truncation,

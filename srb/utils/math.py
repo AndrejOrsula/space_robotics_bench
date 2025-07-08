@@ -2,6 +2,7 @@ import math
 from typing import Sequence, Tuple
 
 import torch
+import torch.nn.functional as F
 from isaaclab.utils.math import *  # noqa: F403  # type: ignore
 from isaaclab.utils.math import combine_frame_transforms, matrix_from_quat
 from isaaclab.utils.math import subtract_frame_transforms as _subtract_frame_transforms
@@ -73,6 +74,35 @@ def rotmat_to_rot6d(rotmat: torch.Tensor) -> torch.Tensor:
 @torch.jit.script
 def quat_to_rot6d(quaternions: torch.Tensor) -> torch.Tensor:
     return rotmat_to_rot6d(matrix_from_quat(quaternions))
+
+
+@torch.jit.script
+def slerp(q1: torch.Tensor, q2: torch.Tensor, t: float) -> torch.Tensor:
+    dot = torch.sum(q1 * q2, dim=-1)
+
+    # If the dot product is negative, the quaternions have opposite handedness and
+    # slerp won't take the shorter path. Fix by reversing one quaternion.
+    q2_corrected = torch.where(dot.unsqueeze(-1) < 0, -q2, q2)
+    dot_corrected = torch.where(dot < 0, -dot, dot)
+
+    # If the inputs are too close for comfort, linearly interpolate
+    # and normalize the result.
+    close_mask = dot_corrected > 0.95
+
+    # Normal slerp
+    theta_0 = torch.acos(dot_corrected)  # angle between input vectors
+    sin_theta_0 = torch.sin(theta_0)  # compute sine of angle
+    theta = theta_0 * t  # angle between v0 and result
+    sin_theta = torch.sin(theta)  # compute sine of new angle
+    s0 = torch.cos(theta) - dot_corrected * sin_theta / sin_theta_0
+    s1 = sin_theta / sin_theta_0
+
+    # For very close quaternions, use linear interpolation
+    s0 = torch.where(close_mask, 1.0 - t, s0)
+    s1 = torch.where(close_mask, t, s1)
+
+    res = (s0.unsqueeze(-1) * q1) + (s1.unsqueeze(-1) * q2_corrected)
+    return F.normalize(res, p=2.0, dim=-1)
 
 
 def combine_frame_transforms_tuple(

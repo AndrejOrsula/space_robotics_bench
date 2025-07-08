@@ -102,7 +102,7 @@ def spawn_pinned_arrow(
     container = prim_utils.create_prim(mesh_prim_path, "Xform")
 
     pin_attributes = {"radius": cfg.pin_radius, "height": cfg.pin_length, "axis": "Z"}
-    pin_translation = (0, 0, cfg.pin_length / 2.0)
+    pin_translation = (0, 0, cfg.pin_length / 2.0 + cfg.tail_radius)
     pin = prim_utils.create_prim(
         str(container.GetPath().AppendChild("pin_body")),
         "Cylinder",

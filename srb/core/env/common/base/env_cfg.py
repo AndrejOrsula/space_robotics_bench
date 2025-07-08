@@ -137,8 +137,6 @@ class BaseEnvCfg:
     particles: bool = False
     particles_size: float = 0.025
     particles_ratio: float = 0.001
-    # TODO[high]: Let all particle systems settle down.
-    # TODO[high]: Support multiple particle systems
 
     def __post_init__(self):
         ## Scenario

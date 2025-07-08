@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING, Dict, List, Sequence, Tuple
 
 import torch
+import torch.nn.functional as F
 from pxr import Gf
 
 import srb.core.sim.spawners.particles.utils as particle_utils
@@ -12,7 +13,7 @@ from srb.core.asset import (
     XFormPrim,
 )
 from srb.core.manager import SceneEntityCfg
-from srb.utils.math import quat_from_euler_xyz, quat_mul
+from srb.utils.math import quat_from_angle_axis, quat_from_euler_xyz, quat_mul, slerp
 from srb.utils.sampling import (
     sample_poisson_disk_2d_looped,
     sample_poisson_disk_3d_looped,
@@ -139,10 +140,6 @@ def randomize_pos(
     pos_attr[env_ids] = positions
 
 
-# Global dictionary to store velocity vectors for natural movement
-_natural_movement_velocities = {}
-
-
 def offset_pos_natural(
     env: "AnyEnv",
     env_ids: torch.Tensor | None,
@@ -170,37 +167,24 @@ def offset_pos_natural(
             device=_env.device,
         )
 
-    # Create a state key for this specific environment and attribute
-    state_key = f"{id(env)}:{env_attr_name}"
+    state_key = f"__{env_attr_name}_natural_movement_velocities"
 
     # Get or initialize velocity vectors
-    if state_key not in _natural_movement_velocities:
+    if not hasattr(_env, state_key):
         # Initialize with random velocities
-        _natural_movement_velocities[state_key] = torch.zeros(
-            (_env.num_envs, 3), device=_env.device
-        )
-        # Set initial random direction for each environment
-        for i in range(_env.num_envs):
-            _natural_movement_velocities[state_key][i] = torch.randn(
-                3, device=_env.device
-            )
-            # Normalize to ensure we start with unit vector
-            _natural_movement_velocities[state_key][i] /= (
-                torch.norm(_natural_movement_velocities[state_key][i]) + 1e-8
-            )
+        velocities = torch.randn((_env.num_envs, 3), device=_env.device)
+        setattr(_env, state_key, velocities)
 
     # Get the velocities for the current environments
-    velocities = _natural_movement_velocities[state_key][env_ids]
+    velocities = getattr(_env, state_key)[env_ids]
 
     # Apply random perturbation with smoothing
     random_direction = torch.randn_like(velocities)
-    # Normalize random direction
-    random_direction /= torch.norm(random_direction, dim=1, keepdim=True) + 1e-8
 
     # Update velocity with smoothed random changes
-    velocities = smoothness * velocities + (1 - smoothness) * random_direction
-    # Normalize velocities to prevent acceleration
-    velocities /= torch.norm(velocities, dim=1, keepdim=True) + 1e-8
+    velocities = F.normalize(
+        smoothness * velocities + (1 - smoothness) * random_direction, p=2, dim=1
+    )
 
     # Sample step sizes from step_range
     step_sizes = sample_uniform(
@@ -251,10 +235,150 @@ def offset_pos_natural(
                 velocities[above_max, axis_idx] *= -1.0
 
     # Save updated velocities back to the state dictionary
-    _natural_movement_velocities[state_key][env_ids] = velocities
+    getattr(_env, state_key)[env_ids] = velocities
 
     # Update the positions in the environment
     pos_attr[env_ids] = new_positions
+
+
+def offset_pose_natural(
+    env: "AnyEnv",
+    env_ids: torch.Tensor | None,
+    env_attr_name: str,
+    pos_axes: Sequence[str],
+    pos_step_range: Tuple[float, float],
+    pos_smoothness: float,
+    pos_bounds: Dict[str, Tuple[float, float]],
+    orient_yaw_only: bool,
+    orient_smoothness: float,
+):
+    """Move the target pose naturally with smoothed random changes in direction and orientation.
+
+    Args:
+        env: Environment instance
+        env_ids: Indices of environments to update
+        env_attr_name: Name of the attribute to modify
+        pos_axes: Which position axes to apply movement to (e.g., ["x", "y"])
+        pos_step_range: Range of position step sizes per update
+        pos_smoothness: Value between 0-1 controlling continuity of movement (higher = smoother)
+        pos_bounds: Dictionary of position bounds for each axis
+        orient_yaw_only: If True, only the yaw of the orientation will be updated to match the direction of movement.
+        orient_smoothness: Value between 0-1 controlling continuity of orientation (higher = smoother)
+    """
+    _env: "AnyEnv" = env.unwrapped  # type: ignore
+    if env_ids is None:
+        env_ids = torch.arange(
+            _env.num_envs,
+            device=_env.device,
+        )
+
+    # -- Handle Position --
+    pos_state_key = f"__{env_attr_name}_natural_movement_velocities"
+    if not hasattr(_env, pos_state_key):
+        pos_velocities = torch.randn((_env.num_envs, 3), device=_env.device)
+        setattr(_env, pos_state_key, pos_velocities)
+
+    pos_velocities = getattr(_env, pos_state_key)[env_ids]
+    pos_random_direction = torch.randn_like(pos_velocities)
+    pos_velocities = F.normalize(
+        pos_smoothness * pos_velocities + (1 - pos_smoothness) * pos_random_direction,
+        p=2,
+        dim=1,
+    )
+    pos_step_sizes = sample_uniform(
+        pos_step_range[0], pos_step_range[1], (len(env_ids),), device=_env.device
+    )
+    delta_pos = pos_velocities * pos_step_sizes.unsqueeze(1)
+    getattr(_env, pos_state_key)[env_ids] = pos_velocities
+
+    # -- Apply changes --
+    pose_attr = getattr(env, env_attr_name)
+    current_pose = pose_attr[env_ids].clone()
+    current_positions, current_orientations = current_pose[:, :3], current_pose[:, 3:]
+
+    # -- Handle Orientation --
+    orient_state_key = f"__{env_attr_name}_natural_movement_orientations"
+    if not hasattr(_env, orient_state_key):
+        setattr(_env, orient_state_key, current_orientations.clone())
+
+    last_orientations = getattr(_env, orient_state_key)[env_ids]
+
+    # Create a zero vector for axes that are not active
+    active_pos_velocities = pos_velocities.clone()
+    pos_axis_indices = {"x": 0, "y": 1, "z": 2}
+    inactive_pos_axes = [
+        axis_idx for axis, axis_idx in pos_axis_indices.items() if axis not in pos_axes
+    ]
+    for axis_idx in inactive_pos_axes:
+        active_pos_velocities[:, axis_idx] = 0.0
+
+    # Normalize the velocity to get the direction
+    move_direction = F.normalize(active_pos_velocities, p=2, dim=1)
+
+    # -- Calculate orientation based on movement direction
+    # Yaw (z-axis rotation)
+    if orient_yaw_only:
+        # Project movement direction onto XY plane
+        yaw_vec = move_direction.clone()
+        yaw_vec[:, 2] = 0.0
+        # If yaw_vec is zero (movement is purely vertical), use a default forward direction
+        # This avoids normalization issues and keeps orientation consistent
+        is_zero_mask = torch.all(yaw_vec == 0, dim=1)
+        yaw_vec[is_zero_mask] = torch.tensor([1.0, 0.0, 0.0], device=_env.device)
+        yaw_vec = F.normalize(yaw_vec, p=2, dim=1)
+
+        yaw_angle = torch.atan2(yaw_vec[:, 1], yaw_vec[:, 0])
+        target_orientations = quat_from_euler_xyz(
+            torch.zeros_like(yaw_angle), torch.zeros_like(yaw_angle), yaw_angle
+        )
+    else:
+        # Full 3D orientation
+        # Create a rotation from the forward vector (1, 0, 0) to the move_direction
+        forward_vec = torch.tensor(
+            [1.0, 0.0, 0.0], device=_env.device, dtype=torch.float32
+        ).expand_as(move_direction)
+        axis = torch.cross(forward_vec, move_direction, dim=1)
+        angle = torch.acos(torch.sum(forward_vec * move_direction, dim=1))
+        target_orientations = quat_from_angle_axis(angle, axis)
+
+    # Slerp between last orientation and target orientation
+    new_orientations = slerp(
+        last_orientations, target_orientations, 1.0 - orient_smoothness
+    )
+    getattr(_env, orient_state_key)[env_ids] = new_orientations.clone()
+
+    # Apply position movement
+    pos_axis_indices = {"x": 0, "y": 1, "z": 2}
+    pos_active_axes = [
+        pos_axis_indices[axis] for axis in pos_axes if axis in pos_axis_indices
+    ]
+    new_positions = current_positions.clone()
+    for axis_idx in pos_active_axes:
+        new_positions[:, axis_idx] += delta_pos[:, axis_idx]
+
+    # Handle position boundaries
+    for axis in pos_axes:
+        if axis in pos_bounds:
+            axis_idx = pos_axis_indices[axis]
+            min_bound, max_bound = pos_bounds[axis]
+            actual_min = min_bound + env.scene.env_origins[env_ids, axis_idx]
+            actual_max = max_bound + env.scene.env_origins[env_ids, axis_idx]
+            below_min = new_positions[:, axis_idx] < actual_min
+            above_max = new_positions[:, axis_idx] > actual_max
+            if below_min.any():
+                new_positions[below_min, axis_idx] = (
+                    2 * actual_min[below_min] - new_positions[below_min, axis_idx]
+                )
+                pos_velocities[below_min, axis_idx] *= -1.0
+            if above_max.any():
+                new_positions[above_max, axis_idx] = (
+                    2 * actual_max[above_max] - new_positions[above_max, axis_idx]
+                )
+                pos_velocities[above_max, axis_idx] *= -1.0
+    getattr(_env, pos_state_key)[env_ids] = pos_velocities
+
+    # Update the pose in the environment
+    pose_attr[env_ids] = torch.cat([new_positions, new_orientations], dim=-1)
 
 
 def randomize_command(

@@ -89,6 +89,3 @@ class GroundEnv(MobileEnv):
             ),
             None,
         )
-        self._forward_drive_indices = (
-            [0] if self._wheeled_drive_action_term_key is not None else []
-        )

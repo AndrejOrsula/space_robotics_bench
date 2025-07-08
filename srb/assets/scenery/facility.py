@@ -1,3 +1,4 @@
+import math
 from typing import TYPE_CHECKING, Tuple
 
 import torch
@@ -48,6 +49,7 @@ class Lunalab(Subterrane):
     basalt_n_systems: PositiveInt = 3
     basalt_size: Tuple[PositiveFloat, PositiveFloat] = (0.002, 0.01)
     basalt_ratio: Tuple[PositiveFloat, PositiveFloat] = (0.1, 0.001)
+    basalt_height: Tuple[PositiveInt, PositiveInt] = (1, 1)
 
     def setup_extras(self, env_cfg: "AnyEnvCfg"):
         scene = env_cfg.scene
@@ -130,7 +132,10 @@ class Lunalab(Subterrane):
                     f * (self.basalt_ratio[max_id] - self.basalt_ratio[min_id])
                     + self.basalt_ratio[min_id]
                 )
-                dim_z = 1
+                basalt_height = math.floor(
+                    f * (self.basalt_height[max_id] - self.basalt_height[min_id])
+                    + self.basalt_height[min_id]
+                )
                 basalt = AssetBaseCfg(  # type: ignore
                     prim_path=f"{{ENV_REGEX_NS}}/basalt_{i}",
                     spawn=GridParticlesSpawnerCfg(
@@ -138,7 +143,7 @@ class Lunalab(Subterrane):
                         particle_size=basalt_size,
                         dim_x=round(6.5 / basalt_size),
                         dim_y=round(10.0 / basalt_size),
-                        dim_z=dim_z,
+                        dim_z=basalt_height,
                         velocity=((-0.1, 0.1), (-0.1, 0.1), (-0.05, 0.0)),
                         fluid=False,
                         density=1500.0,
@@ -150,10 +155,17 @@ class Lunalab(Subterrane):
                     ),
                 )
                 setattr(scene, f"basalt_{i}", basalt)
-                spawn_height += dim_z * basalt_size
+                spawn_height += basalt_size * basalt_height
 
         ## Events | task: waypoint_navigation
-        if hasattr(events, "target_pos_evolution"):
+        if hasattr(events, "target_pose_evolution"):
+            events.target_pose_evolution.params["pos_bounds"] = {  # type: ignore
+                "hardcoded": True,
+                "x": (-3.0, 3.0),
+                "y": (-4.75, 4.75),
+            }
+            events.target_pose_evolution.params["pos_step_range"] = (0.05, 0.25)  # type: ignore
+        elif hasattr(events, "target_pos_evolution"):
             events.target_pos_evolution.params["pos_bounds"] = {  # type: ignore
                 "hardcoded": True,
                 "x": (-3.0, 3.0),

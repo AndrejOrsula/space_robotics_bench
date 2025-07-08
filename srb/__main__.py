@@ -346,8 +346,16 @@ def teleop_agent(
     pos_sensitivity: float,
     rot_sensitivity: float,
     algo: str,
-    recognized_cmd_keys: Sequence[str] = ("cmd", "command", "goal", "target"),
-    addititive_cmd_keys: Sequence[str] = ("goal", "target"),
+    recognized_cmd_keys: Sequence[str] = (
+        "cmd",
+        "command",
+        "goal",
+        "target",
+    ),
+    addititive_cmd_keys: Sequence[str] = (
+        "goal",
+        "target",
+    ),
     **kwargs,
 ):
     import torch
@@ -580,6 +588,7 @@ def _teleop_agent_via_policy(
     from gymnasium.core import ActType, SupportsFloat, Wrapper, WrapperObsType
 
     from srb.utils import logging
+    from srb.utils.math import quat_mul, rpy_to_quat
 
     ## Try disabling event for the command
     if hasattr(env.unwrapped, "event_manager"):
@@ -676,34 +685,42 @@ def _teleop_agent_via_policy(
                         ),
                     )
                 case 7:
-                    cmd = torch.concat(
-                        (
-                            torch.from_numpy(twist).to(
+                    if self._is_cmd_additive:
+                        cmd = getattr(env.unwrapped, self._internal_cmd_attr_name)  # type: ignore
+                        cmd[..., 0:3] += twist[0:3]
+                        cmd[..., 3:7] = quat_mul(
+                            torch.tensor(
+                                rpy_to_quat(*twist[3:6]),
                                 device=env.unwrapped.device,  # type: ignore
                                 dtype=torch.float32,
-                            ),
-                            torch.Tensor((-1.0 if event else 1.0,)).to(
-                                device=twist.device  # type: ignore
-                            ),
+                            ).unsqueeze(0),
+                            cmd[..., 3:7],
                         )
-                    )
-                    setattr(
-                        env.unwrapped,
-                        self._internal_cmd_attr_name,  # type: ignore
-                        (
-                            cmd.repeat(
-                                self.env.unwrapped.cfg.scene.num_envs,  # type: ignore
-                                1,
+                        setattr(env.unwrapped, self._internal_cmd_attr_name, cmd)  # type: ignore
+                    else:
+                        cmd = torch.concat(
+                            (
+                                torch.from_numpy(twist).to(
+                                    device=env.unwrapped.device,  # type: ignore
+                                    dtype=torch.float32,
+                                ),
+                                torch.Tensor((-1.0 if event else 1.0,)).to(
+                                    device=env.unwrapped.device,  # type: ignore
+                                ),
                             )
-                            if self._is_internal_cmd_attr_per_env
-                            else cmd
                         )
-                        if not self._is_cmd_additive
-                        else (
-                            getattr(env.unwrapped, self._internal_cmd_attr_name)  # type: ignore
-                            + cmd
-                        ),
-                    )
+                        setattr(
+                            env.unwrapped,
+                            self._internal_cmd_attr_name,  # type: ignore
+                            (
+                                cmd.repeat(
+                                    self.env.unwrapped.cfg.scene.num_envs,  # type: ignore
+                                    1,
+                                )
+                                if self._is_internal_cmd_attr_per_env
+                                else cmd
+                            ),
+                        )
                 case _:
                     raise ValueError(
                         f"Unsupported command length for teleoperation: {cmd_len}"

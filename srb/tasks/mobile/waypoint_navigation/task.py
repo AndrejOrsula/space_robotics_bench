@@ -65,11 +65,11 @@ class TaskCfg(GroundEnvCfg):
         markers={
             "target": PinnedArrowCfg(
                 pin_radius=0.01,
-                pin_length=1.0,
+                pin_length=5.0,
                 tail_radius=0.01,
-                tail_length=0.25,
-                head_radius=0.025,
-                head_length=0.1,
+                tail_length=0.2,
+                head_radius=0.04,
+                head_length=0.08,
                 visual_material=PreviewSurfaceCfg(emissive_color=(0.2, 0.2, 0.8)),
             )
         },
@@ -123,7 +123,10 @@ class Task(GroundEnv):
 
     def extract_step_return(self) -> StepReturn:
         ## Visualize target
-        self._target_marker.visualize(self._goal[:, :3], self._goal[:, 3:])
+        self._target_marker.visualize(
+            self._goal[:, :3] + torch.tensor((0.0, 0.0, -4.0), device=self.device),
+            self._goal[:, 3:],
+        )
 
         _robot_pose = self._robot.data.root_link_pose_w
         return _compute_step_return(

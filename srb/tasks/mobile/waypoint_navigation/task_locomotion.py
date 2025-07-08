@@ -11,7 +11,12 @@ from srb.core.mdp import push_by_setting_velocity  # noqa: F401
 from srb.core.mdp import reset_joints_by_scale
 from srb.core.sensor import ContactSensor, ContactSensorCfg
 from srb.utils.cfg import configclass
-from srb.utils.math import matrix_from_quat, rotmat_to_rot6d, scale_transform
+from srb.utils.math import (
+    matrix_from_quat,
+    rotmat_to_rot6d,
+    scale_transform,
+    subtract_frame_transforms,
+)
 
 from .task import EventCfg, SceneCfg, Task, TaskCfg
 
@@ -105,8 +110,12 @@ class LocomotionTask(Task):
 
     def extract_step_return(self) -> StepReturn:
         ## Visualize target
-        self._target_marker.visualize(self._goal)
+        self._target_marker.visualize(
+            self._goal[:, :3] + torch.tensor((0.0, 0.0, -4.0), device=self.device),
+            self._goal[:, 3:],
+        )
 
+        _robot_pose = self._robot.data.root_link_pose_w
         return _compute_step_return(
             ## Time
             episode_length=self.episode_length_buf,
@@ -117,13 +126,14 @@ class LocomotionTask(Task):
             act_previous=self.action_manager.prev_action,
             ## States
             # Root
-            tf_pos_robot=self._robot.data.root_pos_w,
-            tf_quat_robot=self._robot.data.root_quat_w,
+            tf_pos_robot=_robot_pose[:, 0:3],
+            tf_quat_robot=_robot_pose[:, 3:7],
             vel_lin_robot=self._robot.data.root_lin_vel_b,
             vel_ang_robot=self._robot.data.root_ang_vel_b,
             projected_gravity_robot=self._robot.data.projected_gravity_b,
             # Transforms (world frame)
-            tf_pos_target=self._goal,
+            tf_pos_target=self._goal[:, 0:3],
+            tf_quat_target=self._goal[:, 3:7],
             # Joints
             joint_pos_robot=self._robot.data.joint_pos,
             joint_pos_limits_robot=(
@@ -165,6 +175,7 @@ def _compute_step_return(
     projected_gravity_robot: torch.Tensor,
     # Transforms (world frame)
     tf_pos_target: torch.Tensor,
+    tf_quat_target: torch.Tensor,
     # Joints
     joint_pos_robot: torch.Tensor,
     joint_pos_limits_robot: torch.Tensor | None,
@@ -194,8 +205,21 @@ def _compute_step_return(
 
     ## Transforms (world frame)
     # Robot -> Target
-    tf_pos_robot_to_target = tf_pos_robot[:, :2] - tf_pos_target[:, :2]
-    dist_robot_to_target = torch.norm(tf_pos_robot_to_target, dim=-1)
+    tf_pos_robot_to_target, _tf_quat_robot_to_target = subtract_frame_transforms(
+        t01=tf_pos_robot, q01=tf_quat_robot, t02=tf_pos_target, q02=tf_quat_target
+    )
+    tf_rotmat_robot_to_target = matrix_from_quat(_tf_quat_robot_to_target)
+    tf_rot6d_robot_to_target = rotmat_to_rot6d(tf_rotmat_robot_to_target)
+
+    # Derived states
+    tf_pos2d_robot_to_target = tf_pos_robot_to_target[:, :2]
+    dist2d_robot_to_target = torch.norm(tf_pos2d_robot_to_target, dim=-1)
+    angle_robot_to_target_pos = torch.atan2(
+        tf_pos_robot_to_target[..., 1], tf_pos_robot_to_target[..., 0]
+    )
+    yaw_robot_to_target = torch.atan2(
+        tf_rotmat_robot_to_target[..., 1, 0], tf_rotmat_robot_to_target[..., 0, 0]
+    )
 
     ## Joints
     joint_pos_robot_normalized = (
@@ -251,15 +275,55 @@ def _compute_step_return(
         > THRESHOLD_UNDESIRED_ROBOT_CONTACTS
     )
 
-    # Reward: Distance | Robot <--> Target (precision)
-    WEIGHT_DISTANCE_ROBOT_TO_TARGET_PRECISION = 64.0
-    TANH_STD_DISTANCE_ROBOT_TO_TARGET_PRECISION = 0.05
-    reward_distance_robot_to_target_precision = (
-        WEIGHT_DISTANCE_ROBOT_TO_TARGET_PRECISION
+    # Penalty: Position tracking | Robot <--> Target
+    WEIGHT_POSITION_TRACKING = -1.0
+    penalty_position_tracking = WEIGHT_POSITION_TRACKING * torch.square(
+        dist2d_robot_to_target
+    )
+
+    # Reward: Point towards target | Robot <--> Target
+    WEIGHT_POINT_TOWARDS_TARGET = 2.0
+    TANH_STD_POINT_TOWARDS_TARGET = 0.7854  # 45 deg
+    reward_point_towards_target = WEIGHT_POINT_TOWARDS_TARGET * (
+        1.0
+        - torch.tanh(
+            torch.abs(angle_robot_to_target_pos) / TANH_STD_POINT_TOWARDS_TARGET
+        )
+    )
+
+    # Reward: Position tracking | Robot <--> Target (precision)
+    WEIGHT_POSITION_TRACKING_PRECISION = 4.0
+    TANH_STD_POSITION_TRACKING_PRECISION = 0.05
+    _position_tracking_precision = 1.0 - torch.tanh(
+        dist2d_robot_to_target / TANH_STD_POSITION_TRACKING_PRECISION
+    )
+    reward_position_tracking_precision = (
+        WEIGHT_POSITION_TRACKING_PRECISION * _position_tracking_precision
+    )
+
+    # Reward: Target orientation tracking once position is reached | Robot <--> Target
+    WEIGHT_ORIENTATION_TRACKING = 8.0
+    TANH_STD_ORIENTATION_TRACKING = 0.2618  # 15 deg
+    reward_orientation_tracking = (
+        WEIGHT_ORIENTATION_TRACKING
+        * _position_tracking_precision
+        * (
+            1.0
+            - torch.tanh(torch.abs(yaw_robot_to_target) / TANH_STD_ORIENTATION_TRACKING)
+        )
+    )
+
+    # Reward: Slow down at target
+    WEIGHT_SLOW_AT_TARGET = 8.0
+    TANH_STD_SLOW_AT_TARGET_VELOCITY_LINEAR = 0.01
+    reward_slow_at_target = (
+        WEIGHT_SLOW_AT_TARGET
+        * _position_tracking_precision
         * (
             1.0
             - torch.tanh(
-                dist_robot_to_target / TANH_STD_DISTANCE_ROBOT_TO_TARGET_PRECISION
+                torch.norm(vel_lin_robot[:, :2], dim=-1)
+                / TANH_STD_SLOW_AT_TARGET_VELOCITY_LINEAR
             )
         )
     )
@@ -269,7 +333,7 @@ def _compute_step_return(
     THRESHOLD_FEET_AIR_TIME = 0.1
     reward_feet_air_time = (
         WEIGHT_FEET_AIR_TIME
-        * (dist_robot_to_target > THRESHOLD_FEET_AIR_TIME)
+        * (dist2d_robot_to_target > THRESHOLD_FEET_AIR_TIME)
         * torch.sum(
             (contact_last_air_time[:, robot_feet_indices] - 0.5)
             * contact_robot[:, robot_feet_indices],
@@ -316,7 +380,8 @@ def _compute_step_return(
                 "vel_lin_robot": vel_lin_robot,
                 "vel_ang_robot": vel_ang_robot,
                 "projected_gravity_robot": projected_gravity_robot,
-                "tf_pos_robot_to_target": tf_pos_robot_to_target,
+                "tf_pos2d_robot_to_target": tf_pos2d_robot_to_target,
+                "tf_rot6d_robot_to_target": tf_rot6d_robot_to_target,
             },
             "state_dyn": {
                 "contact_forces_robot": contact_forces_robot,
@@ -336,7 +401,11 @@ def _compute_step_return(
             "penalty_joint_torque": penalty_joint_torque,
             "penalty_joint_acceleration": penalty_joint_acceleration,
             "penalty_undesired_robot_contacts": penalty_undesired_robot_contacts,
-            "reward_distance_robot_to_target_precision": reward_distance_robot_to_target_precision,
+            "penalty_position_tracking": penalty_position_tracking,
+            "reward_point_towards_target": reward_point_towards_target,
+            "reward_position_tracking_precision": reward_position_tracking_precision,
+            "reward_orientation_tracking": reward_orientation_tracking,
+            "reward_slow_at_target": reward_slow_at_target,
             "reward_feet_air_time": reward_feet_air_time,
             "penalty_undesired_lin_vel_z": penalty_undesired_lin_vel_z,
             "penalty_undesired_ang_vel_xy": penalty_undesired_ang_vel_xy,

@@ -11,7 +11,7 @@ from srb.core.mdp import offset_pose_natural
 from srb.core.sim import PreviewSurfaceCfg
 from srb.core.sim.spawners.shapes.extras.cfg import PinnedArrowCfg
 from srb.utils.cfg import configclass
-from srb.utils.math import quat_to_rot6d, subtract_frame_transforms
+from srb.utils.math import matrix_from_quat, rotmat_to_rot6d, subtract_frame_transforms
 
 ##############
 ### Config ###
@@ -28,19 +28,19 @@ class EventCfg(GroundEventCfg):
     target_pose_evolution: EventTermCfg = EventTermCfg(
         func=offset_pose_natural,
         mode="interval",
-        interval_range_s=(0.2, 0.4),
+        interval_range_s=(0.2, 0.8),
         is_global_time=True,
         params={
             "env_attr_name": "_goal",
             "pos_axes": ("x", "y"),
-            "pos_step_range": (0.05, 0.5),
+            "pos_step_range": (0.05, 0.25),
             "pos_smoothness": 0.9,
             "pos_bounds": {
                 "x": MISSING,
                 "y": MISSING,
             },
             "orient_yaw_only": True,
-            "orient_smoothness": 0.8,
+            "orient_smoothness": 0.9,
         },
     )
 
@@ -125,6 +125,7 @@ class Task(GroundEnv):
         ## Visualize target
         self._target_marker.visualize(self._goal[:, :3], self._goal[:, 3:])
 
+        _robot_pose = self._robot.data.root_link_pose_w
         return _compute_step_return(
             ## Time
             episode_length=self.episode_length_buf,
@@ -135,8 +136,8 @@ class Task(GroundEnv):
             act_previous=self.action_manager.prev_action,
             ## States
             # Root
-            tf_pos_robot=self._robot.data.root_pos_w,
-            tf_quat_robot=self._robot.data.root_quat_w,
+            tf_pos_robot=_robot_pose[:, 0:3],
+            tf_quat_robot=_robot_pose[:, 3:7],
             vel_lin_robot=self._robot.data.root_lin_vel_b,
             vel_ang_robot=self._robot.data.root_ang_vel_b,
             # Transforms (world frame)
@@ -179,67 +180,81 @@ def _compute_step_return(
     ## States ##
     ############
     ## Transforms (world frame)
-    # World -> Robot
-    tf_rot6d_world_to_robot = quat_to_rot6d(tf_quat_robot)
     # Robot -> Target
     tf_pos_robot_to_target, _tf_quat_robot_to_target = subtract_frame_transforms(
         t01=tf_pos_robot, q01=tf_quat_robot, t02=tf_pos_target, q02=tf_quat_target
     )
+    tf_rotmat_robot_to_target = matrix_from_quat(_tf_quat_robot_to_target)
+    tf_rot6d_robot_to_target = rotmat_to_rot6d(tf_rotmat_robot_to_target)
+
+    # Derived states
     tf_pos2d_robot_to_target = tf_pos_robot_to_target[:, :2]
     dist2d_robot_to_target = torch.norm(tf_pos2d_robot_to_target, dim=-1)
-    # tf_rot6d_robot_to_target = quat_to_rot6d(_tf_quat_robot_to_target)
+    angle_robot_to_target_pos = torch.atan2(
+        tf_pos_robot_to_target[..., 1], tf_pos_robot_to_target[..., 0]
+    )
+    yaw_robot_to_target = torch.atan2(
+        tf_rotmat_robot_to_target[..., 1, 0], tf_rotmat_robot_to_target[..., 0, 0]
+    )
 
     #############
     ## Rewards ##
     #############
     # Penalty: Action rate
-    WEIGHT_ACTION_RATE = -0.05
+    WEIGHT_ACTION_RATE = -0.1
     penalty_action_rate = WEIGHT_ACTION_RATE * torch.sum(
         torch.square(act_current - act_previous), dim=1
     )
 
-    # Penalty: Distance | Robot <--> Target
-    WEIGHT_DISTANCE_ROBOT_TO_TARGET = -8.0
-    penalty_distance_robot_to_target = (
-        WEIGHT_DISTANCE_ROBOT_TO_TARGET * dist2d_robot_to_target
+    # Penalty: Position tracking | Robot <--> Target
+    WEIGHT_POSITION_TRACKING = -1.0
+    penalty_position_tracking = WEIGHT_POSITION_TRACKING * torch.square(
+        dist2d_robot_to_target
     )
 
-    # Reward: Distance | Robot <--> Target (precision)
-    WEIGHT_DISTANCE_ROBOT_TO_TARGET_PRECISION = 64.0
-    TANH_STD_DISTANCE_ROBOT_TO_TARGET_PRECISION = 0.05
-    reward_distance_robot_to_target_precision = (
-        WEIGHT_DISTANCE_ROBOT_TO_TARGET_PRECISION
-        * (
-            1.0
-            - torch.tanh(
-                dist2d_robot_to_target / TANH_STD_DISTANCE_ROBOT_TO_TARGET_PRECISION
-            )
+    # Reward: Point towards target | Robot <--> Target
+    WEIGHT_POINT_TOWARDS_TARGET = 2.0
+    TANH_STD_POINT_TOWARDS_TARGET = 0.7854  # 45 deg
+    reward_point_towards_target = WEIGHT_POINT_TOWARDS_TARGET * (
+        1.0
+        - torch.tanh(
+            torch.abs(angle_robot_to_target_pos) / TANH_STD_POINT_TOWARDS_TARGET
         )
     )
 
-    # Reward: Stopping at target
-    WEIGHT_STOPPING_AT_TARGET = 32.0
-    TANH_STD_STOPPING_AT_TARGET_DISTANCE = 0.05
-    TANH_STD_STOPPING_AT_TARGET_VELOCITY_LINEAR = 0.025
-    TANH_STD_STOPPING_AT_TARGET_VELOCITY_ANGULAR = 0.06283
-    reward_stop_at_target = (
-        WEIGHT_STOPPING_AT_TARGET
+    # Reward: Position tracking | Robot <--> Target (precision)
+    WEIGHT_POSITION_TRACKING_PRECISION = 4.0
+    TANH_STD_POSITION_TRACKING_PRECISION = 0.05
+    _position_tracking_precision = 1.0 - torch.tanh(
+        dist2d_robot_to_target / TANH_STD_POSITION_TRACKING_PRECISION
+    )
+    reward_position_tracking_precision = (
+        WEIGHT_POSITION_TRACKING_PRECISION * _position_tracking_precision
+    )
+
+    # Reward: Target orientation tracking once position is reached | Robot <--> Target
+    WEIGHT_ORIENTATION_TRACKING = 8.0
+    TANH_STD_ORIENTATION_TRACKING = 0.2618  # 15 deg
+    reward_orientation_tracking = (
+        WEIGHT_ORIENTATION_TRACKING
+        * _position_tracking_precision
         * (
             1.0
-            - torch.tanh(dist2d_robot_to_target / TANH_STD_STOPPING_AT_TARGET_DISTANCE)
+            - torch.tanh(torch.abs(yaw_robot_to_target) / TANH_STD_ORIENTATION_TRACKING)
         )
+    )
+
+    # Reward: Slow down at target
+    WEIGHT_SLOW_AT_TARGET = 8.0
+    TANH_STD_SLOW_AT_TARGET_VELOCITY_LINEAR = 0.01
+    reward_slow_at_target = (
+        WEIGHT_SLOW_AT_TARGET
+        * _position_tracking_precision
         * (
             1.0
             - torch.tanh(
                 torch.norm(vel_lin_robot[:, :2], dim=-1)
-                / TANH_STD_STOPPING_AT_TARGET_VELOCITY_LINEAR
-            )
-        )
-        * (
-            1.0
-            - torch.tanh(
-                torch.norm(vel_ang_robot[:, :2], dim=-1)
-                / TANH_STD_STOPPING_AT_TARGET_VELOCITY_ANGULAR
+                / TANH_STD_SLOW_AT_TARGET_VELOCITY_LINEAR
             )
         )
     )
@@ -262,19 +277,20 @@ def _compute_step_return(
                 "vel_lin_robot": vel_lin_robot,
                 "vel_ang_robot": vel_ang_robot,
                 "tf_pos2d_robot_to_target": tf_pos2d_robot_to_target,
-                "tf_rot6d_world_to_robot": tf_rot6d_world_to_robot,
-                # "tf_rot6d_robot_to_target": tf_rot6d_robot_to_target,
+                "tf_rot6d_robot_to_target": tf_rot6d_robot_to_target,
             },
-            "proprio": {
-                "imu_lin_acc": imu_lin_acc,
-                "imu_ang_vel": imu_ang_vel,
-            },
+            # "proprio": {
+            #     "imu_lin_acc": imu_lin_acc,
+            #     "imu_ang_vel": imu_ang_vel,
+            # },
         },
         {
             "penalty_action_rate": penalty_action_rate,
-            "penalty_distance_robot_to_target": penalty_distance_robot_to_target,
-            "reward_distance_robot_to_target_precision": reward_distance_robot_to_target_precision,
-            "reward_stop_at_target": reward_stop_at_target,
+            "penalty_position_tracking": penalty_position_tracking,
+            "reward_point_towards_target": reward_point_towards_target,
+            "reward_position_tracking_precision": reward_position_tracking_precision,
+            "reward_orientation_tracking": reward_orientation_tracking,
+            "reward_slow_at_target": reward_slow_at_target,
         },
         termination,
         truncation,

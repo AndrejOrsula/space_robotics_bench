@@ -164,14 +164,12 @@ class Lunalab(Subterrane):
                 "x": (-3.0, 3.0),
                 "y": (-4.75, 4.75),
             }
-            events.target_pose_evolution.params["pos_step_range"] = (0.05, 0.25)  # type: ignore
         elif hasattr(events, "target_pos_evolution"):
             events.target_pos_evolution.params["pos_bounds"] = {  # type: ignore
                 "hardcoded": True,
                 "x": (-3.0, 3.0),
                 "y": (-4.75, 4.75),
             }
-            events.target_pos_evolution.params["step_range"] = (0.05, 0.25)  # type: ignore
 
 
 class Oberpfaffenhofen(Terrain):

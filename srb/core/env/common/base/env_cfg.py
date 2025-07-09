@@ -35,7 +35,7 @@ from srb.core.domain import Domain
 from srb.core.manager import EventTermCfg, SceneEntityCfg
 from srb.core.marker import VisualizationMarkersCfg
 from srb.core.mdp import reset_xform_orientation_uniform, settle_and_reset_particles
-from srb.core.sensor import SensorBaseCfg
+from srb.core.sensor import ImuCfg, SensorBaseCfg
 from srb.core.sim import (
     DistantLightCfg,
     DomeLightCfg,
@@ -892,7 +892,9 @@ class BaseEnvCfg:
 
         def _recursive_asset_impl(attr: Any):
             if isinstance(attr, SensorBaseCfg):
-                attr.debug_vis = self.debug_vis
+                # Note: Ignore debug visualization for IMUs
+                if not isinstance(attr, ImuCfg):
+                    attr.debug_vis = self.debug_vis
             elif isinstance(attr, Mapping):
                 for item in attr.values():
                     _recursive_asset_impl(item)

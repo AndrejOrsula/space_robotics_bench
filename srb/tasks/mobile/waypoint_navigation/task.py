@@ -11,7 +11,7 @@ from srb.core.mdp import offset_pose_natural
 from srb.core.sim import PreviewSurfaceCfg
 from srb.core.sim.spawners.shapes.extras.cfg import PinnedArrowCfg
 from srb.utils.cfg import configclass
-from srb.utils.math import matrix_from_quat, rotmat_to_rot6d, subtract_frame_transforms
+from srb.utils.math import matrix_from_quat, subtract_frame_transforms
 
 ##############
 ### Config ###
@@ -65,7 +65,7 @@ class TaskCfg(GroundEnvCfg):
         markers={
             "target": PinnedArrowCfg(
                 pin_radius=0.01,
-                pin_length=5.0,
+                pin_length=1.0,
                 tail_radius=0.01,
                 tail_length=0.2,
                 head_radius=0.04,
@@ -123,10 +123,7 @@ class Task(GroundEnv):
 
     def extract_step_return(self) -> StepReturn:
         ## Visualize target
-        self._target_marker.visualize(
-            self._goal[:, :3] + torch.tensor((0.0, 0.0, -4.0), device=self.device),
-            self._goal[:, 3:],
-        )
+        self._target_marker.visualize(self._goal[:, :3], self._goal[:, 3:])
 
         _robot_pose = self._robot.data.root_link_pose_w
         return _compute_step_return(
@@ -188,7 +185,6 @@ def _compute_step_return(
         t01=tf_pos_robot, q01=tf_quat_robot, t02=tf_pos_target, q02=tf_quat_target
     )
     tf_rotmat_robot_to_target = matrix_from_quat(_tf_quat_robot_to_target)
-    tf_rot6d_robot_to_target = rotmat_to_rot6d(tf_rotmat_robot_to_target)
 
     # Derived states
     tf_pos2d_robot_to_target = tf_pos_robot_to_target[:, :2]
@@ -198,6 +194,9 @@ def _compute_step_return(
     )
     yaw_robot_to_target = torch.atan2(
         tf_rotmat_robot_to_target[..., 1, 0], tf_rotmat_robot_to_target[..., 0, 0]
+    )
+    tf_rot2dtrigyaw_robot_to_target = torch.stack(
+        (torch.sin(yaw_robot_to_target), torch.cos(yaw_robot_to_target)), dim=-1
     )
 
     #############
@@ -236,7 +235,7 @@ def _compute_step_return(
     )
 
     # Reward: Target orientation tracking once position is reached | Robot <--> Target
-    WEIGHT_ORIENTATION_TRACKING = 8.0
+    WEIGHT_ORIENTATION_TRACKING = 40.0
     TANH_STD_ORIENTATION_TRACKING = 0.2618  # 15 deg
     reward_orientation_tracking = (
         WEIGHT_ORIENTATION_TRACKING
@@ -277,10 +276,10 @@ def _compute_step_return(
     return StepReturn(
         {
             "state": {
-                "vel_lin_robot": vel_lin_robot,
-                "vel_ang_robot": vel_ang_robot,
+                # "vel_lin_robot": vel_lin_robot,
+                # "vel_ang_robot": vel_ang_robot,
                 "tf_pos2d_robot_to_target": tf_pos2d_robot_to_target,
-                "tf_rot6d_robot_to_target": tf_rot6d_robot_to_target,
+                "tf_rot2dtrigyaw_robot_to_target": tf_rot2dtrigyaw_robot_to_target,
             },
             # "proprio": {
             #     "imu_lin_acc": imu_lin_acc,

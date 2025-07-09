@@ -693,7 +693,10 @@ def _teleop_agent_via_policy(
                                 rpy_to_quat(*twist[3:6]),
                                 device=env.unwrapped.device,  # type: ignore
                                 dtype=torch.float32,
-                            ).unsqueeze(0),
+                            ).repeat(
+                                self.env.unwrapped.cfg.scene.num_envs,  # type: ignore
+                                1,
+                            ),
                             cmd[..., 3:7],
                         )
                         setattr(env.unwrapped, self._internal_cmd_attr_name, cmd)  # type: ignore

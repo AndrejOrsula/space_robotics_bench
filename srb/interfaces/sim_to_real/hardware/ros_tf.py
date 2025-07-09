@@ -1,7 +1,7 @@
 import math
 import time
 from enum import Enum, auto
-from typing import Any, Dict, Sequence, Set
+from typing import TYPE_CHECKING, Any, Dict, Sequence, Set
 
 import numpy
 from typing_extensions import Self
@@ -12,11 +12,29 @@ from srb.interfaces.sim_to_real.core.hardware import (
 )
 from srb.utils import logging
 
+if TYPE_CHECKING:
+    from geometry_msgs.msg import Quaternion
+
+
+class PositionRepresentation(Enum):
+    POS_3D = auto()
+    POS_2D = auto()
+
+    def __str__(self) -> str:
+        return self.name.lower()
+
+    @classmethod
+    def from_str(cls, string: str) -> Self | None:
+        return next(
+            (variant for variant in cls if string.upper() == variant.name), None
+        )
+
 
 class RotationRepresentation(Enum):
+    QUAT_WXYZ = auto()
     ROTMAT = auto()
     ROT_6D = auto()
-    QUAT_WXYZ = auto()
+    ROT_2D_TRIG_YAW = auto()
 
     def __str__(self) -> str:
         return self.name.lower()
@@ -31,6 +49,7 @@ class RotationRepresentation(Enum):
 class RosTfInterfaceCfg(HardwareInterfaceCfg):
     timeout_duration: float = 0.2
     discovery_interval: float = 1.0
+    position_repr: Sequence[PositionRepresentation] = (PositionRepresentation.POS_3D,)
     rotation_repr: Sequence[RotationRepresentation] = (RotationRepresentation.ROT_6D,)
 
     allowlist: Sequence[str] = ()
@@ -111,11 +130,23 @@ class RosTfInterface(HardwareInterface):
                     continue
 
                 ## Position
-                self.obs[f"state/tf_pos_{source_frame}_to_{target_frame}"] = (
-                    numpy.zeros(3, dtype=numpy.float32)
-                )
+                if PositionRepresentation.POS_3D in self.cfg.position_repr:
+                    # 3D position observation (x, y, z)
+                    self.obs[f"state/tf_pos_{source_frame}_to_{target_frame}"] = (
+                        numpy.zeros(3, dtype=numpy.float32)
+                    )
+                if PositionRepresentation.POS_2D in self.cfg.position_repr:
+                    # 2D position observation (x, y)
+                    self.obs[f"state/tf_pos2d_{source_frame}_to_{target_frame}"] = (
+                        numpy.zeros(2, dtype=numpy.float32)
+                    )
 
                 ## Rotation
+                if RotationRepresentation.QUAT_WXYZ in self.cfg.rotation_repr:
+                    # Quaternion observation
+                    self.obs[f"state/tf_quat_{source_frame}_to_{target_frame}"] = (
+                        numpy.array((1.0, 0.0, 0.0, 0.0), dtype=numpy.float32)
+                    )
                 if RotationRepresentation.ROTMAT in self.cfg.rotation_repr:
                     # Rotation matrix observation
                     self.obs[f"state/tf_rotmat_{source_frame}_to_{target_frame}"] = (
@@ -124,13 +155,13 @@ class RosTfInterface(HardwareInterface):
                 if RotationRepresentation.ROT_6D in self.cfg.rotation_repr:
                     # 6D rotation observation
                     self.obs[f"state/tf_rot6d_{source_frame}_to_{target_frame}"] = (
-                        numpy.array([1.0, 0.0, 0.0, 0.0, 1.0, 0.0], dtype=numpy.float32)
+                        numpy.array((1.0, 0.0, 0.0, 0.0, 1.0, 0.0), dtype=numpy.float32)
                     )
-                if RotationRepresentation.QUAT_WXYZ in self.cfg.rotation_repr:
-                    # Quaternion observation
-                    self.obs[f"state/tf_quat_{source_frame}_to_{target_frame}"] = (
-                        numpy.array([1.0, 0.0, 0.0, 0.0], dtype=numpy.float32)
-                    )
+                if RotationRepresentation.ROT_2D_TRIG_YAW in self.cfg.rotation_repr:
+                    # 2D rotation observation (sin(yaw), cos(yaw))
+                    self.obs[
+                        f"state/tf_rot2dtrigyaw_{source_frame}_to_{target_frame}"
+                    ] = numpy.array((0.0, 1.0), dtype=numpy.float32)
 
     def _update_transforms(self):
         current_time = self.ros_node.get_clock().now()
@@ -145,26 +176,31 @@ class RosTfInterface(HardwareInterface):
                     current_time,
                     timeout=self.tf_timeout_duration,
                 )
-                self.obs[f"state/tf_pos_{source_frame}_to_{target_frame}"] = (
-                    numpy.array(
-                        (
-                            tf_stamped.transform.translation.x,
-                            tf_stamped.transform.translation.y,
-                            tf_stamped.transform.translation.z,
-                        ),
-                        dtype=numpy.float32,
-                    )
-                )
-                if RotationRepresentation.ROTMAT in self.cfg.rotation_repr:
-                    self.obs[f"state/tf_rotmat_{source_frame}_to_{target_frame}"] = (
-                        self._quat_to_rotmat(tf_stamped.transform.rotation)
-                    )
-                if RotationRepresentation.ROT_6D in self.cfg.rotation_repr:
-                    self.obs[f"state/tf_rot6d_{source_frame}_to_{target_frame}"] = (
-                        self._rotmat_to_rot6d(
-                            self._quat_to_rotmat(tf_stamped.transform.rotation)
+
+                ## Position
+                if PositionRepresentation.POS_3D in self.cfg.position_repr:
+                    self.obs[f"state/tf_pos_{source_frame}_to_{target_frame}"] = (
+                        numpy.array(
+                            (
+                                tf_stamped.transform.translation.x,
+                                tf_stamped.transform.translation.y,
+                                tf_stamped.transform.translation.z,
+                            ),
+                            dtype=numpy.float32,
                         )
                     )
+                if PositionRepresentation.POS_2D in self.cfg.position_repr:
+                    self.obs[f"state/tf_pos2d_{source_frame}_to_{target_frame}"] = (
+                        numpy.array(
+                            (
+                                tf_stamped.transform.translation.x,
+                                tf_stamped.transform.translation.y,
+                            ),
+                            dtype=numpy.float32,
+                        )
+                    )
+
+                ## Rotation
                 if RotationRepresentation.QUAT_WXYZ in self.cfg.rotation_repr:
                     self.obs[f"state/tf_quat_{source_frame}_to_{target_frame}"] = (
                         numpy.array(
@@ -177,6 +213,23 @@ class RosTfInterface(HardwareInterface):
                             dtype=numpy.float32,
                         )
                     )
+                if RotationRepresentation.ROTMAT in self.cfg.rotation_repr:
+                    self.obs[f"state/tf_rotmat_{source_frame}_to_{target_frame}"] = (
+                        self._quat_to_rotmat(tf_stamped.transform.rotation)
+                    )
+                if RotationRepresentation.ROT_6D in self.cfg.rotation_repr:
+                    self.obs[f"state/tf_rot6d_{source_frame}_to_{target_frame}"] = (
+                        self._rotmat_to_rot6d(
+                            self._quat_to_rotmat(tf_stamped.transform.rotation)
+                        )
+                    )
+                if RotationRepresentation.ROT_2D_TRIG_YAW in self.cfg.rotation_repr:
+                    yaw = self._quat_to_yaw(tf_stamped.transform.rotation)
+                    self.obs[
+                        f"state/tf_rot2dtrigyaw_{source_frame}_to_{target_frame}"
+                    ] = numpy.array(
+                        (numpy.sin(yaw), numpy.cos(yaw)), dtype=numpy.float32
+                    )
 
     def _quaternion_to_rot6d(self, quat: numpy.ndarray) -> numpy.ndarray:
         # Normalize quaternion
@@ -185,11 +238,11 @@ class RosTfInterface(HardwareInterface):
 
         # Convert to rotation matrix
         rot_matrix = numpy.array(
-            [
-                [1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y)],
-                [2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x)],
-                [2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x * x + y * y)],
-            ],
+            (
+                (1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y)),
+                (2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x)),
+                (2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x * x + y * y)),
+            ),
             dtype=numpy.float32,
         )
 
@@ -198,10 +251,17 @@ class RosTfInterface(HardwareInterface):
         return rot6d
 
     @staticmethod
-    def _quat_to_rotmat(quat) -> numpy.ndarray:
-        r, i, j, k = quat[0], quat[1], quat[2], quat[3]
-        two_s = 2.0 / (quat * quat).sum()
-        return numpy.stack(
+    def _quat_to_yaw(quat: "Quaternion") -> float:
+        return math.atan2(
+            2.0 * (quat.w * quat.z + quat.x * quat.y),
+            1.0 - 2.0 * (quat.y * quat.y + quat.z * quat.z),
+        )
+
+    @staticmethod
+    def _quat_to_rotmat(quat: "Quaternion") -> numpy.ndarray:
+        r, i, j, k = quat.w, quat.x, quat.y, quat.z
+        two_s = 2.0 / (r * r + i * i + j * j + k * k)
+        return numpy.array(
             (
                 1 - two_s * (j * j + k * k),
                 two_s * (i * j - k * r),
@@ -212,12 +272,13 @@ class RosTfInterface(HardwareInterface):
                 two_s * (i * k - j * r),
                 two_s * (j * k + i * r),
                 1 - two_s * (i * i + j * j),
-            )
+            ),
+            dtype=numpy.float32,
         ).reshape((3, 3))
 
     @staticmethod
     def _rotmat_to_rot6d(rotmat: numpy.ndarray) -> numpy.ndarray:
-        return rotmat[:, :2].reshape((6,))
+        return rotmat[:, :2].flatten()
 
     @property
     def observation(self) -> Dict[str, numpy.ndarray]:

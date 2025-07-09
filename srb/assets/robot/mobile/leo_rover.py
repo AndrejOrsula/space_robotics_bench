@@ -7,7 +7,7 @@ from srb.core.sim import (
     RigidBodyPropertiesCfg,
     UsdFileCfg,
 )
-from srb.utils.math import deg_to_rad, rpy_to_quat
+from srb.utils.math import deg_to_rad
 from srb.utils.path import SRB_ASSETS_DIR_SRB_ROBOT
 
 
@@ -74,21 +74,18 @@ class LeoRover(WheeledRobot):
     frame_payload_mount: Frame = Frame(
         prim_relpath="chassis",
         offset=Transform(
-            pos=(0.0, 0.0915, 0.2),
-            rot=rpy_to_quat(0.0, 0.0, -90.0),
+            pos=(-0.0915, 0.0, 0.2),
         ),
     )
     frame_manipulator_mount: Frame = Frame(
         prim_relpath="chassis",
         offset=Transform(
-            pos=(0.0, -0.088, 0.2),
-            rot=rpy_to_quat(0.0, 0.0, -90.0),
+            pos=(0.088, 0.0, 0.2),
         ),
     )
     frame_front_camera: Frame = Frame(
         prim_relpath="chassis/camera_front",
         offset=Transform(
-            pos=(0.0, -0.098, 0.157),
-            rot=rpy_to_quat(0.0, 0.0, -90.0),
+            pos=(0.098, 0.0, 0.157),
         ),
     )

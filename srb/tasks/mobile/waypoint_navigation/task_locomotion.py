@@ -302,7 +302,7 @@ def _compute_step_return(
     )
 
     # Reward: Target orientation tracking once position is reached | Robot <--> Target
-    WEIGHT_ORIENTATION_TRACKING = 8.0
+    WEIGHT_ORIENTATION_TRACKING = 40.0
     TANH_STD_ORIENTATION_TRACKING = 0.2618  # 15 deg
     reward_orientation_tracking = (
         WEIGHT_ORIENTATION_TRACKING

@@ -114,7 +114,7 @@ class Lunalab(Subterrane):
         )
 
         ## Basalt
-        if env_cfg.particles:
+        if env_cfg.particles and self.basalt_n_systems:
             # Disable default particles
             scene.particles = None  # type: ignore
 

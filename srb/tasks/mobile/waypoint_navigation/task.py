@@ -40,7 +40,7 @@ class EventCfg(GroundEventCfg):
                 "y": MISSING,
             },
             "orient_yaw_only": True,
-            "orient_smoothness": 0.9,
+            "orient_smoothness": 0.75,
         },
     )
 
@@ -65,7 +65,7 @@ class TaskCfg(GroundEnvCfg):
         markers={
             "target": PinnedArrowCfg(
                 pin_radius=0.01,
-                pin_length=1.0,
+                pin_length=5.0,
                 tail_radius=0.01,
                 tail_length=0.2,
                 head_radius=0.04,
@@ -123,7 +123,9 @@ class Task(GroundEnv):
 
     def extract_step_return(self) -> StepReturn:
         ## Visualize target
-        self._target_marker.visualize(self._goal[:, :3], self._goal[:, 3:])
+        marker_pose = self._goal.clone()
+        marker_pose[:, 2] -= 4.0
+        self._target_marker.visualize(marker_pose[:, 0:3], marker_pose[:, 3:7])
 
         _robot_pose = self._robot.data.root_link_pose_w
         return _compute_step_return(
@@ -235,28 +237,34 @@ def _compute_step_return(
     )
 
     # Reward: Target orientation tracking once position is reached | Robot <--> Target
-    WEIGHT_ORIENTATION_TRACKING = 40.0
+    WEIGHT_ORIENTATION_TRACKING = 32.0
     TANH_STD_ORIENTATION_TRACKING = 0.2618  # 15 deg
+    _orientation_tracking_precision = _position_tracking_precision * (
+        1.0 - torch.tanh(torch.abs(yaw_robot_to_target) / TANH_STD_ORIENTATION_TRACKING)
+    )
     reward_orientation_tracking = (
-        WEIGHT_ORIENTATION_TRACKING
-        * _position_tracking_precision
-        * (
-            1.0
-            - torch.tanh(torch.abs(yaw_robot_to_target) / TANH_STD_ORIENTATION_TRACKING)
-        )
+        WEIGHT_ORIENTATION_TRACKING * _orientation_tracking_precision
     )
 
     # Reward: Slow down at target
-    WEIGHT_SLOW_AT_TARGET = 8.0
-    TANH_STD_SLOW_AT_TARGET_VELOCITY_LINEAR = 0.01
+    WEIGHT_SLOW_AT_TARGET = 64.0
+    TANH_STD_SLOW_AT_TARGET_VELOCITY_LINEAR = 0.02
+    TANH_STD_SLOW_AT_TARGET_VELOCITY_ANGULAR = 0.0698  # 4 deg/s
     reward_slow_at_target = (
         WEIGHT_SLOW_AT_TARGET
-        * _position_tracking_precision
+        * _orientation_tracking_precision
         * (
             1.0
             - torch.tanh(
-                torch.norm(vel_lin_robot[:, :2], dim=-1)
+                torch.norm(vel_lin_robot, dim=-1)
                 / TANH_STD_SLOW_AT_TARGET_VELOCITY_LINEAR
+            )
+        )
+        * (
+            1.0
+            - torch.tanh(
+                torch.norm(vel_ang_robot, dim=-1)
+                / TANH_STD_SLOW_AT_TARGET_VELOCITY_ANGULAR
             )
         )
     )

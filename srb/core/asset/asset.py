@@ -294,7 +294,6 @@ class Asset(BaseModel):
                     "fixed_tendons_props",
                     "joint_drive_props",
                     "mass_props",
-                    "mesh_collision_props",
                     "rigid_props",
                 ):
                     if hasattr(attr, props):

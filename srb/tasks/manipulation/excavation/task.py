@@ -75,10 +75,6 @@ class TaskCfg(ManipulationEnvCfg):
     particles: bool = True
     particles_ratio: float = 0.8
     particles_size: float = 0.01
-    particles_settle_max_steps: int = 50
-    particles_settle_step_time: float = 2.0
-    particles_settle_extra_time: float = 10.0
-    particles_settle_vel_threshold: float = 0.01
     particles_update_interval: float = 2.0
 
     ## Assemblies (dynamic joints)

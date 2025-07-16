@@ -110,10 +110,7 @@ class LocomotionTask(Task):
 
     def extract_step_return(self) -> StepReturn:
         ## Visualize target
-        self._target_marker.visualize(
-            self._goal[:, :3] + torch.tensor((0.0, 0.0, -4.0), device=self.device),
-            self._goal[:, 3:],
-        )
+        self._target_marker.visualize(self._goal[:, :3], self._goal[:, 3:])
 
         _robot_pose = self._robot.data.root_link_pose_w
         return _compute_step_return(

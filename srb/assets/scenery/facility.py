@@ -83,35 +83,36 @@ class Lunalab(Subterrane):
         scene.lunalab_terrain = self.terrain.as_asset_base_cfg()  # type: ignore
 
         ## Boulders
-        for i in range(self.boulder_count):
-            boulder = self.boulder.as_asset_base_cfg()
-            boulder.prim_path = (
-                f"/World/lunalab_boulder{i}"
-                if env_cfg.stack
-                else f"{{ENV_REGEX_NS}}/lunalab_boulder{i}"
-            )
-            setattr(scene, f"lunalab_boulder{i}", boulder)
-        events.randomize_lunalab_boulders = (  # type: ignore
-            EventTermCfg(
-                func=reset_xforms_uniform_poisson_disk_2d,
-                mode="reset",
-                params={
-                    "asset_cfg": [
-                        SceneEntityCfg(f"lunalab_boulder{i}")
-                        for i in range(self.boulder_count)
-                    ],
-                    "pose_range": {
-                        "x": (-3.0, 3.0),
-                        "y": (-4.5, 4.5),
-                        "z": (-0.1, 0.0),
-                        "roll": (-torch.pi, torch.pi),
-                        "pitch": (-torch.pi, torch.pi),
-                        "yaw": (-torch.pi, torch.pi),
+        if self.boulder_count > 0:
+            for i in range(self.boulder_count):
+                boulder = self.boulder.as_asset_base_cfg()
+                boulder.prim_path = (
+                    f"/World/lunalab_boulder{i}"
+                    if env_cfg.stack
+                    else f"{{ENV_REGEX_NS}}/lunalab_boulder{i}"
+                )
+                setattr(scene, f"lunalab_boulder{i}", boulder)
+            events.randomize_lunalab_boulders = (  # type: ignore
+                EventTermCfg(
+                    func=reset_xforms_uniform_poisson_disk_2d,
+                    mode="reset",
+                    params={
+                        "asset_cfg": [
+                            SceneEntityCfg(f"lunalab_boulder{i}")
+                            for i in range(self.boulder_count)
+                        ],
+                        "pose_range": {
+                            "x": (-3.0, 3.0),
+                            "y": (-4.5, 4.5),
+                            "z": (-0.1, 0.0),
+                            "roll": (-torch.pi, torch.pi),
+                            "pitch": (-torch.pi, torch.pi),
+                            "yaw": (-torch.pi, torch.pi),
+                        },
+                        "radius": (1.5),
                     },
-                    "radius": (1.5),
-                },
+                )
             )
-        )
 
         ## Basalt
         if env_cfg.particles and self.basalt_n_systems:

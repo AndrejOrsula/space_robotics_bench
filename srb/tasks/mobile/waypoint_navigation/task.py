@@ -65,7 +65,7 @@ class TaskCfg(GroundEnvCfg):
         markers={
             "target": PinnedArrowCfg(
                 pin_radius=0.01,
-                pin_length=1.0,
+                pin_length=2.0,
                 tail_radius=0.01,
                 tail_length=0.2,
                 head_radius=0.04,

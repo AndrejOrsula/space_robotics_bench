@@ -30,7 +30,7 @@ def spawn_particles_grid(
         dim_x, dim_y, dim_z = (
             math.floor(ratio_cbrt * cfg.dim_x),
             math.floor(ratio_cbrt * cfg.dim_y),
-            math.ceil(ratio_cbrt * cfg.dim_z),
+            cfg.dim_z,
         )
         particle_spacing = (
             cfg.particle_spacing + (1.0 / ratio_cbrt - 1.0) * cfg.particle_size
@@ -93,7 +93,7 @@ def spawn_particles_pyramid(
         dim_x, dim_y, dim_z = (
             math.floor(ratio_cbrt * cfg.dim_x),
             math.floor(ratio_cbrt * cfg.dim_y),
-            math.ceil(ratio_cbrt * cfg.dim_z),
+            cfg.dim_z,
         )
         particle_spacing = (
             cfg.particle_spacing + (1.0 / ratio_cbrt - 1.0) * cfg.particle_size

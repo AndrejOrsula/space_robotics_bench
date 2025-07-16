@@ -209,7 +209,7 @@ class BaseEnvCfg:
             self.malloc_scale * 2 ** min(12 + _pow, 31),
         )
         self.sim.physx.gpu_collision_stack_size = math.floor(
-            self.malloc_scale * 2 ** min(20 + _pow, 31),
+            self.malloc_scale * 2 ** min(21 + _pow, 31),
         )
         self.sim.physx.gpu_heap_capacity = math.floor(
             self.malloc_scale * 2 ** min(19 + _pow, 31),

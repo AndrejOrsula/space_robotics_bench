@@ -31,7 +31,7 @@ class GroundManipulationEnvVisualExtCfg(VisualExtCfg):
                 spawn=PinholeCameraCfg(
                     focal_length=5.0,
                     horizontal_aperture=12.0,
-                    clipping_range=(0.01, 20.0 - 0.01),
+                    clipping_range=(0.05, 25.0 + 0.05),
                 ),
             ),
             "cam_wrist": CameraCfg(

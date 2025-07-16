@@ -86,6 +86,7 @@ class LeoRover(WheeledRobot):
     frame_front_camera: Frame = Frame(
         prim_relpath="chassis/camera_front",
         offset=Transform(
-            pos=(0.098, 0.0, 0.157),
+            # pos=(0.098, 0.0, 0.157), # Embedded
+            pos=(0.105, 0.0, 0.22),  # Top-mounted
         ),
     )

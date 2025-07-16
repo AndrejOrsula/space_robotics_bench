@@ -85,7 +85,9 @@ def eval_only(
             logger.add(epstats.result(), prefix="epstats")
             logger.add(usage.stats(), prefix="usage")
             logger.add({"fps/policy": policy_fps.result()})
-            logger.add({"timer": elements.timer.stats()["summary"]})
+            timer_stats = elements.timer.stats()
+            if "summary" in timer_stats:
+                logger.add({"timer": timer_stats["summary"]})
             logger.write()
 
     logger.close()

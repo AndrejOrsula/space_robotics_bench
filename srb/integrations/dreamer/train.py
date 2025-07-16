@@ -147,7 +147,9 @@ def train(
             logger.add(usage.stats(), prefix="usage")
             logger.add({"fps/policy": policy_fps.result()})
             logger.add({"fps/train": train_fps.result()})
-            logger.add({"timer": elements.timer.stats()["summary"]})
+            timer_stats = elements.timer.stats()
+            if "summary" in timer_stats:
+                logger.add({"timer": timer_stats["summary"]})
             logger.write()
 
         if should_save(step):

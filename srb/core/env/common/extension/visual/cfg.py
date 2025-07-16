@@ -23,7 +23,7 @@ class VisualExtCfg:
     ## Camera sensors
     cameras_cfg: Dict[str, CameraCfg] = MISSING  # type: ignore
     camera_resolution: Tuple[int, int] | None = (64, 64)
-    camera_framerate: float = 0.0
+    camera_update_period: float = -1.0
     camera_data_types: (
         Sequence[
             Literal[
@@ -54,8 +54,11 @@ class VisualExtCfg:
             if self.camera_resolution is not None:
                 camera_cfg.width = self.camera_resolution[0]
                 camera_cfg.height = self.camera_resolution[1]
-            if self.camera_framerate is not None:
-                camera_cfg.update_period = self.camera_framerate
+            if self.camera_update_period is not None:
+                if self.camera_update_period < 0.0:
+                    camera_cfg.update_period = env_cfg.agent_rate
+                else:
+                    camera_cfg.update_period = self.camera_update_period
             if self.camera_data_types is not None:
                 camera_cfg.data_types = self.camera_data_types  # type: ignore
             setattr(env_cfg.scene, camera_key, camera_cfg)

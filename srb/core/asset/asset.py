@@ -26,7 +26,14 @@ from srb.core.asset import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from srb.core.asset.asset_type import AssetType
 from srb.core.asset.asset_variant import AssetVariant
 from srb.core.domain import Domain
-from srb.core.sim import MultiAssetSpawnerCfg, ShapeCfg, SimforgeAssetCfg, SpawnerCfg
+from srb.core.sim import (
+    ArticulationRootPropertiesCfg,
+    MultiAssetSpawnerCfg,
+    RigidBodyPropertiesCfg,
+    ShapeCfg,
+    SimforgeAssetCfg,
+    SpawnerCfg,
+)
 from srb.utils import logging
 from srb.utils.str import convert_to_snake_case
 
@@ -279,7 +286,9 @@ class Asset(BaseModel):
                         f'Input "{k}" of type "{type(k)}" not updated for "{spawner.__class__.__name__}"'
                     )
 
-    def as_asset_base_cfg(self) -> AssetBaseCfg:
+    def as_asset_base_cfg(
+        self, disable_articulation: bool = False, disable_rigid_body: bool = False
+    ) -> AssetBaseCfg:
         if isinstance(self.asset_cfg, (RigidObjectCfg, ArticulationCfg)):
             asset_cfg = AssetBaseCfg(
                 prim_path=self.asset_cfg.prim_path,
@@ -300,6 +309,18 @@ class Asset(BaseModel):
                         setattr(attr, props, None)
                 if hasattr(attr, "activate_contact_sensors"):
                     attr.activate_contact_sensors = False  # type: ignore
+                if disable_articulation:
+                    setattr(
+                        attr,
+                        "articulation_props",
+                        ArticulationRootPropertiesCfg(articulation_enabled=False),
+                    )
+                if disable_rigid_body:
+                    setattr(
+                        attr,
+                        "rigid_props",
+                        RigidBodyPropertiesCfg(rigid_body_enabled=False),
+                    )
 
             remove_props(asset_cfg.spawn)
             if isinstance(asset_cfg.spawn, MultiAssetSpawnerCfg):
@@ -338,7 +359,7 @@ class Asset(BaseModel):
                 f"Cannot convert asset of type '{type(self.asset_cfg)}' to {AssetBaseCfg.__name__}"
             )
 
-    def as_rigid_object_cfg(self) -> RigidObjectCfg:
+    def as_rigid_object_cfg(self, disable_articulation: bool = False) -> RigidObjectCfg:
         if isinstance(self.asset_cfg, ArticulationCfg):
             asset_cfg = RigidObjectCfg(
                 prim_path=self.asset_cfg.prim_path,
@@ -354,6 +375,12 @@ class Asset(BaseModel):
                 ):
                     if hasattr(attr, props):
                         setattr(attr, props, None)
+                if disable_articulation:
+                    setattr(
+                        attr,
+                        "articulation_props",
+                        ArticulationRootPropertiesCfg(articulation_enabled=False),
+                    )
 
             remove_props(asset_cfg.spawn)
             if isinstance(asset_cfg.spawn, MultiAssetSpawnerCfg):

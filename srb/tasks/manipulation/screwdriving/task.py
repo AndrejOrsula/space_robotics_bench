@@ -7,7 +7,6 @@ from srb import assets
 from srb._typing import StepReturn
 from srb.core.asset import (
     Articulation,
-    ArticulationCfg,
     AssetBaseCfg,
     AssetVariant,
     Manipulator,
@@ -25,13 +24,6 @@ from srb.core.env import (
 from srb.core.manager import EventTermCfg, SceneEntityCfg
 from srb.core.mdp import reset_root_state_uniform
 from srb.core.sensor import ContactSensor, ContactSensorCfg
-from srb.core.sim import (
-    ArticulationRootPropertiesCfg,
-    CollisionPropertiesCfg,
-    MeshCollisionPropertiesCfg,
-    RigidBodyPropertiesCfg,
-    UsdFileCfg,
-)
 from srb.utils.cfg import configclass
 from srb.utils.math import (
     combine_frame_transforms,
@@ -52,22 +44,17 @@ class SceneCfg(ManipulationSceneCfg):
     bolt: RigidObjectCfg = MISSING  # type: ignore
     nut: RigidObjectCfg = MISSING  # type: ignore
 
-    decor: AssetBaseCfg = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/decor",
-        spawn=UsdFileCfg(
-            usd_path=assets.Ingenuity().asset_cfg.spawn.usd_path,  # type: ignore
-            collision_props=CollisionPropertiesCfg(collision_enabled=False),
-            mesh_collision_props=MeshCollisionPropertiesCfg(mesh_approximation="none"),
-            articulation_props=ArticulationRootPropertiesCfg(
-                articulation_enabled=False
-            ),
-            rigid_props=RigidBodyPropertiesCfg(rigid_body_enabled=False),
-        ),  # type: ignore
-        init_state=ArticulationCfg.InitialStateCfg(
-            pos=(0.65, 0.0, 0.0),
-            rot=rpy_to_quat((0.0, 0.0, 45.0)),
-        ),
+    decor: AssetBaseCfg = assets.Ingenuity().as_asset_base_cfg(
+        disable_articulation=True,
+        disable_rigid_body=True,
     )
+    decor.prim_path = "{ENV_REGEX_NS}/decor"
+    decor.init_state = AssetBaseCfg.InitialStateCfg(
+        pos=(0.65, 0.0, 0.0),
+        rot=rpy_to_quat(0.0, 0.0, 45.0),
+    )
+    decor.spawn.collision_props.collision_enabled = False  # type: ignore
+    decor.spawn.mesh_collision_props.mesh_approximation = None  # type: ignore
 
 
 @configclass

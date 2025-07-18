@@ -7,23 +7,24 @@ SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" &>/dev/null &
 REPOSITORY_DIR="$(dirname "${SCRIPT_DIR}")"
 
 ## If the current user is not in the docker group, all docker commands will be run as root
+WITH_SUDO=()
 if ! grep -qi /etc/group -e "docker.*${USER}"; then
     echo "[INFO] The current user '${USER}' is not detected in the docker group. All docker commands will be run as root."
-    WITH_SUDO="sudo"
+    WITH_SUDO=("sudo")
 fi
 
 ## Config
 # Name of the Docker image to run if an image with locally-defined name does not exist
 DOCKERHUB_IMAGE_NAME="${DOCKERHUB_IMAGE_NAME:-"andrejorsula/space_robotics_bench"}"
 # Options for running the container
-DOCKER_RUN_OPTS="${DOCKER_RUN_OPTS:-
+DOCKER_RUN_OPTS=(
     --interactive
     --tty
     --rm
     --network host
     --ipc host
     --privileged
-}"
+)
 # Flag to enable GPU
 WITH_GPU="${WITH_GPU:-true}"
 # Flag to enable GUI (X11)
@@ -71,6 +72,8 @@ if [[ "${WITH_HISTORY,,}" = true ]]; then
     )
     DOCKER_ENVIRON+=(
         HISTFILE="/.history/.bash_history"
+        HISTCONTROL="ignoredups:erasedups"
+        PROMPT_COMMAND="history -a; history -c; history -r"
         PYTHON_HISTORY="/.history/.python_history"
     )
 fi
@@ -116,17 +119,17 @@ if [[ "${ENSURE_DOCKER,,}" = true ]]; then
 fi
 
 ## Determine the name of the image to run
-DOCKERHUB_USER="$(${WITH_SUDO} docker info 2>/dev/null | sed '/Username:/!d;s/.* //')"
+DOCKERHUB_USER="$("${WITH_SUDO[@]}" docker info 2>/dev/null | sed '/Username:/!d;s/.* //')"
 PROJECT_NAME="$(basename "${REPOSITORY_DIR}")"
 IMAGE_NAME="${DOCKERHUB_USER:+${DOCKERHUB_USER}/}${PROJECT_NAME,,}"
-if [[ -z "$(${WITH_SUDO} docker images -q "${IMAGE_NAME}" 2>/dev/null)" ]] && [[ -n "$(curl -fsSL "https://registry.hub.docker.com/v2/repositories/${DOCKERHUB_IMAGE_NAME}" 2>/dev/null)" ]]; then
+if [[ -z "$("${WITH_SUDO[@]}" docker images -q "${IMAGE_NAME}" 2>/dev/null)" ]] && [[ -n "$(curl -fsSL "https://registry.hub.docker.com/v2/repositories/${DOCKERHUB_IMAGE_NAME}" 2>/dev/null)" ]]; then
     IMAGE_NAME="${DOCKERHUB_IMAGE_NAME}"
 fi
 
 ## Generate a unique container name
 CONTAINER_NAME="${IMAGE_NAME##*/}"
 CONTAINER_NAME="${CONTAINER_NAME//[^a-zA-Z0-9]/_}"
-ALL_CONTAINER_NAMES=$(${WITH_SUDO} docker container list --all --format "{{.Names}}")
+ALL_CONTAINER_NAMES=$("${WITH_SUDO[@]}" docker container list --all --format "{{.Names}}")
 if echo "${ALL_CONTAINER_NAMES}" | grep -qi "${CONTAINER_NAME}"; then
     ID=1
     while echo "${ALL_CONTAINER_NAMES}" | grep -qi "${CONTAINER_NAME}${ID}"; do
@@ -134,9 +137,9 @@ if echo "${ALL_CONTAINER_NAMES}" | grep -qi "${CONTAINER_NAME}"; then
     done
     CONTAINER_NAME="${CONTAINER_NAME}${ID}"
 fi
-DOCKER_RUN_OPTS+=" --name ${CONTAINER_NAME}"
+DOCKER_RUN_OPTS+=("--name" "${CONTAINER_NAME}")
 
-## Parse volumes and environment variables
+## Parse volumes and environment variables from command line
 while getopts ":v:e:" opt; do
     case "${opt}" in
         v) DOCKER_VOLUMES+=("${OPTARG}") ;;
@@ -151,13 +154,12 @@ shift "$((OPTIND - 1))"
 
 ## Parse TAG and forward CMD arguments
 if [ "${#}" -gt "0" ]; then
-    if [[ $(${WITH_SUDO} docker images --format "{{.Tag}}" "${IMAGE_NAME}") =~ (^|[[:space:]])${1}($|[[:space:]]) || $(curl -fsSL "https://registry.hub.docker.com/v2/repositories/${IMAGE_NAME}/tags" 2>/dev/null | grep -Poe '(?<=(\"name\":\")).*?(?=\")') =~ (^|[[:space:]])${1}($|[[:space:]]) ]]; then
+    if [[ $("${WITH_SUDO[@]}" docker images --format "{{.Tag}}" "${IMAGE_NAME}") =~ (^|[[:space:]])${1}($|[[:space:]]) || $(curl -fsSL "https://registry.hub.docker.com/v2/repositories/${IMAGE_NAME}/tags" 2>/dev/null | grep -Poe '(?<=(\"name\":\")).*?(?=\")') =~ (^|[[:space:]])${1}($|[[:space:]]) ]]; then
         IMAGE_NAME+=":${1}"
-        CMD=${*:2}
-    else
-        CMD=${*:1}
+        shift
     fi
 fi
+CMD=("$@")
 
 ## GPU
 if [[ "${WITH_GPU,,}" = true ]]; then
@@ -184,12 +186,12 @@ if [[ "${WITH_GPU,,}" = true ]]; then
     }
     if check_nvidia_gpu; then
         # Enable GPU either via NVIDIA Container Toolkit or NVIDIA Docker (depending on Docker version)
-        DOCKER_VERSION="$(${WITH_SUDO} docker version --format '{{.Server.Version}}')"
+        DOCKER_VERSION="$("${WITH_SUDO[@]}" docker version --format '{{.Server.Version}}')"
         MIN_VERSION_FOR_TOOLKIT="19.3"
         if [ "$(printf '%s\n' "${MIN_VERSION_FOR_TOOLKIT}" "${DOCKER_VERSION}" | sort -V | head -n1)" = "$MIN_VERSION_FOR_TOOLKIT" ]; then
-            DOCKER_RUN_OPTS+=" --gpus all"
+            DOCKER_RUN_OPTS+=("--gpus" "all")
         else
-            DOCKER_RUN_OPTS+=" --runtime nvidia"
+            DOCKER_RUN_OPTS+=("--runtime" "nvidia")
         fi
         DOCKER_ENVIRON+=(
             NVIDIA_VISIBLE_DEVICES="all"
@@ -197,9 +199,9 @@ if [[ "${WITH_GPU,,}" = true ]]; then
         )
     fi
     if [[ -e /dev/dri ]]; then
-        DOCKER_RUN_OPTS+=" --device=/dev/dri:/dev/dri"
+        DOCKER_RUN_OPTS+=("--device=/dev/dri:/dev/dri")
         if [[ $(getent group video) ]]; then
-            DOCKER_RUN_OPTS+=" --group-add video"
+            DOCKER_RUN_OPTS+=("--group-add" "video")
         fi
     fi
 fi
@@ -233,14 +235,24 @@ if [[ "${WITH_GUI,,}" = true ]]; then
 fi
 
 ## Run the container
+VOL_ARGS=()
+for vol in "${DOCKER_VOLUMES[@]}"; do
+    VOL_ARGS+=("--volume" "${vol}")
+done
+ENV_ARGS=()
+for env_var in "${DOCKER_ENVIRON[@]}"; do
+    ENV_ARGS+=("--env" "${env_var}")
+done
 DOCKER_RUN_CMD=(
-    "${WITH_SUDO}" docker run
-    "${DOCKER_RUN_OPTS}"
-    "${DOCKER_VOLUMES[@]/#/"--volume "}"
-    "${DOCKER_ENVIRON[@]/#/"--env "}"
+    "${WITH_SUDO[@]}"
+    docker run
+    "${DOCKER_RUN_OPTS[@]}"
+    "${VOL_ARGS[@]}"
+    "${ENV_ARGS[@]}"
     "${IMAGE_NAME}"
-    "${CMD}"
+    "${CMD[@]}"
 )
-echo -e "\033[1;90m[TRACE] ${DOCKER_RUN_CMD[*]}\033[0m" | xargs
-# shellcheck disable=SC2048
-exec ${DOCKER_RUN_CMD[*]}
+printf "\033[1;90m[TRACE] "
+printf "%q " "${DOCKER_RUN_CMD[@]}"
+printf "\033[0m\n"
+exec "${DOCKER_RUN_CMD[@]}"

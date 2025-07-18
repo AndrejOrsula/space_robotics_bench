@@ -41,12 +41,19 @@ for volume in "${DOCKER_DEV_VOLUMES[@]}"; do
 done
 
 ## Run the container with development volumes
+DEV_ARGS=()
+for vol in "${DOCKER_DEV_VOLUMES[@]}"; do
+    DEV_ARGS+=("-v" "${vol}")
+done
+for env_var in "${DOCKER_DEV_ENVIRON[@]}"; do
+    DEV_ARGS+=("-e" "${env_var}")
+done
 DOCKER_DEV_CMD=(
     "${SCRIPT_DIR}/run.bash"
-    "${DOCKER_DEV_VOLUMES[@]/#/"-v "}"
-    "${DOCKER_DEV_ENVIRON[@]/#/"-e "}"
-    "${*:1}"
+    "${DEV_ARGS[@]}"
+    "$@"
 )
-echo -e "\033[1;90m[TRACE] ${DOCKER_DEV_CMD[*]}\033[0m" | xargs
-# shellcheck disable=SC2048
-exec ${DOCKER_DEV_CMD[*]}
+printf "\033[1;90m[TRACE] "
+printf "%q " "${DOCKER_DEV_CMD[@]}"
+printf "\033[0m\n"
+exec "${DOCKER_DEV_CMD[@]}"

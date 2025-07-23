@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import math
 import time
 from dataclasses import dataclass
@@ -54,6 +55,11 @@ class CapsulePatternState(PatternState):
     dist_on_segment: float = 0.0
 
 
+@dataclass
+class SpiralPatternState(PatternState):
+    phase: float = 0.0
+
+
 class BasePatternCfg(BaseModel):
     initial_pos: numpy.ndarray = numpy.array((0.0, 0.0, 0.0), dtype=numpy.float32)
     initial_quat_wxyz: numpy.ndarray = numpy.array(
@@ -90,6 +96,11 @@ class LissajousPatternCfg(BasePatternCfg):
 class CapsulePatternCfg(BasePatternCfg):
     length: float = 1.0
     radius: float = 0.25
+
+
+class SpiralPatternCfg(BasePatternCfg):
+    max_radius: float = 1.0
+    n_loops: int = 3
 
 
 class RosTfTrajectoryGeneratorCfg(BaseModel):
@@ -201,34 +212,41 @@ class RosTfTrajectoryGenerator:
         }
 
         if isinstance(p_cfg, LinePatternCfg):
-            return LinePatternState(**args)  # type: ignore[call-arg]
+            return LinePatternState(**args)  # type: ignore
         if isinstance(p_cfg, SquarePatternCfg):
-            return SquarePatternState(**args)  # type: ignore[call-arg]
+            return SquarePatternState(**args)  # type: ignore
         if isinstance(p_cfg, CirclePatternCfg):
-            return CirclePatternState(**args)  # type: ignore[call-arg]
+            return CirclePatternState(**args)  # type: ignore
         if isinstance(p_cfg, LemniscatePatternCfg):
-            return LemniscatePatternState(**args)  # type: ignore[call-arg]
+            return LemniscatePatternState(**args)  # type: ignore
         if isinstance(p_cfg, LissajousPatternCfg):
-            return LissajousPatternState(**args)  # type: ignore[call-arg]
+            return LissajousPatternState(**args)  # type: ignore
         if isinstance(p_cfg, CapsulePatternCfg):
-            return CapsulePatternState(**args)  # type: ignore[call-arg]
+            return CapsulePatternState(**args)  # type: ignore
+        if isinstance(p_cfg, SpiralPatternCfg):
+            # If velocity is negative, start at the end of the path (phase=2.0)
+            initial_phase = 2.0 if self._velocity_sign < 0 else 0.0
+            args["phase"] = initial_phase  # type: ignore
+            return SpiralPatternState(**args)  # type: ignore
         raise TypeError(f"Unknown pattern config type: {type(p_cfg)}")
 
     def _update_transform(self):
         state, p_cfg = self._pattern_state, self.pattern_cfg
         state.is_done = False
         if isinstance(p_cfg, LinePatternCfg):
-            self._update_line(p_cfg, state)  # type: ignore[call-arg]
+            self._update_line(p_cfg, state)  # type: ignore
         elif isinstance(p_cfg, SquarePatternCfg):
-            self._update_square(p_cfg, state)  # type: ignore[call-arg]
+            self._update_square(p_cfg, state)  # type: ignore
         elif isinstance(p_cfg, CirclePatternCfg):
-            self._update_circle(p_cfg, state)  # type: ignore[call-arg]
+            self._update_circle(p_cfg, state)  # type: ignore
         elif isinstance(p_cfg, LemniscatePatternCfg):
-            self._update_lemniscate(p_cfg, state)  # type: ignore[call-arg]
+            self._update_lemniscate(p_cfg, state)  # type: ignore
         elif isinstance(p_cfg, LissajousPatternCfg):
-            self._update_lissajous(p_cfg, state)  # type: ignore[call-arg]
+            self._update_lissajous(p_cfg, state)  # type: ignore
         elif isinstance(p_cfg, CapsulePatternCfg):
-            self._update_capsule(p_cfg, state)  # type: ignore[call-arg]
+            self._update_capsule(p_cfg, state)  # type: ignore
+        elif isinstance(p_cfg, SpiralPatternCfg):
+            self._update_spiral(p_cfg, state)  # type: ignore
         return _get_transform_msg(state.current_pos, state.current_quat_wxyz)
 
     def _update_line(self, cfg: LinePatternCfg, state: LinePatternState):
@@ -527,6 +545,88 @@ class RosTfTrajectoryGenerator:
             cfg.initial_quat_wxyz, yaw_to_quat_wxyz(yaw)
         )
 
+    def _update_spiral(self, cfg: SpiralPatternCfg, state: SpiralPatternState):
+        p = state.phase
+        N = cfg.n_loops
+        R = cfg.max_radius
+        dir_sign = 1 if cfg.direction == "counter-clockwise" else -1
+
+        # This parameterization creates a two-part trajectory (out and in)
+        # controlled by a single phase variable from 0.0 to 2.0.
+        # - Phase 0.0 -> 1.0: Spiral out. Radius increases linearly with phase.
+        # - Phase 1.0 -> 2.0: Spiral in. Radius decreases linearly.
+        # - Angle increases continuously throughout, ensuring no reversal of direction.
+        C = dir_sign * 2 * math.pi * N  # Angular constant
+
+        def get_derivatives_at_phase(phase_val):
+            # Use a small epsilon to avoid singularity at the center
+            phase_val = max(phase_val, 1e-6)
+
+            # Radius (r) and its derivative (dr/dp) change based on the leg
+            if 0.0 <= phase_val < 1.0:
+                r = R * phase_val
+                dr_dp = R
+            else:  # 1.0 <= phase_val <= 2.0
+                r = R * (2.0 - phase_val)
+                dr_dp = -R
+
+            # Angle (theta) and its derivative (dtheta/dp) are continuous
+            theta = C * phase_val
+            dtheta_dp = C
+
+            # Calculate tangent vector (dx/dp, dy/dp) using the chain rule
+            cos_t, sin_t = math.cos(theta), math.sin(theta)
+            dx_dp = dr_dp * cos_t - r * dtheta_dp * sin_t
+            dy_dp = dr_dp * sin_t + r * dtheta_dp * cos_t
+
+            return dx_dp, dy_dp
+
+        # --- Update phase based on constant velocity ---
+        dx_dp, dy_dp = get_derivatives_at_phase(p)
+        inst_speed = math.sqrt(dx_dp**2 + dy_dp**2)
+
+        if inst_speed > 1e-5:
+            # Phase increases or decreases based on velocity sign
+            state.phase += self._abs_step_size * self._velocity_sign / inst_speed
+
+        # Check for completion of the full out-and-in trajectory from either direction
+        if self._velocity_sign > 0 and state.phase >= 2.0:
+            state.phase = 0.0  # Reset for next loop
+            state.is_done = True
+        elif self._velocity_sign < 0 and state.phase <= 0.0:
+            state.phase = 2.0  # Reset for next loop
+            state.is_done = True
+
+        # --- Calculate final pose for the newly updated phase ---
+        p_final = numpy.clip(state.phase, 0.0, 2.0)
+
+        # Calculate final radius and theta based on the appropriate leg
+        if 0.0 <= p_final < 1.0:
+            r_final = R * p_final
+        else:
+            r_final = R * (2.0 - p_final)
+        theta_final = C * p_final
+
+        # Position in the local (pattern) frame
+        local_offset = numpy.array(
+            [
+                r_final * math.cos(theta_final),
+                r_final * math.sin(theta_final),
+                0,
+            ]
+        )
+
+        # Recalculate tangent at the new position to determine orientation
+        dx_dp_final, dy_dp_final = get_derivatives_at_phase(p_final)
+        local_yaw = math.atan2(dy_dp_final, dx_dp_final)
+
+        # Transform local path pose to the world frame using the initial pose
+        state.current_pos = cfg.initial_pos + self._initial_rot_mat @ local_offset
+        # Apply orientation flips for velocity direction
+        state.current_quat_wxyz = multiply_quats(
+            cfg.initial_quat_wxyz, yaw_to_quat_wxyz(local_yaw)
+        )
+
     def start(self):
         if self.is_running:
             return
@@ -578,15 +678,15 @@ class RosTfTrajectoryGenerator:
 def main():
     print("Initializing trajectory broadcaster...")
 
-    direction: Literal["clockwise", "counter-clockwise"] = "clockwise"  # noqa: F841
+    direction: Literal["clockwise", "counter-clockwise"] = "clockwise"
     initial_pos: numpy.ndarray = numpy.array([0.0, 0.0, 0.0], dtype=numpy.float32)
     initial_quat_wxyz: numpy.ndarray = yaw_to_quat_wxyz(0.0 * math.pi)
 
-    pattern_cfg = LinePatternCfg(
-        length=2.0,
-        initial_pos=initial_pos,
-        initial_quat_wxyz=initial_quat_wxyz,
-    )
+    # pattern_cfg = LinePatternCfg(
+    #     length=2.0,
+    #     initial_pos=initial_pos,
+    #     initial_quat_wxyz=initial_quat_wxyz,
+    # )
     # pattern_cfg = SquarePatternCfg(
     #     side=2.0,
     #     direction=direction,
@@ -618,8 +718,19 @@ def main():
     #     initial_pos=initial_pos,
     #     initial_quat_wxyz=initial_quat_wxyz,
     # )
+    pattern_cfg = SpiralPatternCfg(
+        max_radius=1.0,
+        n_loops=3,
+        direction=direction,
+        initial_pos=initial_pos,
+        initial_quat_wxyz=initial_quat_wxyz,
+    )
 
-    traj_cfg = RosTfTrajectoryGeneratorCfg(pattern=pattern_cfg)
+    # Set n_loops to -1 for infinite looping.
+    # Set velocity to a negative value to run the trajectory backward.
+    traj_cfg = RosTfTrajectoryGeneratorCfg(
+        pattern=pattern_cfg, n_loops=-1, velocity=-2.0
+    )
 
     broadcaster = None
     try:

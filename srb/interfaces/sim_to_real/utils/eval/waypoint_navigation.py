@@ -5,27 +5,40 @@ import threading
 from pathlib import Path
 from typing import Any, Dict, List
 
-try:
-    import matplotlib.animation as animation
-    import matplotlib.pyplot as plt
-    import numpy as np
-    import pandas as pd
-    import seaborn as sns
-    from matplotlib.collections import LineCollection
-except ImportError as e:
-    print(
-        f"Import Error: {e}. The 'analyze' command requires numpy, pandas, matplotlib, and seaborn."
-    )
-    print("Please install them: pip install numpy pandas matplotlib seaborn")
-    exit(1)
+import matplotlib.animation as animation
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import seaborn as sns
+from matplotlib.collections import LineCollection
+from matplotlib.colors import Normalize
 
-import rclpy
-import tf2_ros
-from rclpy.node import Node
-from rclpy.time import Time
+try:
+    import rclpy
+    from rclpy.node import Node
+    from rclpy.time import Duration, Time
+    from tf2_ros import ConnectivityException, ExtrapolationException, LookupException
+    from tf2_ros.buffer import Buffer
+    from tf2_ros.transform_listener import TransformListener
+except ImportError:
+    # This allows the script to be used for analysis even if ROS is not installed
+    rclpy = None
+
+    # Define dummy classes for type hinting if ROS is not available
+    class Node:  # type: ignore
+        pass
+
+    class LookupException(Exception):  # type: ignore
+        pass
+
+    class ConnectivityException(Exception):  # type: ignore
+        pass
+
+    class ExtrapolationException(Exception):  # type: ignore
+        pass
+
 
 PLOT_STYLE = {
-    "style": "seaborn-v0_8-whitegrid",
     "font.family": "serif",
     "font.serif": ["Times New Roman"],
     "axes.labelsize": 14,
@@ -49,6 +62,10 @@ class AnalysisEngine:
         """Executes all analysis steps and saves all artifacts."""
         print(f"\n--- Starting Analysis for '{self.experiment_name}' ---")
         self._calculate_metrics()
+        if len(self.df) < 2:
+            print("DataFrame has insufficient data, skipping full analysis.")
+            self._save_summary_metrics()
+            return
         self._save_summary_metrics()
         self._generate_visuals()
         print(f"--- Analysis for '{self.experiment_name}' Complete ---")
@@ -57,29 +74,54 @@ class AnalysisEngine:
     def _calculate_metrics(self):
         """Calculates all key performance indicators from the raw data."""
         print("Calculating performance metrics...")
-        df = self.df
-        dt = df["time"].diff()
-        dt.iloc[0] = dt.iloc[1] if len(dt) > 1 else 0  # Handle first NaN value
-        dt[dt == 0] = 1e-6  # Prevent division by zero
 
-        # 1. Tracking Errors
-        df["error_x"] = df["target_x"] - df["robot_x"]
-        df["error_y"] = df["target_y"] - df["robot_y"]
-        df["euclidean_error"] = np.sqrt(df["error_x"] ** 2 + df["error_y"] ** 2)
+        df = self.df.copy()
 
-        # 2. Velocities and Path Lengths
-        df["robot_velocity"] = (
-            np.sqrt(df["robot_x"].diff() ** 2 + df["robot_y"].diff() ** 2) / dt
-        ).fillna(0)
-        df["target_velocity"] = (
-            np.sqrt(df["target_x"].diff() ** 2 + df["target_y"].diff() ** 2) / dt
-        ).fillna(0)
-        robot_path_length = (df["robot_velocity"] * dt).sum()
-        target_path_length = (df["target_velocity"] * dt).sum()
+        # Initialize all metrics columns to prevent KeyErrors if calculations fail
+        for col in [
+            "error_x",
+            "error_y",
+            "euclidean_error",
+            "robot_velocity",
+            "target_velocity",
+            "robot_accel",
+            "robot_jerk",
+        ]:
+            if col not in df:
+                df[col] = 0.0
 
-        # 3. Smoothness (Acceleration and Jerk)
-        df["robot_accel"] = (df["robot_velocity"].diff() / dt).fillna(0)
-        df["robot_jerk"] = (df["robot_accel"].diff() / dt).fillna(0)
+        robot_path_length = 0.0
+        target_path_length = 0.0
+
+        if len(df) >= 2:
+            dt = df["time"].diff()
+            dt.iloc[0] = dt.iloc[1]
+            dt = dt.replace(0, 1e-6)  # Prevent division by zero
+
+            # 1. Tracking Errors
+            df["error_x"] = df["target_x"] - df["robot_x"]
+            df["error_y"] = df["target_y"] - df["robot_y"]
+            df["euclidean_error"] = np.sqrt(df["error_x"] ** 2 + df["error_y"] ** 2)
+
+            # 2. Velocities and Path Lengths
+            robot_vel_series = (
+                np.sqrt(df["robot_x"].diff() ** 2 + df["robot_y"].diff() ** 2) / dt
+            )
+            df["robot_velocity"] = robot_vel_series.fillna(0)
+            target_vel_series = (
+                np.sqrt(df["target_x"].diff() ** 2 + df["target_y"].diff() ** 2) / dt
+            )
+            df["target_velocity"] = target_vel_series.fillna(0)
+            robot_path_length = (df["robot_velocity"] * dt).sum()
+            target_path_length = (df["target_velocity"] * dt).sum()
+
+            # 3. Smoothness (Acceleration and Jerk)
+            robot_accel_series = df["robot_velocity"].diff() / dt
+            df["robot_accel"] = robot_accel_series.fillna(0)
+            robot_jerk_series = df["robot_accel"].diff() / dt
+            df["robot_jerk"] = robot_jerk_series.fillna(0)
+
+        self.df = df  # Update the instance dataframe with the new columns
 
         self.summary_metrics = {
             "experiment_name": self.experiment_name,
@@ -114,7 +156,14 @@ class AnalysisEngine:
 
     def _generate_visuals(self):
         """Generates and saves all plots and animations."""
-        with plt.style.context(PLOT_STYLE):
+        try:
+            with plt.style.context("seaborn-v0_8-whitegrid"):
+                self._plot_dashboard()
+                self._generate_animation()
+        except (KeyError, OSError):
+            print(
+                "Warning: 'seaborn-v0_8-whitegrid' style not found or an issue occurred. Using default style."
+            )
             self._plot_dashboard()
             self._generate_animation()
 
@@ -130,7 +179,7 @@ class AnalysisEngine:
         ax = axs[0, 0]
         points = df[["robot_x", "robot_y"]].to_numpy().reshape(-1, 1, 2)
         segments = np.concatenate([points[:-1], points[1:]], axis=1)
-        norm = plt.Normalize(df["robot_velocity"].min(), df["robot_velocity"].max())
+        norm = Normalize(df["robot_velocity"].min(), df["robot_velocity"].max())
         lc = LineCollection(segments, cmap="viridis", norm=norm)
         lc.set_array(df["robot_velocity"])
         line = ax.add_collection(lc)
@@ -175,7 +224,7 @@ class AnalysisEngine:
         ax.grid(True)
 
         path = self.output_dir / f"{self.experiment_name}_dashboard.png"
-        fig.savefig(path, dpi=300)
+        fig.savefig(str(path), dpi=300)
         plt.close(fig)
 
     def _generate_animation(self):
@@ -246,7 +295,7 @@ class AnalysisEngine:
             writer = animation.FFMpegWriter(
                 fps=30, metadata=dict(artist="Gemini"), bitrate=2500
             )
-            ani.save(path, writer=writer)
+            ani.save(str(path), writer=writer)
             print(f"Saved animation to {path}")
         except FileNotFoundError:
             print("\n--- FFmpeg NOT FOUND ---")
@@ -265,8 +314,8 @@ class TrajectoryCollectorNode(Node):
         self.experiment_name = args.experiment_name
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
+        self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer, self)
 
         self.fixed_frame = args.fixed_frame
         self.robot_frame = args.robot_frame
@@ -292,13 +341,13 @@ class TrajectoryCollectorNode(Node):
                 self.fixed_frame,
                 self.robot_frame,
                 now,
-                timeout=rclpy.duration.Duration(seconds=0.02),
+                timeout=Duration(seconds=0, nanoseconds=20000000),
             )
             target_tf = self.tf_buffer.lookup_transform(
                 self.fixed_frame,
                 self.target_frame,
                 now,
-                timeout=rclpy.duration.Duration(seconds=0.02),
+                timeout=Duration(seconds=0, nanoseconds=20000000),
             )
 
             if self.start_time is None:
@@ -325,9 +374,9 @@ class TrajectoryCollectorNode(Node):
                     }
                 )
         except (
-            tf2_ros.LookupException,
-            tf2_ros.ConnectivityException,
-            tf2_ros.ExtrapolationException,
+            LookupException,
+            ConnectivityException,
+            ExtrapolationException,
         ) as e:
             self.get_logger().warn(f"TF lookup failed: {e}", throttle_duration_sec=5.0)
 
@@ -384,7 +433,13 @@ class ComparisonAnalyzer:
 
         df_comp = pd.DataFrame(all_metrics).sort_values(by="RMSE (m)")
 
-        with plt.style.context(PLOT_STYLE):
+        try:
+            with plt.style.context("seaborn-v0_8-whitegrid"):
+                self._plot_comparison(df_comp)
+        except (KeyError, OSError):
+            print(
+                "Warning: 'seaborn-v0_8-whitegrid' style not found or an issue occurred. Using default style."
+            )
             self._plot_comparison(df_comp)
 
         self._generate_latex_table(df_comp)
@@ -404,7 +459,7 @@ class ComparisonAnalyzer:
             plot_path = (
                 self.output_dir / f"comparison_{metric.replace(' ', '_').lower()}.png"
             )
-            fig.savefig(plot_path)
+            fig.savefig(str(plot_path))
             print(f"Saved comparison plot to {plot_path}")
             plt.close(fig)
 
@@ -426,9 +481,9 @@ class ComparisonAnalyzer:
 
 
 def run_collection(args: argparse.Namespace):
-    """Initializes ROS and runs the TrajectoryCollectorNode."""
-    if "rclpy" not in globals() or not hasattr(rclpy, "init"):
-        print("Error: ROS 2 is not sourced or installed. Cannot run 'collect'.")
+    """Initializes ROS node and starts the data collection."""
+    if rclpy is None:
+        print("Error: rclpy is not installed. Cannot run collection.")
         return
 
     rclpy.init()
@@ -443,8 +498,8 @@ def run_collection(args: argparse.Namespace):
         rclpy.shutdown()
 
 
-def run_comparison(args: argparse.Namespace):
-    """Runs the offline comparison analysis."""
+def run_analysis(args: argparse.Namespace):
+    """Runs the offline analysis."""
     analyzer = ComparisonAnalyzer(
         experiment_dirs=[Path(p) for p in args.result_dirs],
         output_dir=Path(args.output),
@@ -483,23 +538,23 @@ a full analysis report (dashboard, animation, summary JSON) for this single run.
     p_collect.add_argument(
         "--robot-frame",
         type=str,
-        default="leo_0/base_link",
+        default="base_link",
         help="The TF frame of the robot.",
     )
     p_collect.add_argument(
         "--target-frame",
         type=str,
-        default="target_waypoint",
+        default="target",
         help="The TF frame of the dynamic target.",
     )
     p_collect.add_argument(
         "--fixed-frame",
         type=str,
-        default="odom",
-        help="The fixed TF frame (e.g., odom or map).",
+        default="world",
+        help="The fixed TF frame (e.g., world, mapt or odom or map).",
     )
     p_collect.add_argument(
-        "--rate", type=float, default=30.0, help="Data collection frequency (Hz)."
+        "--rate", type=float, default=20.0, help="Data collection frequency (Hz)."
     )
     p_collect.set_defaults(func=run_collection)
 
@@ -525,7 +580,7 @@ then generates summary plots and a LaTeX table comparing all runs.
         default="./comparison_results",
         help="Directory to save comparison outputs.",
     )
-    p_analyze.set_defaults(func=run_comparison)
+    p_analyze.set_defaults(func=run_analysis)
 
     args = parser.parse_args()
 

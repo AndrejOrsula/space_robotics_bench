@@ -124,6 +124,7 @@ dev = [
   "srb[test]",
   "srb[tracing]",
   "srb[typing]",
+  "srb[plots]",
 ]
 rich = [
   #
@@ -152,6 +153,11 @@ repl = [
   #
   "ptpython~=3.0",
 ]
+plots = [
+  #
+  "seaborn~=0.13",
+]
+
 
 [project.scripts]
 space_robotics_bench = "srb.__main__:main"

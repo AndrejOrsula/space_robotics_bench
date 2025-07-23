@@ -960,7 +960,7 @@ def settle_and_reset_particles(
     env: "AnyEnv",
     env_ids: torch.Tensor,
     asset_cfg: Sequence[SceneEntityCfg],
-    particles_settle_max_steps: int = 50,
+    particles_settle_max_steps: int = 25,
     particles_settle_step_time: float = 20.0,
     particles_settle_vel_threshold: float = 0.0025,
 ):

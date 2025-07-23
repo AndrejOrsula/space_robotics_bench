@@ -1045,7 +1045,7 @@ def generate_real_agent(
     forwarded_args: Sequence[str] = (),
     **kwargs,
 ):
-    if env_id.rsplit("/", 1)[-1].upper() == "ALL":
+    if env_id.rsplit("/", 1)[-1] == "ALL":
         _generate_real_agent_subprocess(
             env_id="ALL",
             forwarded_args=(*forwarded_args, "--hardware", *hardware)
@@ -2040,7 +2040,7 @@ def parse_cli_args() -> argparse.Namespace:
             choices=(
                 env_choices
                 if _parser not in real_env_gen_parsers
-                else (("all", "ALL", *env_choices) if env_choices else ())
+                else (("ALL", *env_choices) if env_choices else ())
             ),
             required=True,
         )

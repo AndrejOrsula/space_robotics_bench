@@ -215,13 +215,13 @@ class BaseEnvCfg:
             self.malloc_scale * 2 ** min(19 + _pow, 31),
         )
         self.sim.physx.gpu_temp_buffer_capacity = math.floor(
-            self.malloc_scale * 2 ** min(15 + _pow, 31),
+            self.malloc_scale * 2 ** min(16 + _pow, 31),
         )
         self.sim.physx.gpu_max_soft_body_contacts = math.floor(
-            self.malloc_scale * 2 ** min(15 + _pow, 31),
+            self.malloc_scale * 2 ** min(16 + _pow, 31),
         )
         self.sim.physx.gpu_max_particle_contacts = math.floor(
-            self.malloc_scale * 2 ** min(15 + _pow, 31),
+            self.malloc_scale * 2 ** min(22 + _pow, 31),
         )
 
         self.sim.physx.gpu_max_num_partitions = 1 << bisect.bisect_left(

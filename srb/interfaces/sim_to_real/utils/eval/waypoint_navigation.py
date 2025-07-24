@@ -538,7 +538,7 @@ a full analysis report (dashboard, animation, summary JSON) for this single run.
     p_collect.add_argument(
         "--robot-frame",
         type=str,
-        default="base_link",
+        default="robot",
         help="The TF frame of the robot.",
     )
     p_collect.add_argument(

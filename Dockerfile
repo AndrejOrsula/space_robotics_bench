@@ -149,6 +149,7 @@ RUN if [[ "${INSTALL_SPACEROS,,}" != true ]]; then \
     DEBIAN_FRONTEND=noninteractive apt-get install -yq --no-install-recommends \
     ros-dev-tools \
     "ros-${ROS_DISTRO}-ros-base" \
+    "ros-${ROS_DISTRO}-rmw-fastrtps-cpp" \
     "ros-${ROS_DISTRO}-rmw-cyclonedds-cpp" && \
     rm -rf /var/lib/apt/lists/* && \
     "${ISAAC_SIM_PYTHON}" -m pip install --no-input --no-cache-dir catkin_pkg && \

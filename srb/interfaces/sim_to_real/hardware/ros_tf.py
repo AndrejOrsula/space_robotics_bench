@@ -49,10 +49,12 @@ class RotationRepresentation(Enum):
 class RosTfInterfaceCfg(HardwareInterfaceCfg):
     timeout_duration: float = 0.2
     discovery_interval: float = 1.0
-    position_repr: Sequence[PositionRepresentation] = (PositionRepresentation.POS_3D,)
-    rotation_repr: Sequence[RotationRepresentation] = (RotationRepresentation.ROT_6D,)
+    position_repr: Sequence[PositionRepresentation] = (PositionRepresentation.POS_2D,)
+    rotation_repr: Sequence[RotationRepresentation] = (
+        RotationRepresentation.ROT_2D_TRIG_YAW,
+    )
 
-    allowlist: Sequence[str] = ()
+    allowlist: Sequence[str] = ("target", "robot")
     blocklist: Sequence[str] = ("world", "map")
 
 
@@ -96,14 +98,27 @@ class RosTfInterface(HardwareInterface):
 
         new_frames = set()
         for line in self.tf_buffer.all_frames_as_string().split("\n"):
-            if line.strip():
-                frame_name = line.split()[0].strip(":")
-                if (
-                    frame_name
-                    and self._is_frame_allowed(frame_name)
-                    and frame_name not in self.discovered_frames
-                ):
-                    new_frames.add(frame_name)
+            # Output format: 'Frame <> exists with parent <>.'
+            line: str = line.removeprefix("Frame ").removesuffix(".")
+            if not line:
+                continue
+            child_frame, parent_frame = line.split(" exists with parent ", 1)
+            if not child_frame or not parent_frame:
+                continue
+            child_frame = child_frame.strip()
+            parent_frame = parent_frame.strip()
+            if (
+                child_frame
+                and self._is_frame_allowed(child_frame)
+                and child_frame not in self.discovered_frames
+            ):
+                new_frames.add(child_frame)
+            if (
+                parent_frame
+                and self._is_frame_allowed(parent_frame)
+                and parent_frame not in self.discovered_frames
+            ):
+                new_frames.add(parent_frame)
 
         if new_frames:
             self._initialize_new_frames(new_frames)
@@ -170,12 +185,18 @@ class RosTfInterface(HardwareInterface):
                 if source_frame == target_frame:
                     continue
 
-                tf_stamped = self.tf_buffer.lookup_transform(
-                    source_frame,
-                    target_frame,
-                    current_time,
-                    timeout=self.tf_timeout_duration,
-                )
+                try:
+                    tf_stamped = self.tf_buffer.lookup_transform(
+                        source_frame,
+                        target_frame,
+                        current_time,
+                        timeout=self.tf_timeout_duration,
+                    )
+                except Exception as e:
+                    logging.warning(
+                        f"[{self.name}] Failed to get transform from {source_frame} to {target_frame}: {e}"
+                    )
+                    continue
 
                 ## Position
                 if PositionRepresentation.POS_3D in self.cfg.position_repr:

@@ -12,7 +12,7 @@ from srb.utils import logging
 
 
 class RosCmdVelInterfaceCfg(HardwareInterfaceCfg):
-    topic: str = "cmd_vel"
+    topic: str = "/leo06/cmd_vel"
 
 
 class RosCmdVelInterface(HardwareInterface):

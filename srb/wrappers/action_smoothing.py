@@ -63,9 +63,9 @@ class ActionSmoothingWrapper(ActionWrapper):
         env: "AnyEnv",
         method: SmoothingMethod,
         history_len: int = 7,
-        poly_order: Optional[int] = None,
+        poly_order: int = 3,
+        cutoff_frequency_hz: float = 4,
         sample_rate_hz: Optional[float] = None,
-        cutoff_frequency_hz: Optional[float] = None,
     ):
         super().__init__(env)
         if not isinstance(env.action_space, Box):

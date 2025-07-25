@@ -1,9 +1,9 @@
 ### Training ###
 run:
-  steps: 100000000
+  steps: 200000000
   train_ratio: 64.0
 replay:
-  size: 2500000
+  size: 2000000
   online: True
   fracs: { uniform: 0.0, priority: 0.5, recency: 0.5 }
   chunksize: 1024
@@ -14,6 +14,20 @@ jax:
   prealloc: False
   jit: True
 
+### Action Smoothing ###
+smoothing:
+  enabled: true
+  ## SAVGOL: Balance between smoothness and responsiveness
+  method: SAVGOL
+  history_len: 9
+  poly_order: 3
+  ## MOVING_AVERAGE: The fastest response
+  # method: MOVING_AVERAGE
+  # history_len: 5
+  ## BUTTERWORTH: Maximum smoothness
+  # method: BUTTERWORTH
+  # cutoff_frequency_hz: 4
+
 ### Logging ###
 logger:
   outputs: [
@@ -23,8 +37,8 @@ logger:
       # wandb,
     ]
   filter: "score|length|fps|ratio|train/loss/|train/rand/"
-  timer: True
-  fps: 15
+  timer: False
+  fps: 10
 run.log_every: 120
 run.report_every: 300
 run.save_every: 1200
@@ -58,13 +72,13 @@ jax.debug: False
 # .*\.depth: 16
 # .*\.units: 256
 ##  25M
-.*\.rssm: { deter: 3072, hidden: 384, classes: 24 }
-.*\.depth: 24
-.*\.units: 384
+# .*\.rssm: { deter: 3072, hidden: 384, classes: 24 }
+# .*\.depth: 24
+# .*\.units: 384
 ##  50M
-# .*\.rssm: { deter: 4096, hidden: 512, classes: 32 }
-# .*\.depth: 32
-# .*\.units: 512
+.*\.rssm: { deter: 4096, hidden: 512, classes: 32 }
+.*\.depth: 32
+.*\.units: 512
 ## 100M
 # .*\.rssm: { deter: 6144, hidden: 768, classes: 48 }
 # .*\.depth: 48

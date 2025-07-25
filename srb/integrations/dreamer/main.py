@@ -17,6 +17,7 @@ from srb.integrations.dreamer.train import train
 from srb.integrations.dreamer.wrapper import EmbodiedEnvWrapper
 from srb.utils import logging
 from srb.utils.cfg import stamp_dir
+from srb.wrappers import ActionSmoothingWrapper, SmoothingMethod
 
 if TYPE_CHECKING:
     from srb._typing import AnyEnv, AnyEnvCfg
@@ -39,6 +40,9 @@ def run(
 ):
     save_replay = agent_cfg.get("replay", {}).pop("save", False)
 
+    # Pop the entire smoothing config dictionary to be handled separately.
+    smoothing_cfg = agent_cfg.pop("smoothing", {})
+
     # Determine checkpoint path
     if model:
         from_checkpoint = model
@@ -51,16 +55,13 @@ def run(
     if from_checkpoint:
         logging.info(f"Loading model from {from_checkpoint}")
 
-    # Special handling for eval workflow
     if workflow == "eval":
         logdir = stamp_dir(logdir.joinpath("eval"))
 
-    # Setup logdir
-    logdir = elements.Path(logdir)  # type: ignore
+    logdir = elements.Path(logdir)
     logdir.mkdir()
     print("Agent logdir:", logdir)
 
-    # Load the config
     configs: Dict[str, Any] = yaml.YAML(typ="safe").load(
         UPSTREAM_CONFIG_PATH.read_text()
     )
@@ -72,27 +73,32 @@ def run(
             "task": env_id.replace("/", "_"),
             "logdir": logdir,
             "run.from_checkpoint": from_checkpoint,
-            "run.envs": env_cfg.scene.num_envs if env_cfg else 1,  # type: ignore
-            "run.eval_envs": env_cfg.scene.num_envs if env_cfg else 0,  # type: ignore
+            "run.envs": env_cfg.scene.num_envs if env_cfg else 1,
+            "run.eval_envs": env_cfg.scene.num_envs if env_cfg else 0,
         }
     )
-
-    # Save the config
     config.save(logdir / "config.yaml")
 
-    # Wrap the environment
-    env = EmbodiedEnvWrapper(env)  # type: ignore
-    for name, space in env.act_space.items():  # type: ignore
-        if not space.discrete:
-            env = embodied.wrappers.NormalizeAction(env, name)  # type: ignore
-    env = embodied.wrappers.UnifyDtypes(env)  # type: ignore
-    for name, space in env.act_space.items():  # type: ignore
-        if not space.discrete:
-            env = embodied.wrappers.ClipAction(env, name)  # type: ignore
+    # --- STREAMLINED WRAPPER INTEGRATION ---
+    # The helper function encapsulates all logic for creating the smoothed env.
+    env = _create_smoothed_env(
+        env,  # type: ignore
+        smoothing_cfg,
+    )
 
-    # Setup the workflow
+    # Continue with the rest of the wrappers
+    env = EmbodiedEnvWrapper(env, env_id)
+    for name, space in env.act_space.items():
+        if not space.discrete:
+            env = embodied.wrappers.NormalizeAction(env, name)
+    env = embodied.wrappers.UnifyDtypes(env)
+    for name, space in env.act_space.items():  # type: ignore
+        if not space.discrete:
+            env = embodied.wrappers.ClipAction(env, name)
+
+    # --- Setup and run the workflow (no changes below this line) ---
     def init():
-        elements.timer.global_timer.enabled = config.logger.timer  # type: ignore
+        elements.timer.global_timer.enabled = config.logger.timer
 
     portal.setup(
         errfile=config.errfile and logdir / "error",
@@ -142,7 +148,6 @@ def run(
             ),
         )
 
-    # Run the workflow
     match workflow:
         case "train":
             train(
@@ -171,12 +176,10 @@ def make_replay(config, folder: str | Path | None, mode: str = "train"):
     length = consec * batlen + config.replay_context
     assert config.batch_size * length <= capacity
 
-    if folder:
-        directory = elements.Path(config.logdir) / folder
-        if config.replicas > 1:
-            directory /= f"{config.replica:05}"
-    else:
-        directory = None
+    directory = elements.Path(config.logdir) / folder if folder else None
+    if directory and config.replicas > 1:
+        directory /= f"{config.replica:05}"
+
     replay_kwargs = {
         "length": length,
         "capacity": int(capacity),
@@ -191,43 +194,63 @@ def make_replay(config, folder: str | Path | None, mode: str = "train"):
             + config.replay.fracs.priority
             + config.replay.fracs.recency
             == 1.0
-        ), "Replay fractions must sum to 1."
-
-        if config.replay.fracs.priority > 0.0:
-            assert config.jax.compute_dtype in ("bfloat16", "float32"), (
-                "Gradient scaling for low-precision training can produce invalid loss "
-                "outputs that are incompatible with prioritized replay."
-            )
+        )
         if config.replay.fracs.recency > 0.0:
             recency = 1.0 / numpy.arange(1, capacity + 1) ** config.replay.recexp
 
-        if config.replay.fracs.uniform == 1.0:
-            replay_kwargs["selector"] = embodied.replay.selectors.Uniform(
-                seed=config.seed
-            )
-        elif config.replay.fracs.priority == 1.0:
-            replay_kwargs["selector"] = embodied.replay.selectors.Prioritized(
+        selectors = {
+            "uniform": embodied.replay.selectors.Uniform(seed=config.seed),
+            "priority": embodied.replay.selectors.Prioritized(
                 seed=config.seed, **config.replay.prio
-            )
-        elif config.replay.fracs.recency == 1.0:
-            replay_kwargs["selector"] = embodied.replay.selectors.Recency(
-                recency, seed=config.seed
-            )
+            ),
+            "recency": embodied.replay.selectors.Recency(recency, seed=config.seed)
+            if config.replay.fracs.recency > 0.0
+            else None,
+        }
+
+        # Filter out disabled selectors
+        enabled_selectors = {
+            k: v
+            for k, v in selectors.items()
+            if config.replay.fracs[k] > 0.0 and v is not None
+        }
+        enabled_fractions = {
+            k: v for k, v in config.replay.fracs.items() if k in enabled_selectors
+        }
+
+        if len(enabled_selectors) == 1:
+            replay_kwargs["selector"] = list(enabled_selectors.values())[0]
         else:
             from srb.integrations.dreamer.selector import Mixture
 
             replay_kwargs["selector"] = Mixture(
-                selectors={
-                    "uniform": embodied.replay.selectors.Uniform(seed=config.seed),
-                    "priority": embodied.replay.selectors.Prioritized(
-                        seed=config.seed, **config.replay.prio
-                    ),
-                    "recency": embodied.replay.selectors.Recency(
-                        recency, seed=config.seed
-                    ),
-                },
-                fractions=config.replay.fracs,
+                selectors=enabled_selectors,
+                fractions=enabled_fractions,
                 seed=config.seed,
             )
 
     return embodied.replay.Replay(**replay_kwargs)
+
+
+def _create_smoothed_env(env: "AnyEnv", smoothing_cfg: Dict[str, Any]) -> "AnyEnv":
+    # If config is missing or disabled, return the original environment
+    if not smoothing_cfg or not smoothing_cfg.get("enabled", False):
+        logging.info("Action smoothing DISABLED.")
+        return env
+
+    # Create a copy of the config to pass to the wrapper, removing keys
+    # that are not part of the wrapper's constructor.
+    params = smoothing_cfg.copy()
+    params.pop("enabled", None)
+
+    # Convert the method string from YAML to an Enum member for type safety
+    method_enum = SmoothingMethod[params.pop("method").upper()]
+
+    logging.info(
+        f"Action smoothing ENABLED. Method: {method_enum.name}, Config: {params}"
+    )
+
+    # Instantiate and return the wrapped environment
+    return ActionSmoothingWrapper(  # type: ignore
+        env, method=method_enum, **params
+    )

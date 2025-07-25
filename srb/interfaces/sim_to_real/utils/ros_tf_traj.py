@@ -114,11 +114,13 @@ class RosTfTrajectoryGeneratorCfg(BaseModel):
 
 def quat_to_rot_mat(q_wxyz: numpy.ndarray) -> numpy.ndarray:
     w, x, y, z = q_wxyz
-    return numpy.array([
-        [1 - 2 * y * y - 2 * z * z, 2 * x * y - 2 * z * w, 2 * x * z + 2 * y * w],
-        [2 * x * y + 2 * z * w, 1 - 2 * x * x - 2 * z * z, 2 * y * z - 2 * x * w],
-        [2 * x * z - 2 * y * w, 2 * y * z + 2 * x * w, 1 - 2 * x * x - 2 * y * y],
-    ])
+    return numpy.array(
+        [
+            [1 - 2 * y * y - 2 * z * z, 2 * x * y - 2 * z * w, 2 * x * z + 2 * y * w],
+            [2 * x * y + 2 * z * w, 1 - 2 * x * x - 2 * z * z, 2 * y * z - 2 * x * w],
+            [2 * x * z - 2 * y * w, 2 * y * z + 2 * x * w, 1 - 2 * x * x - 2 * y * y],
+        ]
+    )
 
 
 def multiply_quats(q1_wxyz: numpy.ndarray, q2_wxyz: numpy.ndarray) -> numpy.ndarray:
@@ -309,11 +311,13 @@ class RosTfTrajectoryGenerator:
         )
         local_yaw = yaws[state.segment_idx]
 
-        state.current_pos = cfg.initial_pos + self._initial_rot_mat @ numpy.array([
-            local_offset[0],
-            local_offset[1],
-            0,
-        ])
+        state.current_pos = cfg.initial_pos + self._initial_rot_mat @ numpy.array(
+            [
+                local_offset[0],
+                local_offset[1],
+                0,
+            ]
+        )
         state.current_quat_wxyz = multiply_quats(
             cfg.initial_quat_wxyz, yaw_to_quat_wxyz(local_yaw)
         )
@@ -331,20 +335,24 @@ class RosTfTrajectoryGenerator:
         if cfg.direction == "counter-clockwise":
             # CCW Path starts at (0,0) tangent to +X: P(a) = (r*sin(a), r*(1-cos(a)))
             # The tangent's yaw is 'a'.
-            local_offset = numpy.array([
-                cfg.radius * math.sin(a),
-                cfg.radius * (1 - math.cos(a)),
-                0,
-            ])
+            local_offset = numpy.array(
+                [
+                    cfg.radius * math.sin(a),
+                    cfg.radius * (1 - math.cos(a)),
+                    0,
+                ]
+            )
             local_yaw = a
         else:  # Clockwise
             # CW Path starts at (0,0) tangent to +X: P(a) = (r*sin(a), -r*(1-cos(a)))
             # The tangent's yaw is '-a'.
-            local_offset = numpy.array([
-                cfg.radius * math.sin(a),
-                -cfg.radius * (1 - math.cos(a)),
-                0,
-            ])
+            local_offset = numpy.array(
+                [
+                    cfg.radius * math.sin(a),
+                    -cfg.radius * (1 - math.cos(a)),
+                    0,
+                ]
+            )
             local_yaw = -a
 
         # Transform local path to world frame using initial pose
@@ -405,11 +413,13 @@ class RosTfTrajectoryGenerator:
         raw_yaw = math.atan2(tangent_raw[1], tangent_raw[0])
         compensated_yaw = raw_yaw - self._inf_lemniscate_start_yaw
 
-        state.current_pos = cfg.initial_pos + self._initial_rot_mat @ numpy.array([
-            compensated_offset_2d[0],
-            compensated_offset_2d[1],
-            0,
-        ])
+        state.current_pos = cfg.initial_pos + self._initial_rot_mat @ numpy.array(
+            [
+                compensated_offset_2d[0],
+                compensated_offset_2d[1],
+                0,
+            ]
+        )
         state.current_quat_wxyz = multiply_quats(
             cfg.initial_quat_wxyz,
             yaw_to_quat_wxyz(compensated_yaw + self._reverse_yaw_flip),
@@ -429,11 +439,13 @@ class RosTfTrajectoryGenerator:
 
         def get_local_pos_at_t(t):
             # Lissajous curve x=sin(2t), y=sin(t)
-            return numpy.array([
-                cfg.scale * math.sin(2 * t),
-                cfg.scale * dir_sign * math.sin(t),
-                0,
-            ])
+            return numpy.array(
+                [
+                    cfg.scale * math.sin(2 * t),
+                    cfg.scale * dir_sign * math.sin(t),
+                    0,
+                ]
+            )
 
         eps = 1e-6
         tangent_vec_uncompensated = get_local_pos_at_t(
@@ -453,11 +465,13 @@ class RosTfTrajectoryGenerator:
             self._inf_compensation_rot @ local_offset_uncompensated[:2]
         )
 
-        state.current_pos = cfg.initial_pos + self._initial_rot_mat @ numpy.array([
-            compensated_offset_2d[0],
-            compensated_offset_2d[1],
-            0,
-        ])
+        state.current_pos = cfg.initial_pos + self._initial_rot_mat @ numpy.array(
+            [
+                compensated_offset_2d[0],
+                compensated_offset_2d[1],
+                0,
+            ]
+        )
 
         # Calculate the yaw of the tangent on the uncompensated curve
         tangent_yaw_uncompensated = math.atan2(
@@ -500,11 +514,13 @@ class RosTfTrajectoryGenerator:
             phi = dist / radius
             center = numpy.array([length, dir_sign * radius, 0])
             angle = dir_sign * phi - (math.pi / 2 * dir_sign)
-            offset = center + numpy.array([
-                radius * math.cos(angle),
-                radius * math.sin(angle),
-                0,
-            ])
+            offset = center + numpy.array(
+                [
+                    radius * math.cos(angle),
+                    radius * math.sin(angle),
+                    0,
+                ]
+            )
             yaw = dir_sign * phi
         elif state.segment_idx == 2:  # Second straight line
             offset, yaw = (
@@ -515,11 +531,13 @@ class RosTfTrajectoryGenerator:
             phi = dist / radius
             center = numpy.array([0, dir_sign * radius, 0])
             angle = dir_sign * phi + (math.pi / 2 * dir_sign)
-            offset = center + numpy.array([
-                radius * math.cos(angle),
-                radius * math.sin(angle),
-                0,
-            ])
+            offset = center + numpy.array(
+                [
+                    radius * math.cos(angle),
+                    radius * math.sin(angle),
+                    0,
+                ]
+            )
             yaw = math.pi + dir_sign * phi
 
         state.current_pos = cfg.initial_pos + self._initial_rot_mat @ offset
@@ -590,11 +608,13 @@ class RosTfTrajectoryGenerator:
         theta_final = C * p_final
 
         # Position in the local (pattern) frame
-        local_offset = numpy.array([
-            r_final * math.cos(theta_final),
-            r_final * math.sin(theta_final),
-            0,
-        ])
+        local_offset = numpy.array(
+            [
+                r_final * math.cos(theta_final),
+                r_final * math.sin(theta_final),
+                0,
+            ]
+        )
 
         # Recalculate tangent at the new position to determine orientation
         dx_dp_final, dy_dp_final = get_derivatives_at_phase(p_final)

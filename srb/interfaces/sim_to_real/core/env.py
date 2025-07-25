@@ -120,6 +120,7 @@ class RealEnv(gymnasium.Env):
                     action_scale[hw_target_key] = self.ACTION_SCALE.get(
                         action_key, self.ACTION_SCALE.get(base_action_key, 1.0)
                     )
+                    action_scale.update(self.ACTION_SCALE)
             else:
                 action_scale = {}
             hw.start(
@@ -127,7 +128,22 @@ class RealEnv(gymnasium.Env):
                 action_scale=action_scale,
                 ros_node=self._ros_node,
             )
-            hw.sync()
+
+        # Spin up ROS executor
+        if not ros_node:
+            from rclpy.executors import MultiThreadedExecutor
+
+            self.__ros_executor = MultiThreadedExecutor(num_threads=2)
+            self.__ros_executor.add_node(self._ros_node)
+            self.__ros_thread = Thread(target=self.__ros_executor.spin)
+            self.__ros_thread.daemon = True
+            self.__ros_thread.start()
+
+        # Hot-start all hardware interfaces to ensure they are ready
+        for _ in range(10):
+            time.sleep(0.2)
+            for hw in self._hardware:
+                hw.sync()
 
         # Categorize all hardware interface sources (observations, rewards, terminations)
         self._src_observation: Sequence[HardwareInterface] = []
@@ -177,16 +193,6 @@ class RealEnv(gymnasium.Env):
         # Misc
         self._is_running: bool = True
         self._extract_duration_ema: float = 0.0
-
-        # Spin up ROS executor
-        if not ros_node:
-            from rclpy.executors import MultiThreadedExecutor
-
-            self.__ros_executor = MultiThreadedExecutor(num_threads=2)
-            self.__ros_executor.add_node(self._ros_node)
-            self.__ros_thread = Thread(target=self.__ros_executor.spin)
-            self.__ros_thread.daemon = True
-            self.__ros_thread.start()
 
     def step(
         self,

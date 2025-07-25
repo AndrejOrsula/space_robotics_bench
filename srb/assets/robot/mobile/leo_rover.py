@@ -64,8 +64,9 @@ class LeoRover(WheeledRobot):
                 "wheel_joint_RL",
                 "wheel_joint_RR",
             ],
-            scale_linear=0.4,
-            scale_angular=deg_to_rad(60),
+            # TODO[low]: Revert safety limits of the action scale
+            scale_linear=0.5 * 0.4,
+            scale_angular=0.5 * deg_to_rad(60),
         )
     )
 

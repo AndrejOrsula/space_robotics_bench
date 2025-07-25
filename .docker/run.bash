@@ -63,7 +63,6 @@ DOCKER_VOLUMES=(
 DOCKER_ENVIRON=(
     ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-"0"}"
     ROS_LOCALHOST_ONLY="${ROS_LOCALHOST_ONLY:-"1"}"
-    RMW_IMPLEMENTATION="${RMW_IMPLEMENTATION:-"rmw_cyclonedds_cpp"}"
 )
 
 if [[ "${WITH_HISTORY,,}" = true ]]; then
@@ -84,7 +83,7 @@ if [[ "${WITH_DEV_VOLUME,,}" = true ]]; then
 fi
 
 ## DDS config
-if [[ "${RMW_IMPLEMENTATION:-"rmw_cyclonedds_cpp"}" = "rmw_cyclonedds_cpp" ]]; then
+if [[ "${RMW_IMPLEMENTATION}" = "rmw_cyclonedds_cpp" ]]; then
     if [ -n "${CYCLONEDDS_URI}" ]; then
         if [[ "${CYCLONEDDS_URI}" =~ ^file://.* ]]; then
             DOCKER_VOLUMES+=("${CYCLONEDDS_URI//file:\/\//}:/root/.ros/cyclonedds.xml:ro")

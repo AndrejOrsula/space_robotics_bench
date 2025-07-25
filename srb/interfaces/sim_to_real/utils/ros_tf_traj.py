@@ -729,7 +729,7 @@ def main():
     # Set n_loops to -1 for infinite looping.
     # Set velocity to a negative value to run the trajectory backward.
     traj_cfg = RosTfTrajectoryGeneratorCfg(
-        pattern=pattern_cfg, n_loops=-1, velocity=0.005
+        pattern=pattern_cfg, n_loops=-1, velocity=0.05
     )
 
     broadcaster = None

@@ -18,10 +18,12 @@ class MoveitGripperCfg(HardwareInterfaceCfg):
 
 class MoveitGripper(HardwareInterface):
     cfg: MoveitGripperCfg
-    CUSTOM_ALIASES: Sequence[Sequence[str]] = ()
 
     def __init__(self, cfg: MoveitGripperCfg = MoveitGripperCfg()):
         super().__init__(cfg)
+        self.obs: Dict[str, numpy.ndarray] = {
+            "proprio_dyn/joint_pos_end_effector_normalized": ...,
+        }
 
     def start(self, **kwargs):
         super().start(**kwargs)
@@ -44,6 +46,10 @@ class MoveitGripper(HardwareInterface):
     def reset(self):
         super().reset()
 
+    def sync(self):
+        super().sync()
+        self._update_joint_pos()
+
     @property
     def supported_action_spaces(self) -> gymnasium.spaces.Dict:
         return gymnasium.spaces.Dict(
@@ -63,3 +69,11 @@ class MoveitGripper(HardwareInterface):
             self.moveit_gripper.open()
         else:
             self.moveit_gripper.close()
+
+    @property
+    def observation(self) -> Dict[str, numpy.ndarray]:
+        return self.obs.copy()
+
+    def _update_joint_pos(self):
+        # TODO[high]: Implement joint position update logic
+        raise NotImplementedError()

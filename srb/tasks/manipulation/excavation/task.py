@@ -392,8 +392,8 @@ def _compute_step_return(
     )
 
     # Penalty: Particle velocity
-    WEIGHT_SPLASHING_PENALTY = -512.0
-    MAX_SPLASHING_PENALTY = -2048.0
+    WEIGHT_SPLASHING_PENALTY = -8192.0
+    MAX_SPLASHING_PENALTY = -32768.0
     penalty_particle_velocity = torch.clamp_min(
         WEIGHT_SPLASHING_PENALTY
         * (torch.quantile(torch.square(particles_vel_norm), q=0.8, dim=1)),

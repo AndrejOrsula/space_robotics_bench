@@ -206,10 +206,14 @@ class ActionSmoothingWrapper(ActionWrapper):
 
 
 if __name__ == "__main__":
-    # --- Definitive Comparison with Advanced Filters and Analysis ---
 
     class DummyEnv(gym.Env):
         """A minimal, valid environment solely for wrapper initialization."""
+
+        class Config:
+            agent_rate = 0.01
+
+        cfg = Config()
 
         def __init__(self, action_space):
             self.action_space = action_space
@@ -283,28 +287,10 @@ if __name__ == "__main__":
             "cutoff_frequency_hz": 4,
         },
         {
-            "name": "Butterworth (c=8Hz, Balanced)",
-            "method": SmoothingMethod.BUTTERWORTH,
-            "sample_rate_hz": sample_rate,
-            "cutoff_frequency_hz": 8,
-        },
-        {
-            "name": "Savitzky-Golay (h=21, p=3, Smooth)",
-            "method": SmoothingMethod.SAVGOL,
-            "history_len": 21,
-            "poly_order": 3,
-        },
-        {
             "name": "Savitzky-Golay (h=9, p=3, All-Rounder)",
             "method": SmoothingMethod.SAVGOL,
             "history_len": 9,
             "poly_order": 3,
-        },
-        {
-            "name": "Savitzky-Golay (h=7, p=5, Agile)",
-            "method": SmoothingMethod.SAVGOL,
-            "history_len": 7,
-            "poly_order": 5,
         },
         {
             "name": "Moving Average (h=5, Agile Baseline)",
@@ -378,9 +364,7 @@ if __name__ == "__main__":
     # 5. Print quantitative comparison
     results.sort(key=lambda x: x["Balance Score"], reverse=True)
     print("-" * 135)
-    print(
-        "Definitive Action Smoothing Performance Comparison (Sorted by Overall Balance Score)"
-    )
+    print("Action Smoothing Performance Comparison (Sorted by Overall Balance Score)")
     print("-" * 135)
     print(
         f"{'Method':<40} | {'Balance Score':>15} | {'Jerkiness (x1e-4)':>20} | {'Noise Reduction (MSE)':>22} | {'Response Lag (steps)':>22}"
@@ -404,7 +388,7 @@ if __name__ == "__main__":
     # 6. Plot results
     plt.style.use("seaborn-v0_8-whitegrid")
     fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(20, 16), sharex=True)
-    fig.suptitle("Definitive Comparison of Action Smoothing Techniques", fontsize=22)
+    fig.suptitle("Comparison of Action Smoothing Techniques", fontsize=22)
     colors = plt.cm.viridis(np.linspace(0, 1, len(smoother_configs)))
     plot_configs = [
         (ax1, histories["step"], "Test 1: Step Response (Measures Lag)"),
@@ -445,6 +429,6 @@ if __name__ == "__main__":
     ax3.set_xlabel("Time Step", fontsize=12)
     ax4.set_xlabel("Time Step", fontsize=12)
     plt.tight_layout(rect=[0, 0, 1, 0.96])
-    output_filename = "definitive_smoothing_comparison.png"
+    output_filename = "smoothing_comparison.pdf"
     plt.savefig(output_filename)
-    print(f"Definitive analysis and visualization saved to '{output_filename}'")
+    print(f"Analysis and visualization saved to '{output_filename}'")

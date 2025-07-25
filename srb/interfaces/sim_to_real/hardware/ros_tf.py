@@ -54,6 +54,7 @@ class RosTfInterfaceCfg(HardwareInterfaceCfg):
         RotationRepresentation.ROT_2D_TRIG_YAW,
     )
 
+    # TODO[high]: Remove hardcoded values
     allowlist: Sequence[str] = ("target", "robot")
     blocklist: Sequence[str] = ("world", "map")
 
@@ -89,6 +90,16 @@ class RosTfInterface(HardwareInterface):
         super().sync()
         self._discover_frames()
         self._update_transforms()
+
+    @property
+    def observation(self) -> Dict[str, numpy.ndarray]:
+        return self.obs.copy()
+
+    @property
+    def info(self) -> Dict[str, Any]:
+        return {
+            "ros_tf/frames": self.discovered_frames,
+        }
 
     def _discover_frames(self):
         current_time = time.time()
@@ -252,25 +263,6 @@ class RosTfInterface(HardwareInterface):
                         (numpy.sin(yaw), numpy.cos(yaw)), dtype=numpy.float32
                     )
 
-    def _quaternion_to_rot6d(self, quat: numpy.ndarray) -> numpy.ndarray:
-        # Normalize quaternion
-        quat = quat / numpy.linalg.norm(quat)
-        w, x, y, z = quat
-
-        # Convert to rotation matrix
-        rot_matrix = numpy.array(
-            (
-                (1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y)),
-                (2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x)),
-                (2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x * x + y * y)),
-            ),
-            dtype=numpy.float32,
-        )
-
-        # Extract first two columns for 6D representation
-        rot6d = rot_matrix[:, :2].flatten()
-        return rot6d
-
     @staticmethod
     def _quat_to_yaw(quat: "Quaternion") -> float:
         return math.atan2(
@@ -300,13 +292,3 @@ class RosTfInterface(HardwareInterface):
     @staticmethod
     def _rotmat_to_rot6d(rotmat: numpy.ndarray) -> numpy.ndarray:
         return rotmat[:, :2].flatten()
-
-    @property
-    def observation(self) -> Dict[str, numpy.ndarray]:
-        return self.obs.copy()
-
-    @property
-    def info(self) -> Dict[str, Any]:
-        return {
-            "frames": self.discovered_frames,
-        }

@@ -12,6 +12,7 @@ from srb.utils import logging
 
 
 class RosCmdVelInterfaceCfg(HardwareInterfaceCfg):
+    # TODO[high]: Remove hardcoded values / Try with alias
     topic: str = "/leo06/cmd_vel"
 
 

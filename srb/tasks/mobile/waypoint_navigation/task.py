@@ -28,12 +28,12 @@ class EventCfg(GroundEventCfg):
     target_pose_evolution: EventTermCfg = EventTermCfg(
         func=offset_pose_natural,
         mode="interval",
-        interval_range_s=(0.2, 0.8),
+        interval_range_s=(0.25, 0.75),
         is_global_time=True,
         params={
             "env_attr_name": "_goal",
             "pos_axes": ("x", "y"),
-            "pos_step_range": (0.05, 0.25),
+            "pos_step_range": (0.025, 0.05),
             "pos_smoothness": 0.9,
             "pos_bounds": {
                 "x": MISSING,

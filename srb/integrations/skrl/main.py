@@ -8,6 +8,7 @@ from skrl.utils.runner.torch import Runner
 from srb.integrations.skrl.wrapper import SkrlEnvWrapper
 from srb.utils import logging
 from srb.utils.cfg import last_file, stamp_dir
+from srb.wrappers import maybe_wrap_action_smoothing
 
 if TYPE_CHECKING:
     from srb._typing import AnyEnv, AnyEnvCfg
@@ -27,6 +28,9 @@ def run(
     continue_training: bool | None = None,
     **kwargs,
 ):
+    # Pop the entire smoothing config dictionary to be handled separately.
+    smoothing_cfg = agent_cfg.pop("smoothing", {})
+
     # Determine checkpoint path
     if model:
         from_checkpoint = model
@@ -47,6 +51,12 @@ def run(
     agent_cfg["seed"] = env_cfg.seed if env_cfg else 0
     agent_cfg["agent"]["experiment"]["directory"] = logdir.parent
     agent_cfg["agent"]["experiment"]["experiment_name"] = logdir
+
+    # Enable action smoothing if enabled
+    env = maybe_wrap_action_smoothing(
+        env,  # type: ignore
+        smoothing_cfg,
+    )
 
     # Wrap the environment
     env = SkrlEnvWrapper(env)  # type: ignore

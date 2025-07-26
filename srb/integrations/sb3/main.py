@@ -13,6 +13,7 @@ from srb.integrations.sb3.exp_manager import ExperimentManager
 from srb.integrations.sb3.wrapper import Sb3EnvWrapper
 from srb.utils import logging
 from srb.utils.cfg import last_file, stamp_dir
+from srb.wrappers import maybe_wrap_action_smoothing
 
 if TYPE_CHECKING:
     from srb._typing import AnyEnv, AnyEnvCfg
@@ -53,6 +54,9 @@ def run(
     # HER
     truncate_last_trajectory = agent_cfg.pop("truncate_last_trajectory", True)
 
+    # Pop the entire smoothing config dictionary to be handled separately.
+    smoothing_cfg = agent_cfg.pop("smoothing", {})
+
     # Determine checkpoint path
     if model:
         from_checkpoint = model
@@ -78,6 +82,12 @@ def run(
             sync_tensorboard=True,
             monitor_gym=True,
         )
+
+    # Enable action smoothing if enabled
+    env = maybe_wrap_action_smoothing(
+        env,  # type: ignore
+        smoothing_cfg,
+    )
 
     # Wrap the environment
     env = Sb3EnvWrapper(env)  # type: ignore

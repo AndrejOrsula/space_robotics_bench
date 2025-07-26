@@ -25,6 +25,8 @@ from gymnasium import ActionWrapper
 from gymnasium.spaces import Box
 from scipy.signal import butter, lfilter, lfilter_zi, savgol_filter
 
+from srb.utils import logging
+
 if TYPE_CHECKING:
     from srb._typing import AnyEnv
 
@@ -437,3 +439,29 @@ if __name__ == "__main__":
     output_filename = "smoothing_comparison.pdf"
     plt.savefig(output_filename)
     print(f"Analysis and visualization saved to '{output_filename}'")
+
+
+def maybe_wrap_action_smoothing(
+    env: "AnyEnv", smoothing_cfg: Dict[str, Any]
+) -> "AnyEnv":
+    # If config is missing or disabled, return the original environment
+    if not smoothing_cfg or not smoothing_cfg.get("enabled", False):
+        logging.debug("Action smoothing DISABLED.")
+        return env
+
+    # Create a copy of the config to pass to the wrapper, removing keys
+    # that are not part of the wrapper's constructor.
+    params = smoothing_cfg.copy()
+    params.pop("enabled", None)
+
+    # Convert the method string from YAML to an Enum member for type safety
+    method_enum = SmoothingMethod[params.pop("method").upper()]
+
+    logging.info(
+        f"Action smoothing ENABLED. Method: {method_enum.name}, Config: {params}"
+    )
+
+    # Instantiate and return the wrapped environment
+    return ActionSmoothingWrapper(  # type: ignore
+        env, method=method_enum, **params
+    )

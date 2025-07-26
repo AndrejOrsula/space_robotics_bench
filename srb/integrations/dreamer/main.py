@@ -17,7 +17,7 @@ from srb.integrations.dreamer.train import train
 from srb.integrations.dreamer.wrapper import EmbodiedEnvWrapper
 from srb.utils import logging
 from srb.utils.cfg import stamp_dir
-from srb.wrappers import ActionSmoothingWrapper, SmoothingMethod
+from srb.wrappers import maybe_wrap_action_smoothing
 
 if TYPE_CHECKING:
     from srb._typing import AnyEnv, AnyEnvCfg
@@ -79,9 +79,8 @@ def run(
     )
     config.save(logdir / "config.yaml")
 
-    # --- STREAMLINED WRAPPER INTEGRATION ---
-    # The helper function encapsulates all logic for creating the smoothed env.
-    env = _create_smoothed_env(
+    # Enable action smoothing if enabled
+    env = maybe_wrap_action_smoothing(
         env,  # type: ignore
         smoothing_cfg,
     )
@@ -230,27 +229,3 @@ def make_replay(config, folder: str | Path | None, mode: str = "train"):
             )
 
     return embodied.replay.Replay(**replay_kwargs)
-
-
-def _create_smoothed_env(env: "AnyEnv", smoothing_cfg: Dict[str, Any]) -> "AnyEnv":
-    # If config is missing or disabled, return the original environment
-    if not smoothing_cfg or not smoothing_cfg.get("enabled", False):
-        logging.info("Action smoothing DISABLED.")
-        return env
-
-    # Create a copy of the config to pass to the wrapper, removing keys
-    # that are not part of the wrapper's constructor.
-    params = smoothing_cfg.copy()
-    params.pop("enabled", None)
-
-    # Convert the method string from YAML to an Enum member for type safety
-    method_enum = SmoothingMethod[params.pop("method").upper()]
-
-    logging.info(
-        f"Action smoothing ENABLED. Method: {method_enum.name}, Config: {params}"
-    )
-
-    # Instantiate and return the wrapped environment
-    return ActionSmoothingWrapper(  # type: ignore
-        env, method=method_enum, **params
-    )

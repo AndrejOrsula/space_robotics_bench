@@ -32,8 +32,8 @@ if TYPE_CHECKING:
 class SmoothingMethod(Enum):
     """Enumeration for the available smoothing methods."""
 
-    MOVING_AVERAGE = auto()
     SAVGOL = auto()
+    MOVING_AVERAGE = auto()
     BUTTERWORTH = auto()
 
 
@@ -62,7 +62,8 @@ class ActionSmoothingWrapper(ActionWrapper):
         self,
         env: "AnyEnv",
         method: SmoothingMethod,
-        history_len: int = 7,
+        history_len_savgol: int = 9,
+        history_len_moving_average: int = 5,
         poly_order: int = 3,
         cutoff_frequency_hz: float = 4,
         sample_rate_hz: Optional[float] = None,
@@ -72,7 +73,11 @@ class ActionSmoothingWrapper(ActionWrapper):
             raise TypeError("ActionSmoothingWrapper only supports Box action spaces.")
 
         self.method = method
-        self.history_len = history_len
+        self.history_len = (
+            history_len_savgol
+            if method == SmoothingMethod.SAVGOL
+            else history_len_moving_average
+        )
         self.poly_order = poly_order
         self.sample_rate_hz = sample_rate_hz or (1.0 / env.cfg.agent_rate)
         self.cutoff_frequency_hz = cutoff_frequency_hz

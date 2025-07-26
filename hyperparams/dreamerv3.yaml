@@ -19,14 +19,14 @@ smoothing:
   enabled: true
   ## SAVGOL: Balance between smoothness and responsiveness
   method: SAVGOL
-  history_len: 9
+  history_len_savgol: 9
   poly_order: 3
   ## MOVING_AVERAGE: The fastest response
   # method: MOVING_AVERAGE
-  # history_len: 5
+  history_len_moving_average: 5
   ## BUTTERWORTH: Maximum smoothness
   # method: BUTTERWORTH
-  # cutoff_frequency_hz: 4
+  cutoff_frequency_hz: 4
 
 ### Logging ###
 logger:

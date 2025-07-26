@@ -33,7 +33,7 @@ class EventCfg(GroundEventCfg):
         params={
             "env_attr_name": "_goal",
             "pos_axes": ("x", "y"),
-            "pos_step_range": (0.025, 0.05),
+            "pos_step_range": (0.025, 0.1),
             "pos_smoothness": 0.9,
             "pos_bounds": {
                 "x": MISSING,
@@ -215,7 +215,7 @@ def _compute_step_return(
     )
 
     # Reward: Point towards target | Robot <--> Target
-    WEIGHT_POINT_TOWARDS_TARGET = 2.0
+    WEIGHT_POINT_TOWARDS_TARGET = 0.5
     TANH_STD_POINT_TOWARDS_TARGET = 0.7854  # 45 deg
     reward_point_towards_target = WEIGHT_POINT_TOWARDS_TARGET * (
         1.0
@@ -235,7 +235,7 @@ def _compute_step_return(
     )
 
     # Reward: Target orientation tracking once position is reached | Robot <--> Target
-    WEIGHT_ORIENTATION_TRACKING = 32.0
+    WEIGHT_ORIENTATION_TRACKING = 16.0
     TANH_STD_ORIENTATION_TRACKING = 0.2618  # 15 deg
     _orientation_tracking_precision = _position_tracking_precision * (
         1.0 - torch.tanh(torch.abs(yaw_robot_to_target) / TANH_STD_ORIENTATION_TRACKING)
@@ -245,8 +245,8 @@ def _compute_step_return(
     )
 
     # Reward: Slow down at target
-    WEIGHT_SLOW_AT_TARGET = 64.0
-    TANH_STD_SLOW_AT_TARGET_VELOCITY_LINEAR = 0.02
+    WEIGHT_SLOW_AT_TARGET = 32.0
+    TANH_STD_SLOW_AT_TARGET_VELOCITY_LINEAR = 0.025
     TANH_STD_SLOW_AT_TARGET_VELOCITY_ANGULAR = 0.0698  # 4 deg/s
     reward_slow_at_target = (
         WEIGHT_SLOW_AT_TARGET

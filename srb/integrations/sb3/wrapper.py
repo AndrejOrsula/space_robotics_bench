@@ -94,28 +94,39 @@ class Sb3EnvWrapper(VecEnv):
 
     def step_wait(self) -> VecEnvStepReturn:
         # Record step information
-        obs_dict, rew, terminated, truncated, extras = self.env.step(
+        obs_dict, reward, terminated, truncated, extras = self.env.step(
             self._async_actions  # type: ignore
         )
         # Update episode un-discounted return and length
-        self._ep_rew_buf += rew
+        self._ep_rew_buf += reward
         self._ep_len_buf += 1
-        # Compute reset ids
-        dones = terminated | truncated
-        reset_ids = (dones > 0).nonzero(as_tuple=False)  # type: ignore
 
         # Convert data types to numpy depending on backend
-        # Note: ManagerBasedRLEnv uses torch backend (by default).
         obs = self._process_obs(obs_dict)  # type: ignore
-        rew = rew.detach().cpu().numpy()  # type: ignore
-        terminated = terminated.detach().cpu().numpy()  # type: ignore
-        truncated = truncated.detach().cpu().numpy()  # type: ignore
-        dones = dones.detach().cpu().numpy()  # type: ignore
+
+        if isinstance(reward, torch.Tensor):
+            reward = reward.detach().cpu().numpy()
+        elif not isinstance(reward, numpy.ndarray):
+            reward = numpy.array((reward,), dtype=numpy.float32)
+
+        if isinstance(terminated, torch.Tensor):
+            terminated = terminated.detach().cpu().numpy()
+        elif not isinstance(terminated, numpy.ndarray):
+            terminated = numpy.array((terminated,), dtype=bool)
+
+        if isinstance(truncated, torch.Tensor):
+            truncated = truncated.detach().cpu().numpy()
+        elif not isinstance(truncated, numpy.ndarray):
+            truncated = numpy.array((truncated,), dtype=bool)
+
+        # Compute reset ids
+        dones = terminated | truncated
+        reset_ids = numpy.argwhere(dones > 0).flatten()
         # Convert extra information to list of dicts
         infos = self._process_extras(
             obs,  # type: ignore
-            terminated,
-            truncated,
+            terminated,  # type: ignore
+            truncated,  # type: ignore
             extras,
             reset_ids,  # type: ignore
         )
@@ -124,7 +135,7 @@ class Sb3EnvWrapper(VecEnv):
         self._ep_rew_buf[reset_ids] = 0
         self._ep_len_buf[reset_ids] = 0
 
-        return obs, rew, dones, infos  # type: ignore
+        return obs, reward, dones, infos  # type: ignore
 
     def close(self):
         self.env.close()
@@ -173,14 +184,24 @@ class Sb3EnvWrapper(VecEnv):
     def get_images(self):
         raise NotImplementedError("Getting images is not supported.")
 
-    def _process_obs(self, obs: torch.Tensor) -> numpy.ndarray:
-        return obs.detach().cpu().numpy()
+    def _process_obs(self, obs: numpy.ndarray | torch.Tensor) -> numpy.ndarray:
+        if self.num_envs == 1 and obs.ndim == 1:
+            return (
+                obs.detach().cpu().numpy() if isinstance(obs, torch.Tensor) else obs
+            ).reshape((1, *obs.shape))
+
+        return obs.detach().cpu().numpy() if isinstance(obs, torch.Tensor) else obs
 
     def _process_obs_dict(
-        self, obs: Dict[str, torch.Tensor]
+        self, obs: Dict[str, numpy.ndarray | torch.Tensor]
     ) -> Mapping[str, numpy.ndarray]:
-        for key, value in obs.items():
-            obs[key] = value.detach().cpu().numpy()  # type: ignore
+        _first_obs = next(iter(obs.values()))
+        if isinstance(_first_obs, torch.Tensor):
+            obs = {k: v.detach().cpu().numpy() for k, v in obs.items()}  # type: ignore
+
+        if self.num_envs == 1 and _first_obs.ndim == 1:
+            obs = {k: v.reshape((1, *v.shape)) for k, v in obs.items()}
+
         return obs  # type: ignore
 
     def _process_extras(

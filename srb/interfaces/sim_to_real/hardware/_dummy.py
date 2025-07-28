@@ -39,24 +39,12 @@ class DummyInterface(HardwareInterface):
             self.step_counter = 0
 
         self.obs = {
-            "proprio/imu_ang_vel": numpy.array(
-                (1.1, 1.2, 1.3),
+            "state/tf_pos2d_robot_to_target": numpy.array(
+                (1.0, 9.0),
                 dtype=numpy.float32,
             ),
-            "proprio/imu_lin_acc": numpy.array(
-                (2.1, 2.2, 2.3),
-                dtype=numpy.float32,
-            ),
-            "state/tf_pos_robot_to_target": numpy.array(
-                (3.1, 3.2),
-                dtype=numpy.float32,
-            ),
-            "state/vel_ang_robot": numpy.array(
-                (4.1, 4.2, 4.3),
-                dtype=numpy.float32,
-            ),
-            "state/vel_lin_robot": numpy.array(
-                (5.1, 5.2, 5.3),
+            "state/tf_rot2dtrigyaw_robot_to_target": numpy.array(
+                (0.2, 0.8),
                 dtype=numpy.float32,
             ),
         }

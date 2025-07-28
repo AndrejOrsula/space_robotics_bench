@@ -6,6 +6,7 @@ from typing import (
     Any,
     ClassVar,
     Dict,
+    List,
     Mapping,
     Sequence,
     SupportsFloat,
@@ -337,6 +338,9 @@ class RealEnv(gymnasium.Env):
             self.__ros_executor.shutdown()
             self.__ros_thread.join()
             rclpy.shutdown()
+
+    def seed(self, seed: int | None = None) -> List[int | None]:
+        return [seed]
 
     def __del__(self):
         self.close()

@@ -98,7 +98,9 @@ class EmbodiedEnvWrapper(embodied.Env):
             is_terminal=numpy.zeros(self._num_envs, dtype=bool),
         )
 
-    def step(self, action: Mapping[str, torch.Tensor]) -> Mapping[str, numpy.ndarray]:
+    def step(
+        self, action: Mapping[str, numpy.ndarray | torch.Tensor]
+    ) -> Mapping[str, numpy.ndarray]:
         if action["reset"].all() or self._done.all():
             return self.reset()
 

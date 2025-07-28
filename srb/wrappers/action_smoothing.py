@@ -64,6 +64,7 @@ class ActionSmoothingWrapper(ActionWrapper):
         self,
         env: "AnyEnv",
         method: SmoothingMethod,
+        history_len: Optional[int] = None,
         history_len_savgol: int = 9,
         history_len_moving_average: int = 5,
         poly_order: int = 3,
@@ -75,13 +76,22 @@ class ActionSmoothingWrapper(ActionWrapper):
             raise TypeError("ActionSmoothingWrapper only supports Box action spaces.")
 
         self.method = method
-        self.history_len = (
+        self.history_len = history_len or (
             history_len_savgol
             if method == SmoothingMethod.SAVGOL
             else history_len_moving_average
         )
         self.poly_order = poly_order
-        self.sample_rate_hz = sample_rate_hz or (1.0 / env.cfg.agent_rate)
+        if sample_rate_hz is not None:
+            self.sample_rate_hz = sample_rate_hz
+        elif hasattr(env, "cfg") and hasattr(env.cfg, "agent_rate"):
+            self.sample_rate_hz = 1.0 / env.cfg.agent_rate
+        elif hasattr(env, "ACTION_RATE"):
+            self.sample_rate_hz = 1.0 / env.ACTION_RATE  # type: ignore
+        else:
+            raise ValueError(
+                "Sample rate must be provided or the environment must define ACTION_RATE or cfg.agent_rate."
+            )
         self.cutoff_frequency_hz = cutoff_frequency_hz
         self._validate_params()
 

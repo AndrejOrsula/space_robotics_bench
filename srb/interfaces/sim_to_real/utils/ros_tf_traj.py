@@ -712,10 +712,10 @@ def main():
     #     initial_quat_wxyz=initial_quat_wxyz,
     # )
     pattern_cfg = CapsulePatternCfg(
-        length=1.2,
-        radius=0.4,
-        direction=direction,
-        initial_pos=initial_pos,
+        length=3.0,
+        radius=1.125,
+        direction="counter-clockwise",
+        initial_pos=numpy.array([2.2, -3.9, 0.0], dtype=numpy.float32),
         initial_quat_wxyz=initial_quat_wxyz,
     )
     # pattern_cfg = SpiralPatternCfg(
@@ -729,7 +729,7 @@ def main():
     # Set n_loops to -1 for infinite looping.
     # Set velocity to a negative value to run the trajectory backward.
     traj_cfg = RosTfTrajectoryGeneratorCfg(
-        pattern=pattern_cfg, n_loops=-1, velocity=0.05
+        pattern=pattern_cfg, n_loops=-1, velocity=0.2
     )
 
     broadcaster = None

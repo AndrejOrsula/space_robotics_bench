@@ -28,12 +28,12 @@ class EventCfg(GroundEventCfg):
     target_pose_evolution: EventTermCfg = EventTermCfg(
         func=offset_pose_natural,
         mode="interval",
-        interval_range_s=(0.25, 0.75),
+        interval_range_s=(0.02, 0.08),
         is_global_time=True,
         params={
             "env_attr_name": "_goal",
             "pos_axes": ("x", "y"),
-            "pos_step_range": (0.025, 0.1),
+            "pos_step_range": (0.002, 0.02),
             "pos_smoothness": 0.9,
             "pos_bounds": {
                 "x": MISSING,
@@ -111,6 +111,10 @@ class Task(GroundEnv):
         self._goal = torch.zeros(self.num_envs, 7, device=self.device)
         self._goal[:, 0:3] = self.scene.env_origins
         self._goal[:, 4] = 1.0
+        self._episodic_noise_tf_pos2d = torch.zeros(
+            self.num_envs, 2, device=self.device
+        )
+        self._episodic_noise_tf_yaw = torch.zeros(self.num_envs, device=self.device)
 
     def _reset_idx(self, env_ids: Sequence[int]):
         super()._reset_idx(env_ids)
@@ -119,6 +123,21 @@ class Task(GroundEnv):
         self._goal[env_ids, 0:3] = self.scene.env_origins[env_ids]
         self._goal[env_ids, 3:7] = torch.tensor(
             [1.0, 0.0, 0.0, 0.0], device=self.device
+        )
+
+        ## Randomize episodic noise
+        num_reset_envs = len(env_ids)
+        self._episodic_noise_tf_pos2d[env_ids] = torch.normal(
+            mean=0.0,
+            std=0.02,
+            size=(num_reset_envs, 2),
+            device=self.device,
+        )
+        self._episodic_noise_tf_yaw[env_ids] = torch.normal(
+            mean=0.0,
+            std=0.06981317,  # 4 deg
+            size=(num_reset_envs,),
+            device=self.device,
         )
 
     def extract_step_return(self) -> StepReturn:
@@ -146,6 +165,9 @@ class Task(GroundEnv):
             # IMU
             imu_lin_acc=self._imu_robot.data.lin_acc_b,
             imu_ang_vel=self._imu_robot.data.ang_vel_b,
+            ## Randomization
+            episodic_noise_tf_pos2d=self._episodic_noise_tf_pos2d,
+            episodic_noise_tf_yaw=self._episodic_noise_tf_yaw,
         )
 
 
@@ -171,6 +193,9 @@ def _compute_step_return(
     # IMU
     imu_lin_acc: torch.Tensor,
     imu_ang_vel: torch.Tensor,
+    ## Randomization
+    episodic_noise_tf_pos2d: torch.Tensor,
+    episodic_noise_tf_yaw: torch.Tensor,
 ) -> StepReturn:
     num_envs = episode_length.size(0)
     # dtype = episode_length.dtype
@@ -195,18 +220,38 @@ def _compute_step_return(
     yaw_robot_to_target = torch.atan2(
         tf_rotmat_robot_to_target[..., 1, 0], tf_rotmat_robot_to_target[..., 0, 0]
     )
-    tf_rot2dtrigyaw_robot_to_target = torch.stack(
-        (torch.sin(yaw_robot_to_target), torch.cos(yaw_robot_to_target)), dim=-1
+
+    # Randomized states
+    tf_pos2d_robot_to_target_with_noise = (
+        tf_pos2d_robot_to_target
+        + episodic_noise_tf_pos2d
+        + torch.normal(mean=0.0, std=0.005, size=(num_envs, 2), device=device)
+    )
+    yaw_robot_to_target_with_noise = (
+        yaw_robot_to_target
+        + episodic_noise_tf_yaw
+        + torch.normal(
+            mean=0.0,
+            std=0.0174533,  # 1 deg
+            size=(num_envs,),
+            device=device,
+        )
+    )
+    tf_rot2dtrigyaw_robot_to_target_with_noise = torch.stack(
+        (
+            torch.sin(yaw_robot_to_target_with_noise),
+            torch.cos(yaw_robot_to_target_with_noise),
+        ),
+        dim=-1,
     )
 
     #############
     ## Rewards ##
     #############
     # Penalty: Action rate
-    WEIGHT_ACTION_RATE = -0.1
-    penalty_action_rate = WEIGHT_ACTION_RATE * torch.sum(
-        torch.square(act_current - act_previous), dim=1
-    )
+    WEIGHT_ACTION_RATE = -0.5
+    _action_rate = torch.sum(torch.square(act_current - act_previous), dim=1)
+    penalty_action_rate = WEIGHT_ACTION_RATE * _action_rate
 
     # Penalty: Position tracking | Robot <--> Target
     WEIGHT_POSITION_TRACKING = -1.0
@@ -244,27 +289,13 @@ def _compute_step_return(
         WEIGHT_ORIENTATION_TRACKING * _orientation_tracking_precision
     )
 
-    # Reward: Slow down at target
-    WEIGHT_SLOW_AT_TARGET = 32.0
-    TANH_STD_SLOW_AT_TARGET_VELOCITY_LINEAR = 0.025
-    TANH_STD_SLOW_AT_TARGET_VELOCITY_ANGULAR = 0.0698  # 4 deg/s
-    reward_slow_at_target = (
-        WEIGHT_SLOW_AT_TARGET
+    # Reward: Action rate at target
+    WEIGHT_ACTION_RATE_AT_TARGET = 32.0
+    TANH_STD_ACTION_RATE_AT_TARGET = 0.1
+    reward_action_rate_at_target = (
+        WEIGHT_ACTION_RATE_AT_TARGET
         * _orientation_tracking_precision
-        * (
-            1.0
-            - torch.tanh(
-                torch.norm(vel_lin_robot, dim=-1)
-                / TANH_STD_SLOW_AT_TARGET_VELOCITY_LINEAR
-            )
-        )
-        * (
-            1.0
-            - torch.tanh(
-                torch.norm(vel_ang_robot, dim=-1)
-                / TANH_STD_SLOW_AT_TARGET_VELOCITY_ANGULAR
-            )
-        )
+        * (1.0 - torch.tanh(_action_rate / TANH_STD_ACTION_RATE_AT_TARGET))
     )
 
     ##################
@@ -284,8 +315,8 @@ def _compute_step_return(
             "state": {
                 # "vel_lin_robot": vel_lin_robot,
                 # "vel_ang_robot": vel_ang_robot,
-                "tf_pos2d_robot_to_target": tf_pos2d_robot_to_target,
-                "tf_rot2dtrigyaw_robot_to_target": tf_rot2dtrigyaw_robot_to_target,
+                "tf_pos2d_robot_to_target": tf_pos2d_robot_to_target_with_noise,
+                "tf_rot2dtrigyaw_robot_to_target": tf_rot2dtrigyaw_robot_to_target_with_noise,
             },
             # "proprio": {
             #     "imu_lin_acc": imu_lin_acc,
@@ -298,7 +329,7 @@ def _compute_step_return(
             "reward_point_towards_target": reward_point_towards_target,
             "reward_position_tracking_precision": reward_position_tracking_precision,
             "reward_orientation_tracking": reward_orientation_tracking,
-            "reward_slow_at_target": reward_slow_at_target,
+            "reward_action_rate_at_target": reward_action_rate_at_target,
         },
         termination,
         truncation,

@@ -65,10 +65,10 @@ class ActionSmoothingWrapper(ActionWrapper):
         env: "AnyEnv",
         method: SmoothingMethod,
         history_len: Optional[int] = None,
-        history_len_savgol: int = 9,
         history_len_moving_average: int = 5,
+        history_len_savgol: int = 13,
         poly_order: int = 3,
-        cutoff_frequency_hz: float = 4,
+        cutoff_frequency_hz: Optional[float] = None,
         sample_rate_hz: Optional[float] = None,
     ):
         super().__init__(env)
@@ -92,7 +92,7 @@ class ActionSmoothingWrapper(ActionWrapper):
             raise ValueError(
                 "Sample rate must be provided or the environment must define ACTION_RATE or cfg.agent_rate."
             )
-        self.cutoff_frequency_hz = cutoff_frequency_hz
+        self.cutoff_frequency_hz = cutoff_frequency_hz or (self.sample_rate_hz / 10.0)
         self._validate_params()
 
         self.is_initialized: bool = False
@@ -274,7 +274,7 @@ if __name__ == "__main__":
         return np.mean((smoothed - clean) ** 2)
 
     # 1. Create Test Signals
-    num_steps, sample_rate = 500, 100  # Hz
+    num_steps, sample_rate = 500, 25  # Hz
     t = np.linspace(0, num_steps / sample_rate, num_steps)
     step_points = [0, 125, 250, 375]
     step_values = [0, 0.8, -0.8, 0.5]
@@ -298,15 +298,15 @@ if __name__ == "__main__":
     dummy_env = DummyEnv(action_space)
     smoother_configs: List[Dict[str, Any]] = [
         {
-            "name": "Butterworth (c=4Hz, Max Smooth)",
+            "name": "Butterworth (c=2.5Hz, Max Smooth)",
             "method": SmoothingMethod.BUTTERWORTH,
             "sample_rate_hz": sample_rate,
-            "cutoff_frequency_hz": 4,
+            "cutoff_frequency_hz": 2.5,
         },
         {
-            "name": "Savitzky-Golay (h=9, p=3, All-Rounder)",
+            "name": "Savitzky-Golay (h=13, p=3, All-Rounder)",
             "method": SmoothingMethod.SAVGOL,
-            "history_len": 9,
+            "history_len": 13,
             "poly_order": 3,
         },
         {

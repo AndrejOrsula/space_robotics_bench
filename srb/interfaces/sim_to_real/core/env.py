@@ -192,7 +192,7 @@ class RealEnv(gymnasium.Env):
         }
 
         # Misc
-        self._is_running: bool = True
+        self._is_running: bool = False
         self._extract_duration_ema: float = 0.0
 
     def step(

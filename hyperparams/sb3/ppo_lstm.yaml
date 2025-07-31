@@ -1,4 +1,4 @@
-n_timesteps: 100000000
+n_timesteps: 200000000
 policy: "MultiInputLstmPolicy"
 batch_size: 1024
 clip_range: 0.1
@@ -15,6 +15,6 @@ vf_coef: 0.5
 policy_kwargs: "dict(
   log_std_init=-2,
   net_arch=[384, 384],
-  lstm_hidden_size=256,
+  lstm_hidden_size=384,
   enable_critic_lstm=True,
   )"

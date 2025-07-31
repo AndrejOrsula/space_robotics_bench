@@ -40,6 +40,10 @@ class RealEnv(gymnasium.Env):
     SIM_ROBOT: ClassVar[str]
     HARDWARE: ClassVar[Sequence[str]]
 
+    LIMIT_RATE: ClassVar[bool] = False
+
+    _HOT_START_DURATION: ClassVar[float] = 5.0
+    _HOT_START_ITERATIONS: ClassVar[int] = 10
     _MIN_SLEEP_DURATION: ClassVar[float] = 1.0 / 1000.0
     _PAUSE_SLEEP_DURATION: ClassVar[float] = 1.0 / 100.0
     _FREQ_EST_EMA_ALPHA: ClassVar[float] = 0.9
@@ -141,8 +145,9 @@ class RealEnv(gymnasium.Env):
             self.__ros_thread.start()
 
         # Hot-start all hardware interfaces to ensure they are ready
-        for _ in range(10):
-            time.sleep(0.2)
+        hot_start_sleep_period = self._HOT_START_DURATION / self._HOT_START_ITERATIONS
+        for _ in range(self._HOT_START_ITERATIONS):
+            time.sleep(hot_start_sleep_period)
             for hw in self._hardware:
                 hw.sync()
 
@@ -228,7 +233,8 @@ class RealEnv(gymnasium.Env):
                 break
 
         # Structure the action
-        pre_action_time: float = time.time()
+        if self.LIMIT_RATE:
+            pre_action_time: float = time.time()
         if isinstance(action, Mapping):
             if any(isinstance(v, torch.Tensor) for v in action.values()):
                 action = {
@@ -269,16 +275,17 @@ class RealEnv(gymnasium.Env):
             )
 
         # Maintain constant action rate
-        action_duration: float = time.time() - pre_action_time
-        sleep_duration: float = (
-            self.ACTION_RATE - action_duration - self._extract_duration_ema
-        )
-        if sleep_duration > self._MIN_SLEEP_DURATION:
-            time.sleep(sleep_duration)
-        else:
-            logging.warning(
-                f"Action rate of {self.ACTION_RATE} cannot be maintained with a remaining sleep time of {sleep_duration:.3f} s (below the minimum threshold of {self._MIN_SLEEP_DURATION:.3f} s). The actual action rate closer to {(1.0 / (action_duration + self._extract_duration_ema)):.3f} Hz..."
+        if self.LIMIT_RATE:
+            action_duration: float = time.time() - pre_action_time
+            sleep_duration: float = (
+                self.ACTION_RATE - action_duration - self._extract_duration_ema
             )
+            if sleep_duration > self._MIN_SLEEP_DURATION:
+                time.sleep(sleep_duration)
+            else:
+                logging.warning(
+                    f"Action rate of {self.ACTION_RATE} cannot be maintained with a remaining sleep time of {sleep_duration:.3f} s (below the minimum threshold of {self._MIN_SLEEP_DURATION:.3f} s). The actual action rate closer to {(1.0 / (action_duration + self._extract_duration_ema)):.3f} Hz..."
+                )
 
         # Extract observations, rewards, terminations, and info
         pre_extract_time: float = time.time()

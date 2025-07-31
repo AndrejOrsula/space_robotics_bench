@@ -456,7 +456,7 @@ def maybe_wrap_action_smoothing(
 ) -> "AnyEnv":
     # If config is missing or disabled, return the original environment
     if not smoothing_cfg or not smoothing_cfg.get("enabled", False):
-        logging.debug("Action smoothing DISABLED.")
+        logging.debug("Action smoothing is disabled.")
         return env
 
     # Create a copy of the config to pass to the wrapper, removing keys
@@ -468,7 +468,7 @@ def maybe_wrap_action_smoothing(
     method_enum = SmoothingMethod[params.pop("method").upper()]
 
     logging.info(
-        f"Action smoothing ENABLED. Method: {method_enum.name}, Config: {params}"
+        f"Action smoothing is enabled. Method: {method_enum.name}, Config: {params}"
     )
 
     # Instantiate and return the wrapped environment

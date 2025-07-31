@@ -28,12 +28,12 @@ class EventCfg(GroundEventCfg):
     target_pose_evolution: EventTermCfg = EventTermCfg(
         func=offset_pose_natural,
         mode="interval",
-        interval_range_s=(0.02, 0.08),
+        interval_range_s=(0.05, 0.05),
         is_global_time=True,
         params={
             "env_attr_name": "_goal",
             "pos_axes": ("x", "y"),
-            "pos_step_range": (0.002, 0.02),
+            "pos_step_range": (0.005, 0.02),
             "pos_smoothness": 0.99,
             "pos_bounds": {
                 "x": MISSING,
@@ -75,9 +75,9 @@ class TaskCfg(GroundEnvCfg):
         },
     )
 
-    ## Action/observation delay
-    action_delay_steps: int | Tuple[int, int] = (0, 5)
-    observation_delay_steps: int | Tuple[int, int] = (0, 5)
+    ## Action/observation delays
+    action_delay_steps: int | Tuple[int, int] = (0, 3)
+    observation_delay_steps: int | Tuple[int, int] = (0, 1)
 
     def __post_init__(self):
         super().__post_init__()
@@ -229,7 +229,7 @@ def _compute_step_return(
     tf_pos2d_robot_to_target_with_noise = (
         tf_pos2d_robot_to_target
         + episodic_noise_tf_pos2d
-        + torch.normal(mean=0.0, std=0.002, size=(num_envs, 2), device=device)
+        + torch.normal(mean=0.0, std=0.0025, size=(num_envs, 2), device=device)
     )
     yaw_robot_to_target_with_noise = (
         yaw_robot_to_target
@@ -253,7 +253,7 @@ def _compute_step_return(
     ## Rewards ##
     #############
     # Penalty: Action rate
-    WEIGHT_ACTION_RATE = -0.5
+    WEIGHT_ACTION_RATE = -16.0
     _action_rate = torch.sum(torch.square(act_current - act_previous), dim=1)
     penalty_action_rate = WEIGHT_ACTION_RATE * _action_rate
 
@@ -264,7 +264,7 @@ def _compute_step_return(
     )
 
     # Reward: Point towards target | Robot <--> Target
-    WEIGHT_POINT_TOWARDS_TARGET = 0.5
+    WEIGHT_POINT_TOWARDS_TARGET = 1.0
     TANH_STD_POINT_TOWARDS_TARGET = 0.7854  # 45 deg
     reward_point_towards_target = WEIGHT_POINT_TOWARDS_TARGET * (
         1.0
@@ -284,7 +284,7 @@ def _compute_step_return(
     )
 
     # Reward: Target orientation tracking once position is reached | Robot <--> Target
-    WEIGHT_ORIENTATION_TRACKING = 16.0
+    WEIGHT_ORIENTATION_TRACKING = 8.0
     TANH_STD_ORIENTATION_TRACKING = 0.2618  # 15 deg
     _orientation_tracking_precision = _position_tracking_precision * (
         1.0 - torch.tanh(torch.abs(yaw_robot_to_target) / TANH_STD_ORIENTATION_TRACKING)
@@ -295,7 +295,7 @@ def _compute_step_return(
 
     # Reward: Action rate at target
     WEIGHT_ACTION_RATE_AT_TARGET = 32.0
-    TANH_STD_ACTION_RATE_AT_TARGET = 0.25
+    TANH_STD_ACTION_RATE_AT_TARGET = 0.2
     reward_action_rate_at_target = (
         WEIGHT_ACTION_RATE_AT_TARGET
         * _orientation_tracking_precision

@@ -104,7 +104,7 @@ class DirectEnv(__DirectRLEnv, metaclass=__PostInitCaller):
             self._action_history_buffer: torch.Tensor | None = None
         # Allocate observation delay buffers
         # TODO[mid]: Handle observation delay for non step return workflows
-        if self._max_obs_delay_steps > 0:
+        if self._use_step_return_workflow and self._max_obs_delay_steps > 0:
             logging.info(
                 f"Observation delay of maximum {self._max_obs_delay_steps} agent steps enabled."
             )
@@ -176,6 +176,26 @@ class DirectEnv(__DirectRLEnv, metaclass=__PostInitCaller):
             self._obs_history_buffer_ptr = (
                 self._obs_history_buffer_ptr + 1
             ) % self._max_obs_delay_steps
+
+            # Randomize observation delay with on-step probability
+            if (
+                self.cfg.observation_delay_on_step_change_prob > 0.0
+                and (self._min_obs_delay_steps < self._max_obs_delay_steps)
+                and (
+                    self.sim.current_time
+                    % self.cfg.observation_delay_on_step_change_freq
+                )
+                < self.cfg.agent_rate
+            ):
+                dist = torch.rand((self.num_envs,), device=self.device)
+                decrease_delay_indices = (
+                    self._observation_delay_steps > self._min_obs_delay_steps
+                ) & (dist < self.cfg.observation_delay_on_step_change_prob)
+                increase_delay_indices = (
+                    self._observation_delay_steps < self._max_obs_delay_steps
+                ) & (dist > (1.0 - self.cfg.observation_delay_on_step_change_prob))
+                self._observation_delay_steps[decrease_delay_indices] -= 1
+                self._observation_delay_steps[increase_delay_indices] += 1
 
             # Replace observation in step_return with the delayed one
             step_return = StepReturn(
@@ -289,6 +309,26 @@ class DirectEnv(__DirectRLEnv, metaclass=__PostInitCaller):
                 self._action_history_buffer_ptr = (
                     self._action_history_buffer_ptr + 1
                 ) % self._max_action_delay_steps
+
+                # Randomize action delay with on-step probability
+                if (
+                    self.cfg.action_delay_on_step_change_prob > 0.0
+                    and (self._min_action_delay_steps < self._max_action_delay_steps)
+                    and (
+                        self.sim.current_time
+                        % self.cfg.action_delay_on_step_change_freq
+                    )
+                    < self.cfg.agent_rate
+                ):
+                    dist = torch.rand((self.num_envs,), device=self.device)
+                    decrease_delay_indices = (
+                        self._action_delay_steps > self._min_action_delay_steps
+                    ) & (dist < self.cfg.action_delay_on_step_change_prob)
+                    increase_delay_indices = (
+                        self._action_delay_steps < self._max_action_delay_steps
+                    ) & (dist > (1.0 - self.cfg.action_delay_on_step_change_prob))
+                    self._action_delay_steps[decrease_delay_indices] -= 1
+                    self._action_delay_steps[increase_delay_indices] += 1
 
                 self.action_manager.process_action(delayed_actions)
             else:

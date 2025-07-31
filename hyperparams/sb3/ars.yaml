@@ -1,4 +1,4 @@
-n_timesteps: 100000000
+n_timesteps: 200000000
 policy: "MultiInputPolicy"
 alive_bonus_offset: 0
 delta_std: 0.05

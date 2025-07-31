@@ -1,4 +1,4 @@
-n_timesteps: 100000000
+n_timesteps: 200000000
 policy: "MultiInputPolicy"
 ent_coef: 0.01
 gae_lambda: 0.9

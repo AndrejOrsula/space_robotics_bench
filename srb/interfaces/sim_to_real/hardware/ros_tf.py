@@ -47,8 +47,8 @@ class RotationRepresentation(Enum):
 
 
 class RosTfInterfaceCfg(HardwareInterfaceCfg):
-    timeout_duration: float = 0.2
-    discovery_interval: float = 1.0
+    timeout_duration: float = 0.05
+    discovery_interval: float = 2.0
     position_repr: Sequence[PositionRepresentation] = (PositionRepresentation.POS_2D,)
     rotation_repr: Sequence[RotationRepresentation] = (
         RotationRepresentation.ROT_2D_TRIG_YAW,
@@ -190,7 +190,8 @@ class RosTfInterface(HardwareInterface):
                     ] = numpy.array((0.0, 1.0), dtype=numpy.float32)
 
     def _update_transforms(self):
-        current_time = self.ros_node.get_clock().now()
+        from rclpy.time import Time
+
         for source_frame in self.discovered_frames:
             for target_frame in self.discovered_frames:
                 if source_frame == target_frame:
@@ -200,7 +201,7 @@ class RosTfInterface(HardwareInterface):
                     tf_stamped = self.tf_buffer.lookup_transform(
                         source_frame,
                         target_frame,
-                        current_time,
+                        Time(),
                         timeout=self.tf_timeout_duration,
                     )
                 except Exception as e:

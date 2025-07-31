@@ -1,7 +1,7 @@
 ### Training ###
 run:
-  steps: 200000000
-  train_ratio: 64.0
+  steps: 50000000
+  train_ratio: 32.0
 replay:
   size: 2000000
   online: True
@@ -13,20 +13,6 @@ jax:
   compute_dtype: bfloat16
   prealloc: False
   jit: True
-
-### Action Smoothing ###
-smoothing:
-  enabled: true
-  ## SAVGOL: Balance between smoothness and responsiveness
-  method: SAVGOL
-  history_len_savgol: 9
-  poly_order: 3
-  ## MOVING_AVERAGE: The fastest response
-  # method: MOVING_AVERAGE
-  history_len_moving_average: 5
-  ## BUTTERWORTH: Maximum smoothness
-  # method: BUTTERWORTH
-  cutoff_frequency_hz: 4
 
 ### Logging ###
 logger:

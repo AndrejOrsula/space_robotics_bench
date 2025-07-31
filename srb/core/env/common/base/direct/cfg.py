@@ -21,7 +21,11 @@ class DirectEnvCfg(BaseEnvCfg, __DirectRLEnvCfg):
 
     # Action/observation delay
     action_delay_steps: int | Tuple[int, int] = 0
+    action_delay_on_step_change_freq: float = 1.0
+    action_delay_on_step_change_prob: float = 0.01
     observation_delay_steps: int | Tuple[int, int] = 0
+    observation_delay_on_step_change_freq: float = 1.0
+    observation_delay_on_step_change_prob: float = 0.01
 
     def __post_init__(self):
         BaseEnvCfg.__post_init__(self)

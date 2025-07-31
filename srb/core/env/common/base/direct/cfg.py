@@ -1,3 +1,5 @@
+from typing import Tuple
+
 import gymnasium
 from isaaclab.envs import DirectRLEnvCfg as __DirectRLEnvCfg
 
@@ -16,6 +18,10 @@ class DirectEnvCfg(BaseEnvCfg, __DirectRLEnvCfg):
     action_space = gymnasium.spaces.Box(low=-1.0, high=1.0, shape=(1,))
     observation_space = gymnasium.spaces.Box(low=-1.0, high=1.0, shape=(1,))
     state_space = gymnasium.spaces.Box(low=-1.0, high=1.0, shape=(1,))
+
+    # Action/observation delay
+    action_delay_steps: int | Tuple[int, int] = 0
+    observation_delay_steps: int | Tuple[int, int] = 0
 
     def __post_init__(self):
         BaseEnvCfg.__post_init__(self)

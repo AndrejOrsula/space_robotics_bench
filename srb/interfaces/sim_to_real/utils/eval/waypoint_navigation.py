@@ -30,7 +30,7 @@ from tf2_ros import Buffer, TransformListener
 # Configure Matplotlib for publication-quality figures
 plt.style.use("seaborn-v0_8-whitegrid")
 PLOT_STYLE = {
-    "font.family": "Times New Roman",
+    # "font.family": "Times New Roman",
     # "font.serif": ["Times New Roman"],
     "axes.labelsize": 14,
     "xtick.labelsize": 12,
@@ -98,6 +98,7 @@ class TrajectoryCollectorNode(Node):
 
             time_elapsed = (now - self.start_time).nanoseconds / 1e9
             robot_yaw = self._quaternion_to_yaw(robot_tf.transform.rotation)
+            target_yaw = self._quaternion_to_yaw(target_tf.transform.rotation)
 
             with self.data_lock:
                 self.data.append(
@@ -108,6 +109,7 @@ class TrajectoryCollectorNode(Node):
                         "robot_yaw": robot_yaw,
                         "target_x": target_tf.transform.translation.x,
                         "target_y": target_tf.transform.translation.y,
+                        "target_yaw": target_yaw,
                     }
                 )
         except Exception as e:
@@ -151,6 +153,13 @@ def _process_file(input_path: Path):
     df["euclidean_error"] = np.sqrt(
         (df["target_x"] - df["robot_x"]) ** 2 + (df["target_y"] - df["robot_y"]) ** 2
     )
+
+    # Calculate orientation error, handling angle wrapping
+    orientation_error_raw = df["target_yaw"] - df["robot_yaw"]
+    df["orientation_error_rad"] = np.arctan2(
+        np.sin(orientation_error_raw), np.cos(orientation_error_raw)
+    )
+
     df["robot_velocity"] = (
         np.sqrt(df["robot_x"].diff() ** 2 + df["robot_y"].diff() ** 2) / dt_filled
     ).fillna(0)
@@ -159,6 +168,7 @@ def _process_file(input_path: Path):
 
     summary = {
         "ate_m": df["euclidean_error"].mean(),
+        "ate_rad": df["orientation_error_rad"].abs().mean(),
         "jerk_avg_m_s3": df["robot_jerk"].abs().mean(),
     }
 
@@ -260,7 +270,7 @@ def _plot_trajectories_with_confidence(grouped_results: Dict, output_dir: Path):
         ax.legend(), ax.set_aspect("equal", adjustable="box"), fig.tight_layout()
 
         plot_path = output_dir / f"trajectory_{traj_name}.svg"
-        fig.savefig(plot_path, format="svg")  # <-- Save as SVG
+        fig.savefig(plot_path, format="svg")
         print(f"Saved trajectory plot: {plot_path}")
         plt.close(fig)
 
@@ -281,6 +291,9 @@ def _generate_summary_plots_and_table(
                         {
                             "Method": method_name,
                             "ATE (m)": data["ate_m"],
+                            "Orientation Error (rad)": data.get(
+                                "ate_rad", 0.0
+                            ),  # Use .get for backward compatibility
                             "Jerk (m/s³)": data["jerk_avg_m_s3"],
                         }
                     )
@@ -292,7 +305,9 @@ def _generate_summary_plots_and_table(
 
     # Step 2: Generate Bar Plots with error bars and save as SVG
     print("\n--- Generating Performance Bar Charts (SVG) ---")
-    for metric in ["ATE (m)", "Jerk (m/s³)"]:
+    for metric in ["ATE (m)", "Orientation Error (rad)", "Jerk (m/s³)"]:
+        if metric not in df_summary.columns or df_summary[metric].sum() == 0:
+            continue
         fig, ax = plt.subplots(figsize=(8, 5))
         sns.barplot(
             data=df_summary, x="Method", y=metric, ax=ax, palette="viridis", capsize=0.1
@@ -301,7 +316,7 @@ def _generate_summary_plots_and_table(
         ax.tick_params(axis="x", rotation=30)
         fig.tight_layout()
         plot_path = output_dir / f"comparison_{metric.split(' ')[0].lower()}.svg"
-        fig.savefig(plot_path, format="svg")  # <-- Save as SVG
+        fig.savefig(plot_path, format="svg")
         print(f"Saved comparison plot: {plot_path}")
         plt.close(fig)
 
@@ -315,6 +330,13 @@ def _generate_summary_plots_and_table(
     min_ate_method = ate_means.idxmin()
     min_jerk_method = jerk_means.idxmin()
 
+    # Handle orientation error separately for backward compatibility
+    if "Orientation Error (rad)" in df_summary.columns:
+        orient_means = df_agg[("Orientation Error (rad)", "mean")]
+        min_orient_method = orient_means.idxmin()
+    else:
+        min_orient_method = None
+
     # Format table with "Mean ± Std. Dev." and bold the best result
     formatted_rows = {}
     for method, row in df_agg.iterrows():
@@ -324,16 +346,24 @@ def _generate_summary_plots_and_table(
             ate_str = f"\\textbf{{{ate_str}}}"
         if method == min_jerk_method:
             jerk_str = f"\\textbf{{{jerk_str}}}"
+
         formatted_rows[method] = {"ATE (m)": ate_str, "Jerk (m/s³)": jerk_str}
 
+        if min_orient_method:
+            orient_str = f"{row[('Orientation Error (rad)', 'mean')]:.3f} $\\pm$ {row[('Orientation Error (rad)', 'std')]:.3f}"
+            if method == min_orient_method:
+                orient_str = f"\\textbf{{{orient_str}}}"
+            formatted_rows[method]["Orientation Error (rad)"] = orient_str
+
     df_final = pd.DataFrame.from_dict(formatted_rows, orient="index")
+    column_format = "lrrr" if min_orient_method else "lrr"
 
     latex_str = df_final.to_latex(
         index=True,
         escape=False,
         caption=caption,
         label=label,
-        column_format="lrr",
+        column_format=column_format,
         position="!ht",
     )
     latex_path = output_dir / f"{label}.tex"
@@ -375,7 +405,16 @@ def run_animation(args: argparse.Namespace):
             df["target_x"], df["target_y"], "r--", linewidth=1.5, label="Target Path"
         )
         (robot_path,) = ax.plot([], [], "b-", linewidth=2.5, label="Rover Path")
-        (target_marker,) = ax.plot([], [], "go", markersize=15, label="Target")
+        target_quiver = ax.quiver(
+            [],
+            [],
+            [],
+            [],
+            color="red",
+            scale=25,
+            width=0.008,
+            label="Target Pose",
+        )
         robot_quiver = ax.quiver(
             [], [], [], [], color="blue", scale=25, width=0.008, label="Rover Pose"
         )
@@ -389,20 +428,37 @@ def run_animation(args: argparse.Namespace):
             bbox=dict(facecolor="white", alpha=0.8),
         )
 
+        ax.legend()
+
         def update(frame: int) -> Tuple:
+            # Update Robot
             robot_path.set_data(df["robot_x"][: frame + 1], df["robot_y"][: frame + 1])
-            target_marker.set_data(df["target_x"][frame], df["target_y"][frame])
-            x, y, yaw = (
+            robot_x, robot_y, robot_yaw = (
                 df["robot_x"][frame],
                 df["robot_y"][frame],
                 df["robot_yaw"][frame],
             )
-            robot_quiver.set_offsets(np.c_[x, y])
-            robot_quiver.set_UVC(np.cos(yaw), np.sin(yaw))
-            time_text.set_text(
-                f"Time: {df['time'][frame]:.2f}s\nError: {df['euclidean_error'][frame]:.3f}m\nVelocity: {df['robot_velocity'][frame]:.2f}m/s"
+            robot_quiver.set_offsets(np.c_[robot_x, robot_y])
+            robot_quiver.set_UVC(np.cos(robot_yaw), np.sin(robot_yaw))
+
+            # Update Target
+            target_x, target_y, target_yaw = (
+                df["target_x"][frame],
+                df["target_y"][frame],
+                df["target_yaw"][frame],
             )
-            return robot_path, target_marker, robot_quiver, time_text
+            target_quiver.set_offsets(np.c_[target_x, target_y])
+            target_quiver.set_UVC(np.cos(target_yaw), np.sin(target_yaw))
+
+            # Update Text
+            orient_err_deg = np.rad2deg(df["orientation_error_rad"][frame])
+            time_text.set_text(
+                f"Time: {df['time'][frame]:.2f}s\n"
+                f"Positional Error: {df['euclidean_error'][frame]:.3f}m\n"
+                f"Orientation Error: {orient_err_deg:.2f}°\n"
+                f"Velocity: {df['robot_velocity'][frame]:.2f}m/s"
+            )
+            return robot_path, target_quiver, robot_quiver, time_text
 
         # Aim for a ~15-second video at 30fps
         frame_step = max(1, len(df) // 450)

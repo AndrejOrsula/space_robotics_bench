@@ -715,7 +715,7 @@ def main():
         length=3.0,
         radius=1.125,
         direction="counter-clockwise",
-        initial_pos=numpy.array([2.2, -3.9, 0.0], dtype=numpy.float32),
+        initial_pos=numpy.array([2.1, -3.9, 0.0], dtype=numpy.float32),
         initial_quat_wxyz=initial_quat_wxyz,
     )
     # pattern_cfg = SpiralPatternCfg(

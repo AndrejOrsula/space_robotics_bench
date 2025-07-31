@@ -45,84 +45,6 @@ class DirectEnv(__DirectRLEnv, metaclass=__PostInitCaller):
         ## Get scene assets
         self._robot: Articulation = self.scene["robot"]
 
-    def close(self):
-        if not self._is_closed:
-            if self.cfg.actions:
-                del self.action_manager
-
-        super().close()
-
-    def extract_step_return(self) -> StepReturn:
-        raise NotImplementedError
-
-    def _extract_step_return_wrapped(self) -> StepReturn:
-        step_return = self.extract_step_return()
-
-        ## Detect environments that "exploded" due to physics and terminate them
-        invalid_envs = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
-        invalid_keys = []
-        for rew_key, rew_val in step_return.reward.items():
-            rew_invalid = ~torch.isfinite(rew_val)
-            invalid_envs = invalid_envs | rew_invalid
-            if rew_invalid.any():
-                step_return.reward[rew_key] = torch.where(
-                    rew_invalid, torch.zeros_like(rew_val), rew_val
-                )
-                invalid_keys.append(rew_key)
-        for obs_cat, obs_group in step_return.observation.items():
-            for obs_key, obs_val in obs_group.items():
-                if len(obs_val.shape) > 1:
-                    dims = tuple(range(1, len(obs_val.shape)))
-                    obs_invalid = torch.any(~torch.isfinite(obs_val), dim=dims)
-                else:
-                    obs_invalid = ~torch.isfinite(obs_val)
-                invalid_envs = invalid_envs | obs_invalid
-                if obs_invalid.any():
-                    mask = obs_invalid
-                    for _ in range(len(obs_val.shape) - 1):
-                        mask = mask.unsqueeze(-1)
-                    mask = mask.expand_as(obs_val)
-                    step_return.observation[obs_cat][obs_key] = torch.where(
-                        mask, torch.zeros_like(obs_val), obs_val
-                    )
-                    invalid_keys.append(f"{obs_cat}/{obs_key}")
-        if invalid_envs.any():
-            logging.warning(
-                f"Terminating {invalid_envs.sum().item()} environment instance{'s' if invalid_envs.sum().item() > 1 else ''} due to non-finite rewards or observations: {', '.join(invalid_keys)}"
-            )
-            step_return = StepReturn(
-                observation=step_return.observation,
-                reward=step_return.reward,
-                termination=torch.where(
-                    invalid_envs, torch.ones_like(invalid_envs), step_return.termination
-                ),
-                truncation=step_return.truncation,
-                info=step_return.info,
-            )
-
-        return step_return
-
-    def _reset_idx(self, env_ids: Sequence[int]):
-        if self.cfg.actions:
-            self.action_manager.reset(env_ids)
-
-        super()._reset_idx(env_ids)
-
-        # Move assembled bodies to the correct position to avoid physics snapping them in place
-        self._update_assembly_fixed_joint_transforms(env_ids)
-
-    def _pre_physics_step(self, actions: torch.Tensor):
-        if self.cfg.actions:
-            self.action_manager.process_action(actions)
-        else:
-            super()._pre_physics_step(actions)  # type: ignore
-
-    def _apply_action(self):
-        if self.cfg.actions:
-            self.action_manager.apply_action()
-        else:
-            super()._apply_action()  # type: ignore
-
     def __post_init__(self):
         if self._use_step_return_workflow:
             self._step_return = self.extract_step_return()
@@ -149,6 +71,236 @@ class DirectEnv(__DirectRLEnv, metaclass=__PostInitCaller):
 
         # Automatically determine the action and observation spaces for all sub-classes
         self._update_gym_env_spaces()
+
+        ## Initialize action/observation delay buffers
+        action_delay = self.cfg.action_delay_steps
+        self._min_action_delay_steps, self._max_action_delay_steps = (
+            (action_delay, action_delay)
+            if isinstance(action_delay, int)
+            else action_delay
+        )
+        obs_delay = self.cfg.observation_delay_steps
+        self._min_obs_delay_steps, self._max_obs_delay_steps = (
+            (obs_delay, obs_delay) if isinstance(obs_delay, int) else obs_delay
+        )
+        # Allocate action delay buffers
+        if self._max_action_delay_steps > 0:
+            logging.info(
+                f"Action delay of maximum {self._max_action_delay_steps} agent steps enabled."
+            )
+            self._action_history_buffer: torch.Tensor | None = torch.zeros(
+                (
+                    self._max_action_delay_steps,
+                    self.num_envs,
+                    self.action_manager.total_action_dim,
+                ),
+                device=self.device,
+            )
+            self._action_history_buffer_ptr: int = 0
+            self._action_delay_steps = torch.zeros(
+                self.num_envs, dtype=torch.long, device=self.device
+            )
+        else:
+            self._action_history_buffer: torch.Tensor | None = None
+        # Allocate observation delay buffers
+        # TODO[mid]: Handle observation delay for non step return workflows
+        if self._max_obs_delay_steps > 0:
+            logging.info(
+                f"Observation delay of maximum {self._max_obs_delay_steps} agent steps enabled."
+            )
+            self._obs_history_buffer: Dict[str, Dict[str, torch.Tensor]] | None = {
+                cat: {
+                    key: torch.zeros(
+                        (
+                            self._max_obs_delay_steps,
+                            self.num_envs,
+                            *val.shape[1:],
+                        ),
+                        dtype=val.dtype,
+                        device=self.device,
+                    )
+                    for key, val in group.items()
+                }
+                for cat, group in self._step_return.observation.items()
+            }
+            self._obs_history_buffer_ptr: int = 0
+            self._observation_delay_steps = torch.zeros(
+                self.num_envs, dtype=torch.long, device=self.device
+            )
+        else:
+            self._obs_history_buffer: Dict[str, Dict[str, torch.Tensor]] | None = None
+
+    def close(self):
+        if not self._is_closed:
+            if self.cfg.actions:
+                del self.action_manager
+
+        super().close()
+
+    def extract_step_return(self) -> StepReturn:
+        raise NotImplementedError
+
+    def _extract_step_return_wrapped(self) -> StepReturn:
+        step_return = self.extract_step_return()
+
+        # Apply observation delay if enabled
+        if self._obs_history_buffer is not None:
+            # Store current observations in the history buffer
+            for obs_cat, obs_group in step_return.observation.items():
+                for obs_key, obs_val in obs_group.items():
+                    self._obs_history_buffer[obs_cat][obs_key][
+                        self._obs_history_buffer_ptr
+                    ] = obs_val
+
+            # Calculate indices to read delayed observations
+            read_indices = (
+                self._obs_history_buffer_ptr
+                - self._observation_delay_steps
+                + self._max_obs_delay_steps
+            ) % self._max_obs_delay_steps
+
+            # Fetch delayed observations
+            delayed_obs = {}
+            for obs_cat, obs_group_buffer in self._obs_history_buffer.items():
+                delayed_obs[obs_cat] = {}
+                for obs_key, history_buffer in obs_group_buffer.items():
+                    idx = read_indices.view(
+                        1, self.num_envs, *((1,) * (len(history_buffer.shape) - 2))
+                    )
+                    idx = idx.expand(-1, -1, *history_buffer.shape[2:])
+                    delayed_obs[obs_cat][obs_key] = torch.gather(
+                        history_buffer, 0, idx
+                    ).squeeze(0)
+
+            # Advance the history buffer pointer for the next agent step
+            self._obs_history_buffer_ptr = (
+                self._obs_history_buffer_ptr + 1
+            ) % self._max_obs_delay_steps
+
+            # Replace observation in step_return with the delayed one
+            step_return = StepReturn(
+                observation=delayed_obs,
+                reward=step_return.reward,
+                termination=step_return.termination,
+                truncation=step_return.truncation,
+                info=step_return.info,
+            )
+
+        ## Detect environments that "exploded" due to physics and terminate them
+        invalid_envs = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+        invalid_keys = []
+        for rew_key, rew_val in step_return.reward.items():
+            rew_invalid = ~torch.isfinite(rew_val)
+            invalid_envs = invalid_envs | rew_invalid
+            if rew_invalid.any():
+                step_return.reward[rew_key] = torch.where(
+                    rew_invalid, torch.zeros_like(rew_val), rew_val
+                )
+                invalid_keys.append(rew_key)
+        for obs_cat, obs_group in step_return.observation.items():
+            for obs_key, obs_val in obs_group.items():
+                dims = (
+                    tuple(range(1, len(obs_val.shape))) if len(obs_val.shape) > 1 else 0
+                )
+                obs_invalid = (
+                    torch.any(~torch.isfinite(obs_val), dim=dims)
+                    if dims != 0
+                    else ~torch.isfinite(obs_val)
+                )
+                invalid_envs = invalid_envs | obs_invalid
+                if obs_invalid.any():
+                    mask = (
+                        obs_invalid.unsqueeze(-1).expand_as(obs_val)
+                        if len(obs_val.shape) > 1
+                        else obs_invalid
+                    )
+                    step_return.observation[obs_cat][obs_key] = torch.where(
+                        mask, torch.zeros_like(obs_val), obs_val
+                    )
+                    invalid_keys.append(f"{obs_cat}/{obs_key}")
+        if invalid_envs.any():
+            logging.warning(
+                f"Terminating {invalid_envs.sum().item()} environment instance{'s' if invalid_envs.sum().item() > 1 else ''} due to non-finite rewards or observations: {', '.join(invalid_keys)}"
+            )
+            step_return = StepReturn(
+                observation=step_return.observation,
+                reward=step_return.reward,
+                termination=torch.where(
+                    invalid_envs, torch.ones_like(invalid_envs), step_return.termination
+                ),
+                truncation=step_return.truncation,
+                info=step_return.info,
+            )
+
+        return step_return
+
+    def _reset_idx(self, env_ids: Sequence[int]):
+        if self.cfg.actions:
+            self.action_manager.reset(env_ids)
+
+        # Reset action/observation delay
+        num_reset_envs: int = len(env_ids)
+        if self._action_history_buffer is not None:
+            self._action_delay_steps[env_ids] = torch.randint(
+                self._min_action_delay_steps,
+                self._max_action_delay_steps + 1,
+                (num_reset_envs,),
+                device=self.device,
+            )
+            self._action_history_buffer[:, env_ids] = 0.0
+        if self._obs_history_buffer is not None:
+            self._observation_delay_steps[env_ids] = torch.randint(
+                self._min_obs_delay_steps,
+                self._max_obs_delay_steps + 1,
+                (num_reset_envs,),
+                device=self.device,
+            )
+            for obs_cat in self._obs_history_buffer:
+                for obs_key in self._obs_history_buffer[obs_cat]:
+                    self._obs_history_buffer[obs_cat][obs_key][:, env_ids] = 0.0
+
+        super()._reset_idx(env_ids)
+
+        # Move assembled bodies to the correct position to avoid physics snapping them in place
+        self._update_assembly_fixed_joint_transforms(env_ids)
+
+    def _pre_physics_step(self, actions: torch.Tensor):
+        if self.cfg.actions:
+            if self._action_history_buffer is not None:
+                # Store current action in the history buffer
+                self._action_history_buffer[self._action_history_buffer_ptr] = actions
+
+                # Calculate indices to read delayed actions
+                read_indices = (
+                    self._action_history_buffer_ptr
+                    - self._action_delay_steps
+                    + self._max_action_delay_steps
+                ) % self._max_action_delay_steps
+
+                # Fetch delayed actions
+                idx = read_indices.view(1, self.num_envs, 1).expand(
+                    -1, -1, self.action_manager.total_action_dim
+                )
+                delayed_actions = torch.gather(
+                    self._action_history_buffer, 0, idx
+                ).squeeze(0)
+
+                # Advance the history buffer pointer for the next agent step
+                self._action_history_buffer_ptr = (
+                    self._action_history_buffer_ptr + 1
+                ) % self._max_action_delay_steps
+
+                self.action_manager.process_action(delayed_actions)
+            else:
+                self.action_manager.process_action(actions)
+        else:
+            super()._pre_physics_step(actions)  # type: ignore
+
+    def _apply_action(self):
+        if self.cfg.actions:
+            self.action_manager.apply_action()
+        else:
+            super()._apply_action()  # type: ignore
 
     def _update_gym_env_spaces(self):
         # Action space

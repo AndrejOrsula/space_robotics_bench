@@ -1,5 +1,5 @@
 from dataclasses import MISSING
-from typing import Sequence
+from typing import Sequence, Tuple
 
 import torch
 
@@ -34,13 +34,13 @@ class EventCfg(GroundEventCfg):
             "env_attr_name": "_goal",
             "pos_axes": ("x", "y"),
             "pos_step_range": (0.002, 0.02),
-            "pos_smoothness": 0.9,
+            "pos_smoothness": 0.99,
             "pos_bounds": {
                 "x": MISSING,
                 "y": MISSING,
             },
             "orient_yaw_only": True,
-            "orient_smoothness": 0.75,
+            "orient_smoothness": 0.8,
         },
     )
 
@@ -65,7 +65,7 @@ class TaskCfg(GroundEnvCfg):
         markers={
             "target": PinnedArrowCfg(
                 pin_radius=0.01,
-                pin_length=2.0,
+                pin_length=1.0,
                 tail_radius=0.01,
                 tail_length=0.2,
                 head_radius=0.04,
@@ -74,6 +74,10 @@ class TaskCfg(GroundEnvCfg):
             )
         },
     )
+
+    ## Action/observation delay
+    action_delay_steps: int | Tuple[int, int] = (0, 5)
+    observation_delay_steps: int | Tuple[int, int] = (0, 5)
 
     def __post_init__(self):
         super().__post_init__()
@@ -129,13 +133,13 @@ class Task(GroundEnv):
         num_reset_envs = len(env_ids)
         self._episodic_noise_tf_pos2d[env_ids] = torch.normal(
             mean=0.0,
-            std=0.02,
+            std=0.01,
             size=(num_reset_envs, 2),
             device=self.device,
         )
         self._episodic_noise_tf_yaw[env_ids] = torch.normal(
             mean=0.0,
-            std=0.06981317,  # 4 deg
+            std=0.043633231,  # 2.5 deg
             size=(num_reset_envs,),
             device=self.device,
         )
@@ -225,14 +229,14 @@ def _compute_step_return(
     tf_pos2d_robot_to_target_with_noise = (
         tf_pos2d_robot_to_target
         + episodic_noise_tf_pos2d
-        + torch.normal(mean=0.0, std=0.005, size=(num_envs, 2), device=device)
+        + torch.normal(mean=0.0, std=0.002, size=(num_envs, 2), device=device)
     )
     yaw_robot_to_target_with_noise = (
         yaw_robot_to_target
         + episodic_noise_tf_yaw
         + torch.normal(
             mean=0.0,
-            std=0.0174533,  # 1 deg
+            std=0.0087266463,  # 0.5 deg
             size=(num_envs,),
             device=device,
         )
@@ -291,7 +295,7 @@ def _compute_step_return(
 
     # Reward: Action rate at target
     WEIGHT_ACTION_RATE_AT_TARGET = 32.0
-    TANH_STD_ACTION_RATE_AT_TARGET = 0.1
+    TANH_STD_ACTION_RATE_AT_TARGET = 0.25
     reward_action_rate_at_target = (
         WEIGHT_ACTION_RATE_AT_TARGET
         * _orientation_tracking_precision

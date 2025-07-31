@@ -29,7 +29,7 @@ class LinePatternState(PatternState):
 
 
 @dataclass
-class SquarePatternState(PatternState):
+class RectanglePatternState(PatternState):
     segment_idx: int = 0
     dist_on_segment: float = 0.0
 
@@ -77,8 +77,9 @@ class LinePatternCfg(BasePatternCfg):
     direction: None = None
 
 
-class SquarePatternCfg(BasePatternCfg):
-    side: float = 1.0
+class RectanglePatternCfg(BasePatternCfg):
+    width: float = 1.0
+    height: float = 1.0
 
 
 class CirclePatternCfg(BasePatternCfg):
@@ -133,7 +134,9 @@ def multiply_quats(q1_wxyz: numpy.ndarray, q2_wxyz: numpy.ndarray) -> numpy.ndar
     return numpy.array([w, x, y, z])
 
 
-def yaw_to_quat_wxyz(yaw: float) -> numpy.ndarray:
+def yaw_to_quat_wxyz(yaw: float, deg: bool = False) -> numpy.ndarray:
+    if deg:
+        yaw = math.radians(yaw)
     return numpy.array([math.cos(yaw / 2.0), 0.0, 0.0, math.sin(yaw / 2.0)])
 
 
@@ -213,8 +216,8 @@ class RosTfTrajectoryGenerator:
 
         if isinstance(p_cfg, LinePatternCfg):
             return LinePatternState(**args)  # type: ignore
-        if isinstance(p_cfg, SquarePatternCfg):
-            return SquarePatternState(**args)  # type: ignore
+        if isinstance(p_cfg, RectanglePatternCfg):
+            return RectanglePatternState(**args)  # type: ignore
         if isinstance(p_cfg, CirclePatternCfg):
             return CirclePatternState(**args)  # type: ignore
         if isinstance(p_cfg, LemniscatePatternCfg):
@@ -235,8 +238,8 @@ class RosTfTrajectoryGenerator:
         state.is_done = False
         if isinstance(p_cfg, LinePatternCfg):
             self._update_line(p_cfg, state)  # type: ignore
-        elif isinstance(p_cfg, SquarePatternCfg):
-            self._update_square(p_cfg, state)  # type: ignore
+        elif isinstance(p_cfg, RectanglePatternCfg):
+            self._update_rectangle(p_cfg, state)  # type: ignore
         elif isinstance(p_cfg, CirclePatternCfg):
             self._update_circle(p_cfg, state)  # type: ignore
         elif isinstance(p_cfg, LemniscatePatternCfg):
@@ -275,13 +278,17 @@ class RosTfTrajectoryGenerator:
             cfg.initial_quat_wxyz, yaw_to_quat_wxyz(local_yaw)
         )
 
-    def _update_square(self, cfg: SquarePatternCfg, state: SquarePatternState):
-        s, dir_sign = cfg.side, 1 if cfg.direction == "counter-clockwise" else -1
+    def _update_rectangle(self, cfg: RectanglePatternCfg, state: RectanglePatternState):
+        w, h, dir_sign = (
+            cfg.width,
+            cfg.height,
+            1 if cfg.direction == "counter-clockwise" else -1,
+        )
         offsets = [
             numpy.array([0, 0]),
-            numpy.array([s, 0]),
-            numpy.array([s, s * dir_sign]),
-            numpy.array([0, s * dir_sign]),
+            numpy.array([w, 0]),
+            numpy.array([w, h * dir_sign]),
+            numpy.array([0, h * dir_sign]),
         ]
         dirs = [
             numpy.array([1, 0]),
@@ -295,14 +302,19 @@ class RosTfTrajectoryGenerator:
         state.dist_on_segment += self._abs_step_size * self._velocity_sign
 
         # Handle moving to the next or previous segment
-        if state.dist_on_segment >= s:
-            state.dist_on_segment -= s
+        if state.segment_idx % 2 == 0:  # Horizontal segments
+            segment_length = w
+        else:  # Vertical segments
+            segment_length = h
+
+        if state.dist_on_segment >= segment_length:
+            state.dist_on_segment -= segment_length
             state.segment_idx = (state.segment_idx + 1) % 4
             if state.segment_idx == 0:
                 state.is_done = True
         elif state.dist_on_segment < 0:
             state.segment_idx = (state.segment_idx - 1) % 4
-            state.dist_on_segment += s
+            state.dist_on_segment += segment_length
             if state.segment_idx == 3:
                 state.is_done = True
 
@@ -678,58 +690,58 @@ class RosTfTrajectoryGenerator:
 def main():
     print("Initializing trajectory broadcaster...")
 
-    direction: Literal["clockwise", "counter-clockwise"] = "clockwise"
-    initial_pos: numpy.ndarray = numpy.array([2.4, -3.4, 0.0], dtype=numpy.float32)
-    initial_quat_wxyz: numpy.ndarray = yaw_to_quat_wxyz(0.0 * math.pi)
-
     # pattern_cfg = LinePatternCfg(
-    #     length=1.0,
-    #     initial_pos=initial_pos,
-    #     initial_quat_wxyz=initial_quat_wxyz,
+    #     length=5.5,
+    #     initial_pos=numpy.array([0.85, -2.65, 0.0], dtype=numpy.float32),
+    #     initial_quat_wxyz=yaw_to_quat_wxyz(0.0, deg=True),
     # )
-    # pattern_cfg = SquarePatternCfg(
-    #     side=2.0,
-    #     direction=direction,
-    #     initial_pos=initial_pos,
-    #     initial_quat_wxyz=initial_quat_wxyz,
+    # pattern_cfg = RectanglePatternCfg(
+    #     width=5.0,
+    #     height=2.5,
+    #     direction="clockwise",
+    #     initial_pos=numpy.array([1.1, -1.5, 0.0], dtype=numpy.float32),
+    #     initial_quat_wxyz=yaw_to_quat_wxyz(0.0, deg=True),
     # )
     # pattern_cfg = CirclePatternCfg(
-    #     radius=1.0,
-    #     direction=direction,
-    #     initial_pos=initial_pos,
-    #     initial_quat_wxyz=initial_quat_wxyz,
+    #     radius=1.4,
+    #     direction="counter-clockwise",
+    #     initial_pos=numpy.array([3.2, -4.15, 0.0], dtype=numpy.float32),
+    #     initial_quat_wxyz=yaw_to_quat_wxyz(0.0, deg=True),
     # )
     # pattern_cfg = LemniscatePatternCfg(
-    #     scale=2.0,
-    #     direction=direction,
-    #     initial_pos=initial_pos,
-    #     initial_quat_wxyz=initial_quat_wxyz,
+    #     scale=2.65,
+    #     direction="clockwise",
+    #     initial_pos=numpy.array([3.6, -2.9, 0.0], dtype=numpy.float32),
+    #     initial_quat_wxyz=yaw_to_quat_wxyz(45.0, deg=True),
     # )
     # pattern_cfg = LissajousPatternCfg(
-    #     scale=2.0,
-    #     direction=direction,
-    #     initial_pos=initial_pos,
-    #     initial_quat_wxyz=initial_quat_wxyz,
+    #     scale=1.5,
+    #     direction="counter-clockwise",
+    #     initial_pos=numpy.array([3.2, -2.75, 0.0], dtype=numpy.float32),
+    #     initial_quat_wxyz=yaw_to_quat_wxyz(-155.0, deg=True),
     # )
     pattern_cfg = CapsulePatternCfg(
         length=3.0,
-        radius=1.125,
+        radius=1.15,
         direction="counter-clockwise",
         initial_pos=numpy.array([2.1, -3.9, 0.0], dtype=numpy.float32),
-        initial_quat_wxyz=initial_quat_wxyz,
+        initial_quat_wxyz=yaw_to_quat_wxyz(0.0, deg=True),
     )
     # pattern_cfg = SpiralPatternCfg(
-    #     max_radius=1.0,
+    #     max_radius=1.25,
     #     n_loops=3,
-    #     direction=direction,
-    #     initial_pos=initial_pos,
-    #     initial_quat_wxyz=initial_quat_wxyz,
+    #     direction="clockwise",
+    #     initial_pos=numpy.array([2.0, -2.75, 0.0], dtype=numpy.float32),
+    #     initial_quat_wxyz=yaw_to_quat_wxyz(0.0, deg=True),
     # )
 
     # Set n_loops to -1 for infinite looping.
     # Set velocity to a negative value to run the trajectory backward.
     traj_cfg = RosTfTrajectoryGeneratorCfg(
-        pattern=pattern_cfg, n_loops=-1, velocity=0.2
+        pattern=pattern_cfg,
+        n_loops=-1,
+        velocity=4.0,
+        rate=100.0,
     )
 
     broadcaster = None

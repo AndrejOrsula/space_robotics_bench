@@ -2,7 +2,14 @@ from .allegro_hand import AllegroHand  # noqa: F401
 from .franka_hand import FrankaHand  # noqa: F401
 from .kinova_gripper import Kinova300  # noqa: F401
 from .robotiq import RobotiqHandE  # noqa: F401
-from .scoop import ScoopRectangular, ScoopSpherical, ScoopTriangular  # noqa: F401
+from .scoop import (  # noqa: F401
+    ScoopCustom1,
+    ScoopCustom2,
+    ScoopCustom3,
+    ScoopRectangular,
+    ScoopSpherical,
+    ScoopTriangular,
+)
 from .screwdriver import (  # noqa: F401
     ElectricScrewdriverM3,
     ElectricScrewdriverM5,

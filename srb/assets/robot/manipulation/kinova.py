@@ -17,7 +17,6 @@ from srb.core.sim import (
     UsdFileCfg,
 )
 from srb.utils.math import deg_to_rad, rpy_to_quat
-from srb.utils.nucleus import ISAAC_NUCLEUS_DIR
 from srb.utils.path import SRB_ASSETS_DIR_SRB_ROBOT
 
 
@@ -212,13 +211,14 @@ class KinovaJ2n7s(SerialManipulator):
     )
 
 
-# TODO[low]: Fix Kinova Gen3 with end-effectors (no idea why it fails to find rigid body/articulation for end-effector)
 class KinovaGen3n7(SerialManipulator):
     ## Model
     asset_cfg: ArticulationCfg = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/kinova_gen3",
         spawn=UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Kinova/Gen3/gen3n7_instanceable.usd",
+            usd_path=SRB_ASSETS_DIR_SRB_ROBOT.joinpath("manipulator")
+            .joinpath("kinova_gen3n7.usdz")
+            .as_posix(),
             activate_contact_sensors=True,
             collision_props=CollisionPropertiesCfg(
                 contact_offset=0.005, rest_offset=0.0
@@ -252,8 +252,8 @@ class KinovaGen3n7(SerialManipulator):
                     "joint_[5-7]": 540.0,
                 },
                 velocity_limit=10.0,
-                stiffness=1000.0,
-                damping=100.0,
+                stiffness=500.0,
+                damping=200.0,
             ),
         },
     )
@@ -276,9 +276,14 @@ class KinovaGen3n7(SerialManipulator):
     )
 
     ## Frames
-    frame_base: Frame = Frame(prim_relpath="base_link")
+    frame_base: Frame = Frame(
+        prim_relpath="base_link",
+    )
     frame_flange: Frame = Frame(
         prim_relpath="end_effector_link",
+        offset=Transform(
+            rot=rpy_to_quat(0.0, 0.0, 90.0),
+        ),
     )
     frame_base_camera: Frame = Frame(
         prim_relpath="base_link/camera_base",
@@ -290,7 +295,7 @@ class KinovaGen3n7(SerialManipulator):
     frame_wrist_camera: Frame = Frame(
         prim_relpath="end_effector_link/camera_wrist",
         offset=Transform(
-            pos=(0.07, 0.0, 0.05),
-            rot=rpy_to_quat(0.0, -60.0, 180.0),
+            pos=(0.0, 0.061, -0.003),
+            rot=rpy_to_quat(90.0, -90.0, 180.0),
         ),
     )

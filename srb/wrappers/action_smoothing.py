@@ -31,7 +31,7 @@ class ActionSmoothingWrapper(ActionWrapper):
         method: SmoothingMethod,
         history_len: Optional[int] = None,
         history_len_moving_average: int = 5,
-        history_len_savgol: int = 13,
+        history_len_savgol: int = 9,
         poly_order: int = 3,
         cutoff_frequency_hz: Optional[float] = None,
         sample_rate_hz: Optional[float] = None,

@@ -12,6 +12,8 @@ from srb.core.asset import (
     AssetBaseCfg,
     AssetVariant,
     Manipulator,
+    MobileRobot,
+    Pedestal,
 )
 from srb.core.env import (
     ManipulationEnv,
@@ -59,6 +61,8 @@ class TaskCfg(ManipulationEnvCfg):
     robot: Manipulator | AssetVariant = assets.Franka(
         end_effector=assets.ScoopRectangular()
     )
+    pedestal: Pedestal | MobileRobot | None = assets.IndustrialPedestal25()
+    pedestal.asset_cfg.spawn.collision_props.collision_enabled = False  # type: ignore
 
     ## Scene
     scene: SceneCfg = SceneCfg()

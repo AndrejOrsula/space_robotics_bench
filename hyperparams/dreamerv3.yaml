@@ -1,7 +1,7 @@
 ### Training ###
 run:
   steps: 100000000
-  train_ratio: 32.0
+  train_ratio: 256.0
 replay:
   size: 2500000
   online: True
@@ -58,17 +58,17 @@ jax.debug: False
 # .*\.depth: 16
 # .*\.units: 256
 ##  25M
-.*\.rssm: { deter: 3072, hidden: 384, classes: 24 }
-.*\.depth: 24
-.*\.units: 384
+# .*\.rssm: { deter: 3072, hidden: 384, classes: 24 }
+# .*\.depth: 24
+# .*\.units: 384
 ##  50M
 # .*\.rssm: { deter: 4096, hidden: 512, classes: 32 }
 # .*\.depth: 32
 # .*\.units: 512
 ## 100M
-# .*\.rssm: { deter: 6144, hidden: 768, classes: 48 }
-# .*\.depth: 48
-# .*\.units: 768
+.*\.rssm: { deter: 6144, hidden: 768, classes: 48 }
+.*\.depth: 48
+.*\.units: 768
 ## 200M
 # .*\.rssm: { deter: 8192, hidden: 1024, classes: 64 }
 # .*\.depth: 64

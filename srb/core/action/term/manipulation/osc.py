@@ -95,17 +95,17 @@ class OperationalSpaceControllerAction(__OperationalSpaceControllerAction):
             base_vel_w = self._asset.data.root_vel_w
         relative_vel_w = self._ee_vel_w - base_vel_w
 
-        self._ee_vel_b[:, 0:3] = math_utils.quat_rotate_inverse(
+        self._ee_vel_b[:, 0:3] = math_utils.quat_apply_inverse(
             self._asset.data.root_quat_w, relative_vel_w[:, 0:3]
         )
-        self._ee_vel_b[:, 3:6] = math_utils.quat_rotate_inverse(
+        self._ee_vel_b[:, 3:6] = math_utils.quat_apply_inverse(
             self._asset.data.root_quat_w, relative_vel_w[:, 3:6]
         )
 
         # Account for the offset
         if self.cfg.body_offset is not None:
             # Compute offset vector in root frame
-            r_offset_b = math_utils.quat_rotate(
+            r_offset_b = math_utils.quat_apply(
                 self._ee_pose_b_no_offset[:, 3:7], self._offset_pos
             )
             # Adjust the linear velocity to account for the offset

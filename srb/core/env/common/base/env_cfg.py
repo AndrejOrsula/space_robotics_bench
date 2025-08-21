@@ -345,8 +345,8 @@ class BaseEnvCfg:
                     spawn=DomeLightCfg(
                         intensity=0.25 * self.domain.light_intensity,
                         texture_file=skydome_dir.joinpath(
-                            "low_earth_orbit.exr",
-                            # "low_lunar_orbit.jpg",
+                            # "low_earth_orbit.exr",
+                            "low_lunar_orbit.jpg",
                         ).as_posix(),
                         **kwargs,
                     ),

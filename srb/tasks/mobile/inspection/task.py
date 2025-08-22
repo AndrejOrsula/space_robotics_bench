@@ -46,16 +46,16 @@ class EventCfg(OrbitalEventCfg):
             "orient_smoothness": 0.8,
         },
     )
-    push_robot: EventTermCfg = EventTermCfg(
-        func=apply_external_force_torque,
-        mode="interval",
-        interval_range_s=(5.0, 20.0),
-        params={
-            "asset_cfg": SceneEntityCfg("robot"),
-            "force_range": (-4.0, 4.0),
-            "torque_range": (-0.19635, 0.19635),
-        },
-    )
+    # push_robot: EventTermCfg = EventTermCfg(  # temporarily remove disturbances
+    #     func=apply_external_force_torque,
+    #     mode="interval",
+    #     interval_range_s=(5.0, 20.0),
+    #     params={
+    #         "asset_cfg": SceneEntityCfg("robot"),
+    #         "force_range": (-4.0, 4.0),
+    #         "torque_range": (-0.19635, 0.19635),
+    #     },
+    # )
 
 
 @configclass
@@ -78,7 +78,7 @@ class TaskCfg(OrbitalEnvCfg):
     events: EventCfg = EventCfg()
 
     ## Time
-    episode_length_s: float = 120.0
+    episode_length_s: float = 60.0
     is_finite_horizon: bool = True
 
     ## Target

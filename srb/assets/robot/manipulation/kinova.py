@@ -180,7 +180,7 @@ class KinovaJ2n7s(SerialManipulator):
             controller=DifferentialIKControllerCfg(
                 command_type="pose",
                 use_relative_mode=True,
-                ik_method="svd",
+                ik_method="dls",
             ),
             scale=0.1,
             body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(),
@@ -268,7 +268,7 @@ class KinovaGen3n7(SerialManipulator):
             controller=DifferentialIKControllerCfg(
                 command_type="pose",
                 use_relative_mode=True,
-                ik_method="svd",
+                ik_method="dls",
             ),
             scale=0.1,
             body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(),

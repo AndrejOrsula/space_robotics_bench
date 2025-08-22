@@ -79,7 +79,7 @@ class UR3(SerialManipulator):
             controller=DifferentialIKControllerCfg(
                 command_type="pose",
                 use_relative_mode=True,
-                ik_method="svd",
+                ik_method="dls",
             ),
             scale=0.1,
             body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(),
@@ -177,7 +177,7 @@ class UR3e(SerialManipulator):
             controller=DifferentialIKControllerCfg(
                 command_type="pose",
                 use_relative_mode=True,
-                ik_method="svd",
+                ik_method="dls",
             ),
             scale=0.1,
             body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(),
@@ -275,7 +275,7 @@ class UR5(SerialManipulator):
             controller=DifferentialIKControllerCfg(
                 command_type="pose",
                 use_relative_mode=True,
-                ik_method="svd",
+                ik_method="dls",
             ),
             scale=0.1,
             body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(),
@@ -373,7 +373,7 @@ class UR5e(SerialManipulator):
             controller=DifferentialIKControllerCfg(
                 command_type="pose",
                 use_relative_mode=True,
-                ik_method="svd",
+                ik_method="dls",
             ),
             scale=0.1,
             body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(),
@@ -507,7 +507,7 @@ class UR10(SerialManipulator):
             controller=DifferentialIKControllerCfg(
                 command_type="pose",
                 use_relative_mode=True,
-                ik_method="svd",
+                ik_method="dls",
             ),
             scale=0.1,
             body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(),
@@ -608,7 +608,7 @@ class UR10e(SerialManipulator):
             controller=DifferentialIKControllerCfg(
                 command_type="pose",
                 use_relative_mode=True,
-                ik_method="svd",
+                ik_method="dls",
             ),
             scale=0.1,
             body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(),
@@ -706,7 +706,7 @@ class UR16e(SerialManipulator):
             controller=DifferentialIKControllerCfg(
                 command_type="pose",
                 use_relative_mode=True,
-                ik_method="svd",
+                ik_method="dls",
             ),
             scale=0.1,
             body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(),
@@ -804,7 +804,7 @@ class UR20(SerialManipulator):
             controller=DifferentialIKControllerCfg(
                 command_type="pose",
                 use_relative_mode=True,
-                ik_method="svd",
+                ik_method="dls",
             ),
             scale=0.1,
             body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(),
@@ -902,7 +902,7 @@ class UR30(SerialManipulator):
             controller=DifferentialIKControllerCfg(
                 command_type="pose",
                 use_relative_mode=True,
-                ik_method="svd",
+                ik_method="dls",
             ),
             scale=0.1,
             body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(),
@@ -972,7 +972,7 @@ class RandomURManipulator(SerialManipulator):
             controller=DifferentialIKControllerCfg(
                 command_type="pose",
                 use_relative_mode=True,
-                ik_method="svd",
+                ik_method="dls",
             ),
             scale=0.1,
             body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(),

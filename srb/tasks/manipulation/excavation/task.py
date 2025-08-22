@@ -103,7 +103,7 @@ class TaskCfg(ManipulationEnvCfg):
         self.scene.regolith.init_state.pos = (
             0.15 * self.spacing,
             0.0,
-            0.05 * self.spacing,
+            0.025 + 0.05 * self.spacing,
         )
 
         # Async particle updates

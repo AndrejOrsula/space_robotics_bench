@@ -1,9 +1,10 @@
+import logging
 from itertools import chain
 from typing import TYPE_CHECKING, Dict, List, Sequence, Tuple
 
 import torch
 import torch.nn.functional as F
-from pxr import Gf, UsdPhysics
+from pxr import Gf
 
 import srb.core.sim.spawners.particles.utils as particle_utils
 from srb.core.asset import (
@@ -961,9 +962,9 @@ def settle_and_reset_particles(
     env: "AnyEnv",
     env_ids: torch.Tensor,
     asset_cfg: Sequence[SceneEntityCfg],
-    particles_settle_max_steps: int = 25,
-    particles_settle_step_time: float = 20.0,
-    particles_settle_vel_threshold: float = 0.0025,
+    particles_settle_max_steps: int = 30,
+    particles_settle_step_time: float = 10.0,
+    particles_settle_vel_threshold: float = 0.0015,
 ):
     num_particle_systems = len(asset_cfg)
     particles: Sequence[AssetBase] = tuple(env.scene[cfg.name] for cfg in asset_cfg)
@@ -976,48 +977,46 @@ def settle_and_reset_particles(
 
     ## Let the particles settle on the first reset, then remember their positions for future resets
     if not hasattr(env, initial_pos_ident[0]):
-        # Disable all dynamic colliders in the scene
-        prims_with_colliders = []
+        # Evacuate the scene by moving all dynamic assets far away
         for asset in chain(
-            env.scene.articulations.values(),
-            env.scene.rigid_objects.values(),
-            env.scene.rigid_object_collections.values(),
+            env.scene.articulations.values(), env.scene.rigid_objects.values()
         ):
-            for path in asset.root_physx_view.prim_paths:
-                queue = env.sim.stage.GetPrimAtPath(path).GetChildren()
-                while queue:
-                    prim = queue.pop(0)
-                    queue.extend(prim.GetChildren())
-                    if prim.HasAPI(UsdPhysics.CollisionAPI):  # type: ignore
-                        collision_api = UsdPhysics.CollisionAPI(prim)  # type: ignore
-                        if collision_api.GetCollisionEnabledAttr().Get():
-                            prims_with_colliders.append(prim)
-                            collision_api.GetCollisionEnabledAttr().Set(False)
+            new_state = asset.data.default_root_state.clone()
+            new_state[:, 2] -= 10000.0
+            asset.write_root_state_to_sim(new_state)
+        for collection in env.scene.rigid_object_collections.values():
+            new_state = collection.data.default_object_state.clone()
+            new_state[:, :, 2] -= 10000.0
+            collection.write_object_state_to_sim(new_state)
 
         # Let the particles settle
-        for _ in range(particles_settle_max_steps):
+        logging.info("Letting particles settle, please be patient...")
+        for i in range(particles_settle_max_steps):
             for _ in range(round(particles_settle_step_time / env.step_dt)):
                 env.sim.step(render=False)
 
-            for i in range(num_particle_systems):
-                if (
-                    torch.median(
-                        torch.linalg.norm(
-                            particle_utils.get_particles_vel_w(env, particles[i]),
-                            dim=-1,
-                        )
+            for j in range(num_particle_systems):
+                particles_settle_vel = torch.median(
+                    torch.linalg.norm(
+                        particle_utils.get_particles_vel_w(env, particles[j]),
+                        dim=-1,
                     )
-                    > particles_settle_vel_threshold
-                ):
+                )
+                if particles_settle_vel > particles_settle_vel_threshold:
+                    logging.info(
+                        f"[{i + 1}/{particles_settle_max_steps}] Particles are not yet settled (vel: {particles_settle_vel:.5f} > {particles_settle_vel_threshold:.5f})"
+                    )
                     break
             else:
                 break
 
-        # Restore the original colliders
-        for prim in prims_with_colliders:
-            UsdPhysics.CollisionAPI(  # type: ignore
-                prim
-            ).GetCollisionEnabledAttr().Set(True)
+        # Restore the original states
+        for asset in chain(
+            env.scene.articulations.values(), env.scene.rigid_objects.values()
+        ):
+            asset.write_root_state_to_sim(asset.data.default_root_state)
+        for collection in env.scene.rigid_object_collections.values():
+            collection.write_object_state_to_sim(collection.data.default_object_state)
 
         # Extract statistics about the initial state of the particles
         for i in range(num_particle_systems):

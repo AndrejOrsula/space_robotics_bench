@@ -1,8 +1,9 @@
+from itertools import chain
 from typing import TYPE_CHECKING, Dict, List, Sequence, Tuple
 
 import torch
 import torch.nn.functional as F
-from pxr import Gf
+from pxr import Gf, UsdPhysics
 
 import srb.core.sim.spawners.particles.utils as particle_utils
 from srb.core.asset import (
@@ -975,6 +976,25 @@ def settle_and_reset_particles(
 
     ## Let the particles settle on the first reset, then remember their positions for future resets
     if not hasattr(env, initial_pos_ident[0]):
+        # Disable all dynamic colliders in the scene
+        prims_with_colliders = []
+        for asset in chain(
+            env.scene.articulations.values(),
+            env.scene.rigid_objects.values(),
+            env.scene.rigid_object_collections.values(),
+        ):
+            for path in asset.root_physx_view.prim_paths:
+                queue = env.sim.stage.GetPrimAtPath(path).GetChildren()
+                while queue:
+                    prim = queue.pop(0)
+                    queue.extend(prim.GetChildren())
+                    if prim.HasAPI(UsdPhysics.CollisionAPI):  # type: ignore
+                        collision_api = UsdPhysics.CollisionAPI(prim)  # type: ignore
+                        if collision_api.GetCollisionEnabledAttr().Get():
+                            prims_with_colliders.append(prim)
+                            collision_api.GetCollisionEnabledAttr().Set(False)
+
+        # Let the particles settle
         for _ in range(particles_settle_max_steps):
             for _ in range(round(particles_settle_step_time / env.step_dt)):
                 env.sim.step(render=False)
@@ -992,6 +1012,12 @@ def settle_and_reset_particles(
                     break
             else:
                 break
+
+        # Restore the original colliders
+        for prim in prims_with_colliders:
+            UsdPhysics.CollisionAPI(  # type: ignore
+                prim
+            ).GetCollisionEnabledAttr().Set(True)
 
         # Extract statistics about the initial state of the particles
         for i in range(num_particle_systems):

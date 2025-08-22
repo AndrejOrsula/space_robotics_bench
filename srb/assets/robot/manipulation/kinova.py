@@ -274,6 +274,69 @@ class KinovaGen3n7(SerialManipulator):
             body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(),
         ),
     )
+    # actions: ActionGroup = OperationalSpaceControlActionGroup(
+    #     OperationalSpaceControllerActionCfg(
+    #         asset_name="robot",
+    #         joint_names=["joint_[1-7]"],
+    #         body_name="end_effector_link",
+    #         controller_cfg=OperationalSpaceControllerCfg(
+    #             target_types=["pose_rel"],
+    #             impedance_mode="fixed",
+    #             motion_stiffness_task=100.0,
+    #             motion_damping_ratio_task=1.0,
+    #             # motion_stiffness_task=250.0,
+    #             # motion_damping_ratio_task=1.5,
+    #             nullspace_control="position",
+    #             inertial_dynamics_decoupling=True,
+    #         ),
+    #         nullspace_joint_pos_target="center",
+    #         position_scale=0.1,
+    #         orientation_scale=0.1,
+    #         body_offset=OperationalSpaceControllerActionCfg.OffsetCfg(),
+    #     )
+    # )
+    # actions: ActionGroup = OperationalSpaceControlActionGroup(
+    #     OperationalSpaceControllerActionCfg(
+    #         asset_name="robot",
+    #         joint_names=["joint_[1-7]"],
+    #         body_name="end_effector_link",
+    #         controller_cfg=OperationalSpaceControllerCfg(
+    #             target_types=["pose_rel"],
+    #             impedance_mode="variable_kp",
+    #             motion_stiffness_limits_task=(10.0, 250.0),
+    #             motion_damping_ratio_task=1.0,
+    #             # motion_damping_ratio_task=1.5,
+    #             nullspace_control="position",
+    #             inertial_dynamics_decoupling=True,
+    #         ),
+    #         nullspace_joint_pos_target="center",
+    #         position_scale=0.1,
+    #         orientation_scale=0.1,
+    #         stiffness_scale=120.0,
+    #         body_offset=OperationalSpaceControllerActionCfg.OffsetCfg(),
+    #     )
+    # )
+    # actions: ActionGroup = OperationalSpaceControlActionGroup(
+    #     OperationalSpaceControllerActionCfg(
+    #         asset_name="robot",
+    #         joint_names=["joint_[1-7]"],
+    #         body_name="end_effector_link",
+    #         controller_cfg=OperationalSpaceControllerCfg(
+    #             target_types=["pose_rel"],
+    #             impedance_mode="variable",
+    #             motion_stiffness_limits_task=(10.0, 250.0),
+    #             motion_damping_ratio_limits_task=(0.5, 2.5),
+    #             nullspace_control="position",
+    #             inertial_dynamics_decoupling=True,
+    #         ),
+    #         nullspace_joint_pos_target="center",
+    #         position_scale=0.1,
+    #         orientation_scale=0.1,
+    #         stiffness_scale=120.0,
+    #         damping_ratio_scale=1.0,
+    #         body_offset=OperationalSpaceControllerActionCfg.OffsetCfg(),
+    #     )
+    # )
 
     ## Frames
     frame_base: Frame = Frame(

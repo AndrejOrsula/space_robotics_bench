@@ -337,10 +337,13 @@ class DirectEnv(__DirectRLEnv, metaclass=__PostInitCaller):
             super()._pre_physics_step(actions)  # type: ignore
 
     def _apply_action(self):
-        if self.cfg.actions:
-            self.action_manager.apply_action()
-        else:
-            super()._apply_action()  # type: ignore
+        try:
+            if self.cfg.actions:
+                self.action_manager.apply_action()
+            else:
+                super()._apply_action()  # type: ignore
+        except Exception as e:
+            logging.error(f"Failed to apply action: {e}")
 
     def _update_gym_env_spaces(self):
         # Action space

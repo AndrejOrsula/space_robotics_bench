@@ -72,8 +72,8 @@ class BaseEnvCfg:
     skydome: Literal["low_res", "high_res"] | bool | None = "low_res"
 
     ## Assets
-    scenery: Scenery | AssetVariant | None = AssetVariant.PROCEDURAL
-    _scenery: Scenery | None = MISSING  # type: ignore
+    scenery: Scenery | MobileRobot | AssetVariant | None = AssetVariant.PROCEDURAL
+    _scenery: Scenery | MobileRobot | None = MISSING  # type: ignore
     robot: Robot | AssetVariant = AssetVariant.DATASET
     _robot: Robot = MISSING  # type: ignore
 
@@ -463,7 +463,7 @@ class BaseEnvCfg:
                 logging.error(
                     f"Unsupported type hints for scenery specified via {AssetVariant}: {type_hints} ({type(type_hints)})"
                 )
-        assert isinstance(scenery, Scenery), (
+        assert isinstance(scenery, (Scenery, MobileRobot)), (
             f"Failed to instantiate scenery from {repr(scenery)}"
         )
 
@@ -472,6 +472,9 @@ class BaseEnvCfg:
             prim_path_stacked
             if self.stack or isinstance(self.scenery, assets.GroundPlane)
             else prim_path
+        )
+        scenery.asset_cfg = scenery.as_asset_base_cfg(  # type: ignore
+            disable_articulation=True, disable_rigid_body=True
         )
 
         # Add to the scene

@@ -6,7 +6,7 @@ import torch
 from srb import assets
 from srb._typing import StepReturn
 from srb.core.action import ThrustAction
-from srb.core.asset import AssetVariant, ExtravehicularScenery
+from srb.core.asset import AssetVariant, ExtravehicularScenery, MobileRobot
 from srb.core.env import OrbitalEnv, OrbitalEnvCfg, OrbitalEventCfg, OrbitalSceneCfg
 from srb.core.manager import EventTermCfg, SceneEntityCfg
 from srb.core.marker import VisualizationMarkers, VisualizationMarkersCfg
@@ -65,7 +65,9 @@ class TaskCfg(OrbitalEnvCfg):
     stack: bool = True
 
     ## Assets
-    scenery: ExtravehicularScenery | AssetVariant | None = assets.StaticGateway()
+    scenery: ExtravehicularScenery | MobileRobot | AssetVariant | None = (
+        assets.Gateway()
+    )
     scenery.asset_cfg.init_state.pos = (0.0, 0.0, -5.0)
     # TODO: Re-enable collisions with the scenery
     scenery.asset_cfg.spawn.collision_props.collision_enabled = False  # type: ignore

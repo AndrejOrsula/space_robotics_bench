@@ -3,6 +3,7 @@ from .franka_hand import FrankaHand  # noqa: F401
 from .kinova_gripper import Kinova300  # noqa: F401
 from .robotiq import RobotiqHandE  # noqa: F401
 from .scoop import (  # noqa: F401
+    RandomScoop,
     ScoopCustom1,
     ScoopCustom2,
     ScoopCustom3,

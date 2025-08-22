@@ -21,6 +21,55 @@ from srb.utils.math import deg_to_rad, rpy_to_quat
 from srb.utils.path import SRB_ASSETS_DIR_SRB_ROBOT
 
 
+class ISS(OrbitalRobot):
+    ## Model
+    asset_cfg: RigidObjectCfg = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/iss",
+        spawn=UsdFileCfg(
+            usd_path=SRB_ASSETS_DIR_SRB_ROBOT.joinpath("spacecraft")
+            .joinpath("iss.usdz")
+            .as_posix(),
+            activate_contact_sensors=True,
+            collision_props=CollisionPropertiesCfg(),
+            mesh_collision_props=MeshCollisionPropertiesCfg(
+                mesh_approximation="convexDecomposition"
+            ),
+            rigid_props=RigidBodyPropertiesCfg(
+                max_depenetration_velocity=5.0,
+            ),
+            mass_props=MassPropertiesCfg(density=1500.0),
+        ),
+    )
+
+    ## Actions
+    actions: ActionGroup = BodyAccelerationActionGroup(
+        BodyAccelerationActionCfg(asset_name="robot", scale=0.05)
+    )
+
+    ## Frames
+    frame_base: Frame = Frame(prim_relpath="base")
+    frame_payload_mount: Frame = Frame(
+        prim_relpath="base",
+        offset=Transform(
+            pos=(0.0, 19.9631, 5.81683),
+            rot=rpy_to_quat(0.0, 0.0, 0.0),
+        ),
+    )
+    frame_manipulator_mount: Frame = Frame(
+        prim_relpath="base",
+        offset=Transform(
+            pos=(0.0, 0.0, 0.0),
+            rot=rpy_to_quat(0.0, 0.0, 0.0),
+        ),
+    )
+    frame_onboard_camera: Frame = Frame(
+        prim_relpath="base/camera_onboard",
+        offset=Transform(
+            pos=(0.0, -16.2149, 2.27954),
+        ),
+    )
+
+
 class Gateway(OrbitalRobot):
     ## Model
     asset_cfg: RigidObjectCfg = RigidObjectCfg(

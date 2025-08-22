@@ -14,6 +14,7 @@ from .mars_rover import MarsRover  # noqa: F401
 from .perseverance import Perseverance  # noqa: F401
 from .pragyan import Pragyan  # noqa: F401
 from .spacecraft import (  # noqa: F401
+    ISS,
     Cubesat,
     Gateway,
     Starship,

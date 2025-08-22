@@ -9,6 +9,7 @@ In addition to modifications listed below, all models have been converted to the
 1. [Apollo Samples (x22)](https://sketchfab.com/Astromaterials3D/collections/apollo-lunar-collection-92fa531378984564acd23a9d92cf5370) by NASA Johnson Space Center licensed under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0)
 1. [Gateway Lunar Space Station](https://nasa3d.arc.nasa.gov/detail/gateway) by NASA's Gateway Program Office
    - Separated into individual assets (Gateway Core, Canadarm3)
+1. [International Space Station](https://science.nasa.gov/resource/international-space-station-3d-model) by NASA
 1. [Mars 2020 Sample Tube](https://nasa3d.arc.nasa.gov/detail/Mars-2020-Sample-Tube-3D-print-files) by JPL-Caltech
    - Added mesh of the sample tube cap
    - Added materials

@@ -5,12 +5,12 @@ import torch
 
 from srb import assets
 from srb._typing import StepReturn
-from srb.core.action import ThrustAction
+from srb.core.action import ThrustAction  # noqa: F401
 from srb.core.asset import AssetVariant, ExtravehicularScenery, MobileRobot
 from srb.core.env import OrbitalEnv, OrbitalEnvCfg, OrbitalEventCfg, OrbitalSceneCfg
-from srb.core.manager import EventTermCfg, SceneEntityCfg
+from srb.core.manager import EventTermCfg, SceneEntityCfg  # noqa: F401
 from srb.core.marker import VisualizationMarkers, VisualizationMarkersCfg
-from srb.core.mdp import apply_external_force_torque, offset_pose_natural
+from srb.core.mdp import apply_external_force_torque, offset_pose_natural  # noqa: F401
 from srb.core.sim import ArrowCfg, PreviewSurfaceCfg
 from srb.utils.cfg import configclass
 from srb.utils.math import matrix_from_quat, rotmat_to_rot6d, subtract_frame_transforms
@@ -146,16 +146,16 @@ class Task(OrbitalEnv):
         ## Visualize target
         self._target_marker.visualize(self._goal[:, 0:3], self._goal[:, 3:7])
 
-        ## Get remaining fuel (if applicable)
-        if self._thrust_action_term_key:
-            thrust_action_term: ThrustAction = self.action_manager._terms[  # type: ignore
-                self._thrust_action_term_key
-            ]
-            remaining_fuel = (
-                thrust_action_term.remaining_fuel / thrust_action_term.cfg.fuel_capacity
-            ).unsqueeze(-1)
-        else:
-            remaining_fuel = None
+        # ## Get remaining fuel (if applicable)
+        # if self._thrust_action_term_key:
+        #     thrust_action_term: ThrustAction = self.action_manager._terms[  # type: ignore
+        #         self._thrust_action_term_key
+        #     ]
+        #     remaining_fuel = (
+        #         thrust_action_term.remaining_fuel / thrust_action_term.cfg.fuel_capacity
+        #     ).unsqueeze(-1)
+        # else:
+        #     remaining_fuel = None
 
         return _compute_step_return(
             ## Time
@@ -169,8 +169,8 @@ class Task(OrbitalEnv):
             # Root
             tf_pos_robot=self._robot.data.root_pos_w,
             tf_quat_robot=self._robot.data.root_quat_w,
-            # vel_lin_robot=self._robot.data.root_lin_vel_b,
-            # vel_ang_robot=self._robot.data.root_ang_vel_b,
+            vel_lin_robot=self._robot.data.root_lin_vel_b,
+            vel_ang_robot=self._robot.data.root_ang_vel_b,
             # Transforms (world frame)
             tf_pos_target=self._goal[:, 0:3],
             tf_quat_target=self._goal[:, 3:7],
@@ -178,7 +178,7 @@ class Task(OrbitalEnv):
             # imu_lin_acc=self._imu_robot.data.lin_acc_b,
             # imu_ang_vel=self._imu_robot.data.ang_vel_b,
             # Fuel
-            remaining_fuel=remaining_fuel,
+            # remaining_fuel=remaining_fuel,
         )
 
 
@@ -196,8 +196,8 @@ def _compute_step_return(
     # Root
     tf_pos_robot: torch.Tensor,
     tf_quat_robot: torch.Tensor,
-    # vel_lin_robot: torch.Tensor,
-    # vel_ang_robot: torch.Tensor,
+    vel_lin_robot: torch.Tensor,
+    vel_ang_robot: torch.Tensor,
     # Transforms (world frame)
     tf_pos_target: torch.Tensor,
     tf_quat_target: torch.Tensor,
@@ -205,18 +205,18 @@ def _compute_step_return(
     # imu_lin_acc: torch.Tensor,
     # imu_ang_vel: torch.Tensor,
     # Fuel
-    remaining_fuel: torch.Tensor | None,
+    # remaining_fuel: torch.Tensor | None,
 ) -> StepReturn:
     num_envs = episode_length.size(0)
-    dtype = episode_length.dtype
+    # dtype = episode_length.dtype
     device = episode_length.device
 
     ############
     ## States ##
     ############
     ## Root
-    # tf_rotmat_robot = matrix_from_quat(tf_quat_robot)
-    # tf_rot6d_robot = rotmat_to_rot6d(tf_rotmat_robot)
+    tf_rotmat_robot = matrix_from_quat(tf_quat_robot)
+    tf_rot6d_robot = rotmat_to_rot6d(tf_rotmat_robot)
 
     ## Transforms (world frame)
     # Robot -> Target
@@ -230,58 +230,60 @@ def _compute_step_return(
     tf_rot6d_robot_to_target = rotmat_to_rot6d(tf_rotmat_robot_to_target)
     dist_robot_to_target = torch.norm(tf_pos_robot_to_target, dim=-1)
 
-    # Angle between the robot's forward direction and the target's position
-    angle_robot_to_target_pos = torch.acos(
-        torch.clamp(
-            tf_pos_robot_to_target[..., 0] / (dist_robot_to_target + 1.0e-6), -1.0, 1.0
-        )
-    )
+    # # Angle between the robot's forward direction and the target's position
+    # angle_robot_to_target_pos = torch.acos(
+    #     torch.clamp(
+    #         tf_pos_robot_to_target[..., 0] / (dist_robot_to_target + 1.0e-6), -1.0, 1.0
+    #     )
+    # )
     # Angle of the relative orientation between the robot and the target
     trace = torch.einsum("...ii->...", tf_rotmat_robot_to_target)
     angle_robot_to_target_orient = torch.acos(
         torch.clamp((trace - 1.0) / 2.0, -1.0, 1.0)
     )
 
-    ## Fuel
-    remaining_fuel = (
-        remaining_fuel
-        if remaining_fuel is not None
-        else torch.ones((num_envs, 1), dtype=dtype, device=device)
-    )
+    # ## Fuel
+    # remaining_fuel = (
+    #     remaining_fuel
+    #     if remaining_fuel is not None
+    #     else torch.ones((num_envs, 1), dtype=dtype, device=device)
+    # )
 
     #############
     ## Rewards ##
     #############
     # Penalty: Action rate
-    WEIGHT_ACTION_RATE = -2.0
-    _action_rate = torch.sum(torch.square(act_current - act_previous), dim=1)
+    WEIGHT_ACTION_RATE = -1.0
+    _action_rate = torch.mean(torch.square(act_current - act_previous), dim=1)
     penalty_action_rate = WEIGHT_ACTION_RATE * _action_rate
 
-    # Penalty: Fuel consumption
-    WEIGHT_FUEL_CONSUMPTION = -8.0
-    penalty_fuel_consumption = WEIGHT_FUEL_CONSUMPTION * torch.square(
-        1.0 - remaining_fuel.squeeze(-1)
-    )
+    # # Penalty: Fuel consumption
+    # WEIGHT_FUEL_CONSUMPTION = -8.0
+    # penalty_fuel_consumption = WEIGHT_FUEL_CONSUMPTION * torch.square(
+    #     1.0 - remaining_fuel.squeeze(-1)
+    # )
 
     # Penalty: Position tracking | Robot <--> Target
-    WEIGHT_POSITION_TRACKING = -1.0
-    penalty_position_tracking = WEIGHT_POSITION_TRACKING * torch.square(
-        dist_robot_to_target
+    WEIGHT_POSITION_TRACKING = -2.0
+    MAX_POSITION_TRACKING_PENALTY = -16.0
+    penalty_position_tracking = torch.clamp_min(
+        WEIGHT_POSITION_TRACKING * torch.square(dist_robot_to_target),
+        min=MAX_POSITION_TRACKING_PENALTY,
     )
 
-    # Reward: Point towards target | Robot <--> Target
-    WEIGHT_POINT_TOWARDS_TARGET = 1.0
-    TANH_STD_POINT_TOWARDS_TARGET = 0.7854  # 45 deg
-    reward_point_towards_target = WEIGHT_POINT_TOWARDS_TARGET * (
-        1.0
-        - torch.tanh(
-            torch.abs(angle_robot_to_target_pos) / TANH_STD_POINT_TOWARDS_TARGET
-        )
-    )
+    # # Reward: Point towards target | Robot <--> Target
+    # WEIGHT_POINT_TOWARDS_TARGET = 1.0
+    # TANH_STD_POINT_TOWARDS_TARGET = 0.7854  # 45 deg
+    # reward_point_towards_target = WEIGHT_POINT_TOWARDS_TARGET * (
+    #     1.0
+    #     - torch.tanh(
+    #         torch.abs(angle_robot_to_target_pos) / TANH_STD_POINT_TOWARDS_TARGET
+    #     )
+    # )
 
     # Reward: Position tracking | Robot <--> Target (precision)
-    WEIGHT_POSITION_TRACKING_PRECISION = 4.0
-    TANH_STD_POSITION_TRACKING_PRECISION = 0.05
+    WEIGHT_POSITION_TRACKING_PRECISION = 16.0
+    TANH_STD_POSITION_TRACKING_PRECISION = 0.5
     _position_tracking_precision = 1.0 - torch.tanh(
         dist_robot_to_target / TANH_STD_POSITION_TRACKING_PRECISION
     )
@@ -290,8 +292,8 @@ def _compute_step_return(
     )
 
     # Reward: Target orientation tracking once position is reached | Robot <--> Target
-    WEIGHT_ORIENTATION_TRACKING = 8.0
-    TANH_STD_ORIENTATION_TRACKING = 0.2618  # 15 deg
+    WEIGHT_ORIENTATION_TRACKING = 64.0
+    TANH_STD_ORIENTATION_TRACKING = 0.5236  # 30 deg
     _orientation_tracking_precision = _position_tracking_precision * (
         1.0
         - torch.tanh(
@@ -303,8 +305,8 @@ def _compute_step_return(
     )
 
     # Reward: Action rate at target
-    WEIGHT_ACTION_RATE_AT_TARGET = 32.0
-    TANH_STD_ACTION_RATE_AT_TARGET = 0.2
+    WEIGHT_ACTION_RATE_AT_TARGET = 128.0
+    TANH_STD_ACTION_RATE_AT_TARGET = 0.25
     reward_action_rate_at_target = (
         WEIGHT_ACTION_RATE_AT_TARGET
         * _orientation_tracking_precision
@@ -326,23 +328,23 @@ def _compute_step_return(
     return StepReturn(
         {
             "state": {
-                # "tf_rot6d_robot": tf_rot6d_robot,
-                # "vel_lin_robot": vel_lin_robot,
-                # "vel_ang_robot": vel_ang_robot,
+                "tf_rot6d_robot": tf_rot6d_robot,
+                "vel_lin_robot": vel_lin_robot,
+                "vel_ang_robot": vel_ang_robot,
                 "tf_pos_robot_to_target": tf_pos_robot_to_target,
                 "tf_rot6d_robot_to_target": tf_rot6d_robot_to_target,
             },
-            "proprio": {
-                # "imu_lin_acc": imu_lin_acc,
-                # "imu_ang_vel": imu_ang_vel,
-                "remaining_fuel": remaining_fuel,
-            },
+            # "proprio": {
+            #     # "imu_lin_acc": imu_lin_acc,
+            #     # "imu_ang_vel": imu_ang_vel,
+            #     "remaining_fuel": remaining_fuel,
+            # },
         },
         {
             "penalty_action_rate": penalty_action_rate,
-            "penalty_fuel_consumption": penalty_fuel_consumption,
+            # "penalty_fuel_consumption": penalty_fuel_consumption,
             "penalty_position_tracking": penalty_position_tracking,
-            "reward_point_towards_target": reward_point_towards_target,
+            # "reward_point_towards_target": reward_point_towards_target,
             "reward_position_tracking_precision": reward_position_tracking_precision,
             "reward_orientation_tracking": reward_orientation_tracking,
             "reward_action_rate_at_target": reward_action_rate_at_target,

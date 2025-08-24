@@ -237,7 +237,7 @@ def _compute_step_return(
     #############
     # Penalty: Action rate
     WEIGHT_ACTION_RATE = -0.5
-    _action_rate = torch.sum(torch.square(act_current - act_previous), dim=1)
+    _action_rate = torch.mean(torch.square(act_current - act_previous), dim=1)
     penalty_action_rate = WEIGHT_ACTION_RATE * _action_rate
 
     # Penalty: Joint torque
@@ -309,7 +309,7 @@ def _compute_step_return(
 
     # Reward: Action rate at target
     WEIGHT_ACTION_RATE_AT_TARGET = 32.0
-    TANH_STD_ACTION_RATE_AT_TARGET = 0.2
+    TANH_STD_ACTION_RATE_AT_TARGET = 0.1
     reward_action_rate_at_target = (
         WEIGHT_ACTION_RATE_AT_TARGET
         * _orientation_tracking_precision

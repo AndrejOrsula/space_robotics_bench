@@ -205,7 +205,7 @@ RUN if [[ "${INSTALL_SPACEROS,,}" = true ]]; then \
 
 ## Install Blender
 ARG BLENDER_PATH="/root/blender"
-ARG BLENDER_VERSION="4.3.2"
+ARG BLENDER_VERSION="4.5.2"
 ARG BLENDER_PYTHON="${BLENDER_PATH}/${BLENDER_VERSION%.*}/python/bin/python3.11"
 # hadolint ignore=SC2016
 RUN echo -e "\n# Blender ${BLENDER_VERSION}" >> /entrypoint.bash && \
@@ -261,7 +261,7 @@ RUN if [[ "${DEV,,}" = true && "${OXIDASIM_DEV,,}" = true ]]; then \
 ARG SIMFORGE_DEV=true
 ARG SIMFORGE_PATH="/root/simforge"
 ARG SIMFORGE_REMOTE="https://github.com/AndrejOrsula/simforge.git"
-ARG SIMFORGE_BRANCH="main"
+ARG SIMFORGE_BRANCH="dev"
 RUN if [[ "${DEV,,}" = true && "${SIMFORGE_DEV,,}" = true ]]; then \
     git clone "${SIMFORGE_REMOTE}" "${SIMFORGE_PATH}" --branch "${SIMFORGE_BRANCH}" && \
     "${ISAAC_SIM_PYTHON}" -m pip install --no-input --no-cache-dir --editable "${SIMFORGE_PATH}[assets,cli,dev]" && \
@@ -270,7 +270,7 @@ RUN if [[ "${DEV,,}" = true && "${SIMFORGE_DEV,,}" = true ]]; then \
 ARG SIMFORGE_FOUNDRY_DEV=true
 ARG SIMFORGE_FOUNDRY_PATH="/root/simforge_foundry"
 ARG SIMFORGE_FOUNDRY_REMOTE="https://github.com/AndrejOrsula/simforge_foundry.git"
-ARG SIMFORGE_FOUNDRY_BRANCH="main"
+ARG SIMFORGE_FOUNDRY_BRANCH="dev"
 RUN if [[ "${DEV,,}" = true && "${SIMFORGE_FOUNDRY_DEV,,}" = true ]]; then \
     git clone "${SIMFORGE_FOUNDRY_REMOTE}" "${SIMFORGE_FOUNDRY_PATH}" --branch "${SIMFORGE_FOUNDRY_BRANCH}" && \
     "${ISAAC_SIM_PYTHON}" -m pip install --no-input --no-cache-dir --editable "${SIMFORGE_FOUNDRY_PATH}" && \

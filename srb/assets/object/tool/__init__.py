@@ -4,6 +4,7 @@ from .kinova_gripper import Kinova300  # noqa: F401
 from .robotiq import RobotiqHandE  # noqa: F401
 from .scoop import (  # noqa: F401
     RandomScoop,
+    Scoop,
     ScoopCustom1,
     ScoopCustom2,
     ScoopCustom3,

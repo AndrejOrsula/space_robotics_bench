@@ -962,8 +962,8 @@ def settle_and_reset_particles(
     env: "AnyEnv",
     env_ids: torch.Tensor,
     asset_cfg: Sequence[SceneEntityCfg],
-    particles_settle_max_steps: int = 30,
-    particles_settle_step_time: float = 10.0,
+    particles_settle_max_steps: int = 10,
+    particles_settle_step_time: float = 30.0,
     particles_settle_vel_threshold: float = 0.01,
 ):
     num_particle_systems = len(asset_cfg)
@@ -996,17 +996,21 @@ def settle_and_reset_particles(
                 env.sim.step(render=False)
 
             for j in range(num_particle_systems):
-                particles_settle_vel = torch.median(
-                    torch.linalg.norm(
-                        particle_utils.get_particles_vel_w(env, particles[j]),
-                        dim=-1,
-                    )
+                particles_vel = particle_utils.get_particles_vel_w(env, particles[j])
+                particles_vel_norm_median = torch.median(
+                    torch.linalg.norm(particles_vel, dim=-1)
                 )
-                if particles_settle_vel > particles_settle_vel_threshold:
+                num_particles = particles_vel.shape[1]
+                if particles_vel_norm_median > particles_settle_vel_threshold:
                     logging.info(
-                        f"[{i + 1}/{particles_settle_max_steps}] Particles are not yet settled (vel: {particles_settle_vel:.5f} > {particles_settle_vel_threshold:.5f})"
+                        f"[{i + 1}/{particles_settle_max_steps}] Particles of system {j + 1}/{num_particle_systems} are not yet settled (count: {num_particles}, vel: {particles_vel_norm_median:.5f}>{particles_settle_vel_threshold:.5f})"
                     )
                     break
+                else:
+                    logging.info(
+                        f"[{i + 1}/{particles_settle_max_steps}] Particles of system {j + 1}/{num_particle_systems} are now settled (count: {num_particles}, vel: {particles_vel_norm_median:.5f}<{particles_settle_vel_threshold:.5f})"
+                    )
+
             else:
                 break
 

@@ -810,8 +810,10 @@ class BaseEnvCfg:
                     velocity=((-0.5, 0.5), (-0.5, 0.5), (-0.5, 0.0)),
                     fluid=False,
                     density=1500.0,
-                    friction=0.85,
-                    cohesion=0.65,
+                    friction=0.9,
+                    damping=0.2,
+                    cohesion=0.1,
+                    adhesion=0.1,
                 ),
                 init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 0.5)),
             )

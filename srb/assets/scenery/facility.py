@@ -147,9 +147,11 @@ class Lunalab(Subterrane):
                         dim_z=basalt_height,
                         velocity=((-0.1, 0.1), (-0.1, 0.1), (-0.05, 0.0)),
                         fluid=False,
-                        density=1500.0,
-                        friction=0.85,
-                        cohesion=0.65,
+                        density=1600.0,
+                        friction=1.0,
+                        damping=0.2,
+                        cohesion=0.01,
+                        adhesion=0.05,
                     ),
                     init_state=AssetBaseCfg.InitialStateCfg(
                         pos=(0.0, 0.0, spawn_height)

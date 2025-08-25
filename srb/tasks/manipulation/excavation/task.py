@@ -44,8 +44,10 @@ class SceneCfg(ManipulationSceneCfg):
             velocity=((-0.5, 0.5), (-0.5, 0.5), (-0.5, 0.0)),
             fluid=False,
             density=1500.0,
-            friction=0.85,
-            cohesion=0.65,
+            friction=0.9,
+            damping=0.2,
+            cohesion=0.1,
+            adhesion=0.1,
         ),
     )
 
@@ -71,14 +73,14 @@ class TaskCfg(ManipulationEnvCfg):
     events: EventCfg = EventCfg()
 
     ## Time
-    env_rate: float = 1.0 / 200.0
-    episode_length_s: float = 20.0
+    env_rate: float = 1.0 / 250.0
+    episode_length_s: float = 15.0
     is_finite_horizon: bool = True
 
     ## Particles
     particles: bool = True
     particles_ratio: float = 0.8
-    particles_size: float = 0.01
+    particles_size: float = 0.008
     particles_update_interval: float = 2.0
 
     ## Assemblies (dynamic joints)
@@ -97,13 +99,13 @@ class TaskCfg(ManipulationEnvCfg):
         _regolith_dim = round(self.spacing / self.particles_size)
         self.scene.regolith.spawn.ratio = self.particles_ratio  # type: ignore
         self.scene.regolith.spawn.particle_size = self.particles_size  # type: ignore
-        self.scene.regolith.spawn.dim_x = round(0.225 * _regolith_dim)  # type: ignore
-        self.scene.regolith.spawn.dim_y = round(0.35 * _regolith_dim)  # type: ignore
-        self.scene.regolith.spawn.dim_z = round(0.075 * _regolith_dim)  # type: ignore
+        self.scene.regolith.spawn.dim_x = round(0.1525 * _regolith_dim)  # type: ignore
+        self.scene.regolith.spawn.dim_y = round(0.18 * _regolith_dim)  # type: ignore
+        self.scene.regolith.spawn.dim_z = round(0.08 * _regolith_dim)  # type: ignore
         self.scene.regolith.init_state.pos = (
-            0.15 * self.spacing,
+            0.1525 * self.spacing,
             0.0,
-            0.025 + 0.05 * self.spacing,
+            0.05 + 0.08 * self.spacing,
         )
 
         # Async particle updates

@@ -70,7 +70,7 @@ class TaskCfg(OrbitalEnvCfg):
 
     ## Time
     episode_length_s: float = 25.0
-    is_finite_horizon: bool = True
+    is_finite_horizon: bool = False
 
     ## Target offset
     target_offset_pos: Tuple[float, float, float] = (0.0, 0.0, 0.5)

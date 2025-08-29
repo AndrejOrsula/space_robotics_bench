@@ -2,6 +2,8 @@ from dataclasses import MISSING
 from typing import Sequence
 
 import torch
+from rclpy.time import Duration, Time
+from tf2_ros import Buffer, TransformListener
 
 from srb import assets
 from srb._typing import StepReturn
@@ -12,6 +14,7 @@ from srb.core.manager import EventTermCfg, SceneEntityCfg  # noqa: F401
 from srb.core.marker import VisualizationMarkers, VisualizationMarkersCfg
 from srb.core.mdp import apply_external_force_torque, offset_pose_natural  # noqa: F401
 from srb.core.sim import ArrowCfg, PreviewSurfaceCfg
+from srb.utils import logging
 from srb.utils.cfg import configclass
 from srb.utils.math import matrix_from_quat, rotmat_to_rot6d, subtract_frame_transforms
 
@@ -142,7 +145,43 @@ class Task(OrbitalEnv):
             [1.0, 0.0, 0.0, 0.0], device=self.device
         )
 
+        if hasattr(self.unwrapped, "ros_node"):
+            # ADD ROS SUBSCRIBER TO GET THE WAYPOINTS FROM TRAJ GENERATOR AND UPDATE GOALS
+            self.tf_buffer = Buffer()
+            self.tf_listener = TransformListener(
+                self.tf_buffer, self.unwrapped.ros_node
+            )
+            logging.info("TF listener initialized.")
+
     def extract_step_return(self) -> StepReturn:
+        if hasattr(self, "tf_buffer"):
+            try:
+                tf_stamped = self.tf_buffer.lookup_transform(
+                    "srb/env0",
+                    # "srb/env0/robot",
+                    "target",
+                    Time(),
+                    timeout=Duration(
+                        seconds=1,
+                        nanoseconds=0,
+                    ),
+                )
+                logging.info(
+                    f"Got transform from 'srb/env0' to 'srb/env0/robot': {tf_stamped}"
+                )
+                # self._goal = ... (target transform)
+                self._goal[:, 0] = tf_stamped.transform.translation.x
+                self._goal[:, 1] = tf_stamped.transform.translation.y
+                self._goal[:, 2] = tf_stamped.transform.translation.z
+                self._goal[:, 3] = tf_stamped.transform.rotation.w
+                self._goal[:, 4] = tf_stamped.transform.rotation.x
+                self._goal[:, 5] = tf_stamped.transform.rotation.y
+                self._goal[:, 6] = tf_stamped.transform.rotation.z
+            except Exception as e:
+                logging.warning(
+                    f"Failed to get transform from 'srb/env0' to 'srb/env0/robot': {e}"
+                )
+
         ## Visualize target
         self._target_marker.visualize(self._goal[:, 0:3], self._goal[:, 3:7])
 

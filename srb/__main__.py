@@ -250,6 +250,7 @@ def run_agent_with_env(
                     return step_return
 
             env = InterfaceWrapper(env)  # type: ignore
+            env.unwrapped.ros_node = ros_node
             env.unwrapped.cfg.extras = True  # type: ignore
 
         # Run the implementation

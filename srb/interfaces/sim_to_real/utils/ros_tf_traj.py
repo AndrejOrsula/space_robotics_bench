@@ -694,7 +694,7 @@ def main():
         length=3.0,
         radius=1.15,
         direction="counter-clockwise",
-        initial_pos=numpy.array([2.1, -3.9, 0.0], dtype=numpy.float32),
+        initial_pos=numpy.array([0.0, 0.0, 1.0], dtype=numpy.float32),
         initial_quat_wxyz=yaw_to_quat_wxyz(0.0, deg=True),
     )
     # pattern_cfg = LemniscatePatternCfg(
@@ -740,7 +740,7 @@ def main():
     traj_cfg = RosTfTrajectoryGeneratorCfg(
         pattern=pattern_cfg,
         n_loops=-1,
-        velocity=0.25,
+        velocity=0.02,
         rate=20.0,
     )
 

@@ -76,6 +76,7 @@ class BaseEnvCfg:
     _scenery: Scenery | MobileRobot | None = MISSING  # type: ignore
     robot: Robot | AssetVariant = AssetVariant.DATASET
     _robot: Robot = MISSING  # type: ignore
+    n_procgen_variants: int | None = None
 
     ## Assemblies (dynamic joints)
     joint_assemblies: Dict[str, RobotAssemblerCfg] = {}
@@ -870,7 +871,7 @@ class BaseEnvCfg:
                     prim_path.startswith("{ENV_REGEX_NS}")
                     or prim_path.startswith("/World/envs/env_.*")
                 ):
-                    attr.num_assets = self.scene.num_envs
+                    attr.num_assets = self.n_procgen_variants or self.scene.num_envs
             elif isinstance(attr, AssetBaseCfg):
                 if isinstance(attr.spawn, MultiAssetSpawnerCfg):
                     for item in attr.spawn.assets_cfg:

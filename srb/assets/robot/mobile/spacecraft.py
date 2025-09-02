@@ -76,7 +76,7 @@ class Gateway(OrbitalRobot):
         prim_path="{ENV_REGEX_NS}/gateway",
         spawn=UsdFileCfg(
             usd_path=SRB_ASSETS_DIR_SRB_ROBOT.joinpath("spacecraft")
-            .joinpath("gateway.usdz")
+            .joinpath("gateway_aligned.usdz")
             .as_posix(),
             activate_contact_sensors=True,
             collision_props=CollisionPropertiesCfg(),

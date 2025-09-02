@@ -210,10 +210,10 @@ class ThrustAction(ActionTerm):
             cfg = ARROW_CFG.copy().replace(  # type: ignore
                 prim_path=f"/Visuals/thrusters/thruster{i}"
             )
-            cfg.markers["arrow"].tail_radius = 0.25 * 0.1
-            cfg.markers["arrow"].tail_length = 0.25 * 1.0
-            cfg.markers["arrow"].head_radius = 0.25 * 0.2
-            cfg.markers["arrow"].head_length = 0.25 * 0.5
+            cfg.markers["arrow"].tail_radius = 0.2 * 0.1
+            cfg.markers["arrow"].tail_length = 0.2 * 1.0
+            cfg.markers["arrow"].head_radius = 0.2 * 0.2
+            cfg.markers["arrow"].head_length = 0.2 * 0.5
 
             # Use a different color for each thruster (gradient from red to blue)
             blue = i / max(self._num_thrusters - 1, 1)

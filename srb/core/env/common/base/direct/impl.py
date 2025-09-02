@@ -7,7 +7,7 @@ import torch
 from isaaclab.envs import DirectRLEnv as __DirectRLEnv
 
 from srb._typing import StepReturn
-from srb.core.asset import Articulation, RigidObject
+from srb.core.asset import Articulation, AssetBase, RigidObject
 from srb.core.manager import ActionManager
 from srb.core.sim.robot_setup import AssembledBodies, RobotAssembler
 from srb.utils import logging
@@ -43,6 +43,9 @@ class DirectEnv(__DirectRLEnv, metaclass=__PostInitCaller):
             print(self.action_manager)
 
         ## Get scene assets
+        self._scenery: AssetBase | None = (
+            self.scene["scenery"] if self.cfg.scenery is not None else None
+        )
         self._robot: Articulation = self.scene["robot"]
 
     def __post_init__(self):

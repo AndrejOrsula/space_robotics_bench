@@ -1079,7 +1079,7 @@ def main():
     )
     p_anim.set_defaults(func=run_animation)
 
-    args = parser.parse_args()
+    args, _ = parser.parse_known_args()
     if hasattr(args, "output_dir"):
         args.output_dir.mkdir(parents=True, exist_ok=True)
     args.func(args)

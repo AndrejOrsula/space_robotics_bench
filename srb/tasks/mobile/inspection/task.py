@@ -18,6 +18,8 @@ from srb.utils import logging
 from srb.utils.cfg import configclass
 from srb.utils.math import matrix_from_quat, rotmat_to_rot6d, subtract_frame_transforms
 
+from srb.core.env import ViewerCfg
+
 ##############
 ### Config ###
 ##############
@@ -33,12 +35,12 @@ class EventCfg(OrbitalEventCfg):
     target_pose_evolution: EventTermCfg = EventTermCfg(
         func=offset_pose_natural,
         mode="interval",
-        interval_range_s=(0.05, 0.05),
+        interval_range_s=(0.1, 0.1),
         is_global_time=True,
         params={
             "env_attr_name": "_goal",
             "pos_axes": ("x", "y", "z"),
-            "pos_step_range": (0.005, 0.01),
+            "pos_step_range": (0.01, 0.1),
             "pos_smoothness": 0.99,
             "pos_bounds": {
                 "x": MISSING,
@@ -97,6 +99,11 @@ class TaskCfg(OrbitalEnvCfg):
                 visual_material=PreviewSurfaceCfg(emissive_color=(0.2, 0.2, 0.8)),
             )
         },
+    )
+
+    ## Viewer
+    viewer: ViewerCfg = ViewerCfg(
+        eye=(5.0, -5.0, 5.0), lookat=(0.0, 0.0, 0.0), origin_type="asset_root", asset_name="robot"
     )
 
     def __post_init__(self):
@@ -292,7 +299,7 @@ def _compute_step_return(
     ## Rewards ##
     #############
     # Penalty: Action rate
-    WEIGHT_ACTION_RATE = -1.0
+    WEIGHT_ACTION_RATE = -16.0
     _action_rate = torch.mean(torch.square(act_current - act_previous), dim=1)
     penalty_action_rate = WEIGHT_ACTION_RATE * _action_rate
 
@@ -322,7 +329,7 @@ def _compute_step_return(
 
     # Reward: Position tracking | Robot <--> Target (precision)
     WEIGHT_POSITION_TRACKING_PRECISION = 16.0
-    TANH_STD_POSITION_TRACKING_PRECISION = 0.5
+    TANH_STD_POSITION_TRACKING_PRECISION = 0.1
     _position_tracking_precision = 1.0 - torch.tanh(
         dist_robot_to_target / TANH_STD_POSITION_TRACKING_PRECISION
     )
@@ -332,7 +339,7 @@ def _compute_step_return(
 
     # Reward: Target orientation tracking once position is reached | Robot <--> Target
     WEIGHT_ORIENTATION_TRACKING = 64.0
-    TANH_STD_ORIENTATION_TRACKING = 0.5236  # 30 deg
+    TANH_STD_ORIENTATION_TRACKING = 0.2618  # 15 deg
     _orientation_tracking_precision = _position_tracking_precision * (
         1.0
         - torch.tanh(
@@ -345,7 +352,7 @@ def _compute_step_return(
 
     # Reward: Action rate at target
     WEIGHT_ACTION_RATE_AT_TARGET = 128.0
-    TANH_STD_ACTION_RATE_AT_TARGET = 0.25
+    TANH_STD_ACTION_RATE_AT_TARGET = 0.1
     reward_action_rate_at_target = (
         WEIGHT_ACTION_RATE_AT_TARGET
         * _orientation_tracking_precision

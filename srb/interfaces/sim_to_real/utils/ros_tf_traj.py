@@ -748,7 +748,7 @@ def main():
     traj_cfg = RosTfTrajectoryGeneratorCfg(
         pattern=pattern_cfg,
         n_loops=-1,
-        velocity=0.02,
+        velocity=0.1,
         rate=20.0,
     )
 

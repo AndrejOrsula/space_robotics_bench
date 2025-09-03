@@ -1,4 +1,7 @@
+import logging
+import os
 from dataclasses import MISSING
+from datetime import datetime
 from typing import Sequence
 
 import torch
@@ -20,6 +23,7 @@ from srb.core.env import (
     ManipulationEnvCfg,
     ManipulationEventCfg,
     ManipulationSceneCfg,
+    ViewerCfg,
 )
 from srb.core.sensor import ContactSensor
 from srb.core.sim import PyramidParticlesSpawnerCfg
@@ -74,7 +78,7 @@ class TaskCfg(ManipulationEnvCfg):
 
     ## Time
     env_rate: float = 1.0 / 250.0
-    episode_length_s: float = 15.0
+    episode_length_s: float = 10.0
     is_finite_horizon: bool = True
 
     ## Particles
@@ -85,6 +89,15 @@ class TaskCfg(ManipulationEnvCfg):
 
     ## Assemblies (dynamic joints)
     assemble_rigid_end_effector: bool = False
+
+    ## Viewer
+    viewer: ViewerCfg = ViewerCfg(
+        eye=(2.5, 0.0, 2.5), lookat=(0.5, 0.0, 0.5), origin_type="env"
+    )
+
+    ## Metrics
+    metrics: bool = True
+    # _metrics_dir: str = "logs/metrics/excavation"
 
     def __post_init__(self):
         super().__post_init__()
@@ -107,6 +120,15 @@ class TaskCfg(ManipulationEnvCfg):
             0.0,
             0.05 + 0.08 * self.spacing,
         )
+
+        # Metrics
+        if self.metrics:
+            tool_name = "none"
+            if self._robot.end_effector is not None:
+                tool_name = self._robot.end_effector.__class__.__name__.lower()
+            self.metrics_dir = os.path.join(
+                "logs/metrics/excavation", f"tool_{tool_name}_{self.seed}"
+            )
 
         # Async particle updates
         self._particle_update_interval_n_steps: int = round(
@@ -152,6 +174,32 @@ class Task(ManipulationEnv):
             device=self.device,
         )
 
+        # Metrics
+        if self.cfg.metrics:
+            self._metrics_is_first_step = True
+            # Excavated regolith
+            self._metric_excavated_regolith = torch.zeros(
+                self.num_envs, dtype=torch.float32, device=self.device
+            )
+            # Generated dust
+            self._metric_generated_dust = torch.zeros(
+                self.num_envs, dtype=torch.float32, device=self.device
+            )
+            # Control smoothness
+            self._previous_joint_acc_robot = torch.zeros_like(
+                self._robot.data.joint_acc
+            )
+            self._metric_control_smoothness = torch.zeros(
+                self.num_envs, dtype=torch.float32, device=self.device
+            )
+            # Logging
+            log_filename = f"metrics_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.csv"
+            self._log_file = os.path.join(self.cfg.metrics_dir, log_filename)
+            if not os.path.exists(self.cfg.metrics_dir):
+                os.makedirs(self.cfg.metrics_dir)
+            with open(self._log_file, "w") as f:
+                f.write("datetime,excavated_volume,generated_dust,control_smoothness\n")
+
     def _reset_idx(self, env_ids: Sequence[int]):
         ## Reset particles
         if not hasattr(self, self.INITIAL_PARTICLE_POS_IDENT):
@@ -181,6 +229,13 @@ class Task(ManipulationEnv):
                 self, self.INITIAL_PARTICLE_VEL_IDENT
             )[env_ids]
 
+        # Metrics
+        if self.cfg.metrics:
+            self._metrics_is_first_step = True
+            self._metric_excavated_regolith[env_ids] = 0.0
+            self._metric_generated_dust[env_ids] = 0.0
+            self._metric_control_smoothness[env_ids] = 0.0
+
         super()._reset_idx(env_ids)
 
     def extract_step_return(self) -> StepReturn:
@@ -195,7 +250,7 @@ class Task(ManipulationEnv):
             )
             self._particle_update_counter = self.cfg._particle_update_interval_n_steps
 
-        return _compute_step_return(
+        step_return = _compute_step_return(
             ## Time
             episode_length=self.episode_length_buf,
             max_episode_length=self.max_episode_length,
@@ -240,6 +295,76 @@ class Task(ManipulationEnv):
             particles_vel=self._cached_particles_vel,
             particles_initial_mean_pos=self._initial_particle_mean_pos,
         )
+
+        # Update metrics
+        if self.cfg.metrics:
+            if self._metrics_is_first_step:
+                # Skip metric computation on the first step after reset
+                self._metrics_is_first_step = False
+            else:
+                # Excavated regolith
+                # Note: this is an approximation of the excavated volume at the end of the episode
+                stabilized_particles = (
+                    torch.abs(
+                        self._cached_particles_pos[:, :, 2]
+                        - self._initial_particle_mean_pos[:, 2].unsqueeze(1)
+                        - 0.5  # HEIGHT_OFFSET_PARTICLE_LIFT
+                    )
+                    < 0.4  # HEIGHT_SPAN_PARTICLE_LIFT
+                ).float() * (
+                    1.0
+                    - torch.tanh(
+                        torch.linalg.norm(self._cached_particles_vel, dim=-1)
+                        / 0.1  # TANH_STD_STABILIZATION_VELOCITY
+                    )
+                )
+                # particle_volume = (4 / 3) * torch.pi * (self.cfg.particles_size / 2) ** 3
+                particle_volume = self.cfg.particles_size**3
+                self._metric_excavated_regolith = (
+                    torch.sum(stabilized_particles, dim=1) * particle_volume
+                )
+
+                # Generated dust
+                DUST_VELOCITY_THRESHOLD = 0.01
+                particles_vel_norm = torch.linalg.norm(
+                    self._cached_particles_vel, dim=-1
+                )
+                self._metric_generated_dust += torch.mean(
+                    (particles_vel_norm > DUST_VELOCITY_THRESHOLD).float(), dim=1
+                )
+
+                # Control smoothness
+                joint_jerk_robot = (
+                    self._robot.data.joint_acc - self._previous_joint_acc_robot
+                ) / self.cfg.agent_rate
+                self._metric_control_smoothness += torch.mean(
+                    torch.square(joint_jerk_robot), dim=1
+                )
+
+                # Log metrics to file on episode end
+                terminated_env_ids = torch.where(
+                    step_return.truncation | step_return.termination
+                )[0]
+                if len(terminated_env_ids) > 0:
+                    excavated_volume = self._metric_excavated_regolith[
+                        terminated_env_ids
+                    ]
+                    generated_dust = self._metric_generated_dust[terminated_env_ids]
+                    control_smoothness = self._metric_control_smoothness[
+                        terminated_env_ids
+                    ] / (self.episode_length_buf[terminated_env_ids].float() + 1)
+
+                    with open(self._log_file, "a") as f:
+                        for i in range(len(terminated_env_ids)):
+                            f.write(
+                                f"{datetime.now().isoformat()},{excavated_volume[i].item()},{generated_dust[i].item()},{control_smoothness[i].item()}\n"
+                            )
+                    logging.info(
+                        f"Env IDs {terminated_env_ids.tolist()} - Excavated volume: {excavated_volume.cpu().numpy()}, Generated dust: {generated_dust.cpu().numpy()}, Control smoothness: {control_smoothness.cpu().numpy()}"
+                    )
+            self._previous_joint_acc_robot = self._robot.data.joint_acc.clone()
+
+        return step_return
 
 
 @torch.jit.script

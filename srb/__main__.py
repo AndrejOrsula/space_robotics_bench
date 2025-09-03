@@ -118,10 +118,12 @@ def run_agent_with_env(
     # Update the offline registry cache
     update_offline_srb_cache()
 
+    from datetime import datetime
+
     from omni.physx import acquire_physx_interface
 
     from srb.interfaces.teleop import EventOmniKeyboardTeleopInterface
-    from srb.utils.cfg import last_logdir, new_logdir
+    from srb.utils.cfg import DEFAULT_DATETIME_FORMAT, last_logdir, new_logdir
     from srb.utils.hydra.sim import hydra_task_config
     from srb.utils.isaacsim import hide_isaacsim_ui
 
@@ -159,9 +161,18 @@ def run_agent_with_env(
         logdir = new_logdir(env_id=env_id, workflow=workflow, root=logdir_root)
 
     # Update Hydra output directory
-    if not any(arg.startswith("hydra.run.dir=") for arg in forwarded_args):
-        sys.argv.extend([f"hydra.run.dir={logdir.as_posix()}"])
     maybe_config_path = Path(logdir).joinpath(".hydra", "config.yaml").resolve()
+    if not any(arg.startswith("hydra.run.dir=") for arg in forwarded_args):
+        if agent_subcommand in ("eval", "teleop") and kwargs["algo"]:
+            sys.argv.extend([f"hydra.run.dir={logdir.joinpath('eval').as_posix()}"])
+            if maybe_config_path.exists():
+                eval_hydra_dir = logdir.joinpath("eval").joinpath(".hydra")
+                os.makedirs(eval_hydra_dir, exist_ok=True)
+                shutil.copytree(
+                    maybe_config_path.parent, eval_hydra_dir, dirs_exist_ok=True
+                )
+        else:
+            sys.argv.extend([f"hydra.run.dir={logdir.as_posix()}"])
 
     @hydra_task_config(
         task_name=env_id,
@@ -183,9 +194,12 @@ def run_agent_with_env(
         if video_enable:
             env = gymnasium.wrappers.RecordVideo(
                 env,
-                video_folder=logdir.joinpath("videos").as_posix(),
+                video_folder=logdir.joinpath("videos")
+                .joinpath(datetime.now().strftime(DEFAULT_DATETIME_FORMAT))
+                .as_posix(),
                 name_prefix=env_id.rsplit("/", 1)[-1],
                 disable_logger=True,
+                episode_trigger=lambda _: True,
             )
 
         # Add wrapper for performance tests

@@ -15,6 +15,8 @@ from srb.utils.path import SRB_LOGS_DIR
 if TYPE_CHECKING:
     from srb._typing import AnyEnvCfg
 
+DEFAULT_DATETIME_FORMAT = "%Y%m%dT%H%M%S"
+
 SUPPORTED_FRAMEWORKS = {
     "dreamer": {"multi_algo": False},
     "sb3": {"multi_algo": True},
@@ -115,7 +117,7 @@ def load_cfg_from_registry(
     return cfg  # type: ignore
 
 
-def stamp_dir(directory: Path, timestamp_format: str = "%Y%m%d_%H%M%S") -> Path:
+def stamp_dir(directory: Path, timestamp_format: str = DEFAULT_DATETIME_FORMAT) -> Path:
     return directory.joinpath(datetime.datetime.now().strftime(timestamp_format))
 
 
@@ -123,7 +125,7 @@ def new_logdir(
     env_id: str,
     workflow: str,
     root: Path = SRB_LOGS_DIR,
-    timestamp_format: str = "%Y%m%d_%H%M%S",
+    timestamp_format: str = DEFAULT_DATETIME_FORMAT,
     namespace: str = "srb",
 ) -> Path:
     return stamp_dir(

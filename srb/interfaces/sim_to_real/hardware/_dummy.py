@@ -47,6 +47,13 @@ class DummyInterface(HardwareInterface):
                 (0.2, 0.8),
                 dtype=numpy.float32,
             ),
+            "proprio/fk_pos_end_effector": numpy.random.rand(3).astype(numpy.float32),
+            "proprio/fk_rot6d_end_effector": numpy.random.rand(6).astype(numpy.float32),
+            "proprio_dyn/joint_pos_robot_normalized": numpy.random.rand(7).astype(
+                numpy.float32
+            ),
+            "image_wrist": (numpy.random.rand(128, 128, 1) * 255).astype(numpy.uint8),
+            "image_base": (numpy.random.rand(128, 128, 1) * 255).astype(numpy.uint8),
         }
         self.rew = numpy.random.random()
         self.term = numpy.random.random() < (0.001 * self.step_counter)
@@ -61,7 +68,10 @@ class DummyInterface(HardwareInterface):
             {
                 "robot/wheeled_drive": gymnasium.spaces.Box(
                     low=-1.0, high=1.0, shape=(2,), dtype=numpy.float32
-                )
+                ),
+                "robot/operational_space_controller": gymnasium.spaces.Box(
+                    low=-1.0, high=1.0, shape=(18,), dtype=numpy.float32
+                ),
             }
         )
 
@@ -78,16 +88,7 @@ class DummyInterface(HardwareInterface):
         ) or self._action_scale.get("robot/wheeled_drive", 1.0)
 
     def apply_action(self, action: Dict[str, numpy.ndarray]):
-        assert "robot/wheeled_drive" in action.keys() and action[
-            "robot/wheeled_drive"
-        ].shape == (2,)
-
-        act_linear = self.action_scale_linear * action["robot/wheeled_drive"][0]
-        act_angular = self.action_scale_angular * action["robot/wheeled_drive"][1]
-
-        logging.debug(
-            f'[{self.name}] Applying action: {{"act_linear": {act_linear}, "act_angular": {act_angular}}}'
-        )
+        logging.debug(f"[{self.name}] Applying action: {action}")
 
     @property
     def observation(self) -> Dict[str, numpy.ndarray]:

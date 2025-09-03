@@ -42,12 +42,15 @@ class RealEnv(gymnasium.Env):
 
     # TODO[mid]: Explore better options for rate limiting
     LIMIT_RATE: ClassVar[bool] = True
+    MEASURE_PERFORMANCE: ClassVar[bool] = not LIMIT_RATE
 
     _HOT_START_DURATION: ClassVar[float] = 5.0
     _HOT_START_ITERATIONS: ClassVar[int] = 10
     _MIN_SLEEP_DURATION: ClassVar[float] = 1.0 / 1000.0
     _PAUSE_SLEEP_DURATION: ClassVar[float] = 1.0 / 100.0
     _FREQ_EST_EMA_ALPHA: ClassVar[float] = 0.9
+    _PERF_LOG_INTERVAL_S: ClassVar[float] = 10.0
+    _PERF_LOG_INTERVAL_STEPS: ClassVar[int] = 100
 
     def __init__(
         self,
@@ -198,13 +201,48 @@ class RealEnv(gymnasium.Env):
         }
 
         # Misc
-        self._is_running: bool = False
+        self._is_running: bool = True
         self._extract_duration_ema: float = 0.0
+        self._last_step_time: float = 0.0
+        self._step_freq_ema: float = 0.0
+        self._perf_log_last_time: float = 0.0
+        self._perf_log_last_step: int = 0
+        self._step_count: int = 0
 
     def step(
         self,
         action: numpy.ndarray | torch.Tensor | Dict[str, numpy.ndarray | torch.Tensor],
     ) -> Tuple[Dict[str, numpy.ndarray], SupportsFloat, bool, bool, Dict[str, Any]]:
+        # Measure performance
+        if self.MEASURE_PERFORMANCE:
+            current_time = time.time()
+            if self._last_step_time > 0:
+                step_duration = current_time - self._last_step_time
+                if step_duration > 0:
+                    step_freq = 1.0 / step_duration
+                    self._step_freq_ema = (
+                        self._FREQ_EST_EMA_ALPHA * self._step_freq_ema
+                        + (1.0 - self._FREQ_EST_EMA_ALPHA) * step_freq
+                    )
+            self._step_count += 1
+
+            # Log performance
+            if (
+                current_time - self._perf_log_last_time > self._PERF_LOG_INTERVAL_S
+                and self._step_count - self._perf_log_last_step
+                > self._PERF_LOG_INTERVAL_STEPS
+            ):
+                if self._step_freq_ema > 0:
+                    latency_ms = (1.0 / self._step_freq_ema) * 1000
+                    logging.info(
+                        f"Controller frequency: {self._step_freq_ema:.2f} Hz "
+                        f"({latency_ms:.2f} ms)"
+                    )
+                else:
+                    logging.info(f"Controller frequency: {self._step_freq_ema:.2f} Hz")
+                self._perf_log_last_time = current_time
+                self._perf_log_last_step = self._step_count
+
         # Handle pause and resume signals
         if self._is_running:
             for hw in self._src_pause:
@@ -306,6 +344,10 @@ class RealEnv(gymnasium.Env):
                 terminated = True
                 break
         info: Dict[str, Any] = {hw.name: hw.info for hw in self._hardware}
+        if self.MEASURE_PERFORMANCE:
+            info["controller_freq"] = self._step_freq_ema
+            if self._step_freq_ema > 0:
+                info["controller_latency_ms"] = (1.0 / self._step_freq_ema) * 1000
         if self.LIMIT_RATE:
             self._extract_duration_ema = (
                 self._FREQ_EST_EMA_ALPHA * self._extract_duration_ema
@@ -317,6 +359,9 @@ class RealEnv(gymnasium.Env):
             logging.info("Resetting environment due to termination")
             self.reset()
 
+        if self.MEASURE_PERFORMANCE:
+            self._last_step_time = time.time()
+
         return observation, reward, terminated, False, info
 
     def reset(self, **kwargs) -> Tuple[Dict[str, numpy.ndarray], Dict[str, Any]]:
@@ -325,6 +370,13 @@ class RealEnv(gymnasium.Env):
         # Reset all hardware interfaces
         for hw in self._hardware:
             hw.reset()
+
+        # Reset performance metrics
+        self._last_step_time = 0.0
+        self._step_freq_ema = 0.0
+        self._perf_log_last_time = 0.0
+        self._perf_log_last_step = 0
+        self._step_count = 0
 
         # Extract initial observations
         observation = self._build_observation_structure()
@@ -476,7 +528,9 @@ class RealEnv(gymnasium.Env):
         obs_dict: Dict[str, Dict[str, numpy.ndarray]],
     ) -> Dict[str, numpy.ndarray]:
         return {
-            obs_cat: numpy.concatenate(
+            obs_cat: obs_group
+            if isinstance(obs_group, numpy.ndarray)
+            else numpy.concatenate(
                 [
                     obs_group[obs_key].reshape((-1,))
                     for obs_key in sorted(obs_group.keys())

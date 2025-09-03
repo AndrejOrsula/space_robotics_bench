@@ -191,7 +191,7 @@ class EmbodiedEnvWrapper(embodied.Env):
         if isinstance(_first_obs, torch.Tensor):
             obs = {k: v.detach().cpu() for k, v in obs.items()}  # type: ignore
 
-        if self._num_envs == 1 and _first_obs.ndim == 1:
+        if self._num_envs == 1 and _first_obs.shape[0] != 1:
             obs = {k: v.reshape((1, *v.shape)) for k, v in obs.items()}
 
         obs.update(

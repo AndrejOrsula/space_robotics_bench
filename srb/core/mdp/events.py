@@ -248,6 +248,7 @@ def offset_pose_natural(
     pos_axes: Sequence[str],
     pos_step_range: Tuple[float, float],
     pos_smoothness: float,
+    pos_step_smoothness: float,
     pos_bounds: Dict[str, Tuple[float, float]],
     orient_yaw_only: bool,
     orient_smoothness: float,
@@ -261,6 +262,7 @@ def offset_pose_natural(
         pos_axes: Which position axes to apply movement to (e.g., ["x", "y"])
         pos_step_range: Range of position step sizes per update
         pos_smoothness: Value between 0-1 controlling continuity of movement (higher = smoother)
+        pos_step_smoothness: Value between 0-1 controlling continuity of velocity (higher = smoother)
         pos_bounds: Dictionary of position bounds for each axis
         orient_yaw_only: If True, only the yaw of the orientation will be updated to match the direction of movement.
         orient_smoothness: Value between 0-1 controlling continuity of orientation (higher = smoother)
@@ -285,11 +287,27 @@ def offset_pose_natural(
         p=2,
         dim=1,
     )
-    pos_step_sizes = sample_uniform(
+
+    # -- Handle Velocity --
+    step_size_state_key = f"__{env_attr_name}_natural_movement_step_sizes"
+    if not hasattr(_env, step_size_state_key):
+        pos_step_sizes = sample_uniform(
+            pos_step_range[0], pos_step_range[1], (_env.num_envs,), device=_env.device
+        )
+        setattr(_env, step_size_state_key, pos_step_sizes)
+
+    last_pos_step_sizes = getattr(_env, step_size_state_key)[env_ids]
+    new_random_step = sample_uniform(
         pos_step_range[0], pos_step_range[1], (len(env_ids),), device=_env.device
     )
+    pos_step_sizes = (
+        pos_step_smoothness * last_pos_step_sizes
+        + (1 - pos_step_smoothness) * new_random_step
+    )
+
     delta_pos = pos_velocities * pos_step_sizes.unsqueeze(1)
     getattr(_env, pos_state_key)[env_ids] = pos_velocities
+    getattr(_env, step_size_state_key)[env_ids] = pos_step_sizes
 
     # -- Apply changes --
     pose_attr = getattr(env, env_attr_name)

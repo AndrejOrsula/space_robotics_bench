@@ -9,7 +9,13 @@ from srb import assets
 from srb._typing import StepReturn
 from srb.core.action import ThrustAction  # noqa: F401
 from srb.core.asset import AssetVariant, ExtravehicularScenery, MobileRobot
-from srb.core.env import OrbitalEnv, OrbitalEnvCfg, OrbitalEventCfg, OrbitalSceneCfg
+from srb.core.env import (
+    OrbitalEnv,
+    OrbitalEnvCfg,
+    OrbitalEventCfg,
+    OrbitalSceneCfg,
+    ViewerCfg,
+)
 from srb.core.manager import EventTermCfg, SceneEntityCfg  # noqa: F401
 from srb.core.marker import VisualizationMarkers, VisualizationMarkersCfg
 from srb.core.mdp import apply_external_force_torque, offset_pose_natural  # noqa: F401
@@ -17,8 +23,6 @@ from srb.core.sim import ArrowCfg, PreviewSurfaceCfg
 from srb.utils import logging
 from srb.utils.cfg import configclass
 from srb.utils.math import matrix_from_quat, rotmat_to_rot6d, subtract_frame_transforms
-
-from srb.core.env import ViewerCfg
 
 ##############
 ### Config ###
@@ -41,7 +45,8 @@ class EventCfg(OrbitalEventCfg):
             "env_attr_name": "_goal",
             "pos_axes": ("x", "y", "z"),
             "pos_step_range": (0.01, 0.1),
-            "pos_smoothness": 0.99,
+            "pos_smoothness": 0.96,
+            "pos_step_smoothness": 0.8,
             "pos_bounds": {
                 "x": MISSING,
                 "y": MISSING,
@@ -83,6 +88,8 @@ class TaskCfg(OrbitalEnvCfg):
     events: EventCfg = EventCfg()
 
     ## Time
+    env_rate: float = 1.0 / 40.0
+    agent_rate: float = 1.0 / 10.0
     episode_length_s: float = 60.0
     is_finite_horizon: bool = True
 
@@ -103,7 +110,10 @@ class TaskCfg(OrbitalEnvCfg):
 
     ## Viewer
     viewer: ViewerCfg = ViewerCfg(
-        eye=(5.0, -5.0, 5.0), lookat=(0.0, 0.0, 0.0), origin_type="asset_root", asset_name="robot"
+        eye=(5.0, -5.0, 5.0),
+        lookat=(0.0, 0.0, 0.0),
+        origin_type="asset_root",
+        asset_name="robot",
     )
 
     def __post_init__(self):
@@ -282,11 +292,11 @@ def _compute_step_return(
     #         tf_pos_robot_to_target[..., 0] / (dist_robot_to_target + 1.0e-6), -1.0, 1.0
     #     )
     # )
-    # Angle of the relative orientation between the robot and the target
-    trace = torch.einsum("...ii->...", tf_rotmat_robot_to_target)
-    angle_robot_to_target_orient = torch.acos(
-        torch.clamp((trace - 1.0) / 2.0, -1.0, 1.0)
-    )
+    # # Angle of the relative orientation between the robot and the target
+    # trace = torch.einsum("...ii->...", tf_rotmat_robot_to_target)
+    # angle_robot_to_target_orient = torch.acos(
+    #     torch.clamp((trace - 1.0) / 2.0, -1.0, 1.0)
+    # )
 
     # ## Fuel
     # remaining_fuel = (
@@ -302,6 +312,11 @@ def _compute_step_return(
     WEIGHT_ACTION_RATE = -16.0
     _action_rate = torch.mean(torch.square(act_current - act_previous), dim=1)
     penalty_action_rate = WEIGHT_ACTION_RATE * _action_rate
+
+    # Penalty: Action magnitude
+    WEIGHT_ACTION_MAGNITUDE = -16.0
+    _action_magnitude = torch.mean(torch.square(act_current), dim=1)
+    penalty_action_magnitude = WEIGHT_ACTION_MAGNITUDE * _action_magnitude
 
     # # Penalty: Fuel consumption
     # WEIGHT_FUEL_CONSUMPTION = -8.0
@@ -339,12 +354,14 @@ def _compute_step_return(
 
     # Reward: Target orientation tracking once position is reached | Robot <--> Target
     WEIGHT_ORIENTATION_TRACKING = 64.0
-    TANH_STD_ORIENTATION_TRACKING = 0.2618  # 15 deg
+    TANH_STD_ORIENTATION_TRACKING = 0.2
+    orientation_error = torch.linalg.matrix_norm(
+        tf_rotmat_robot_to_target
+        - torch.eye(3, device=device).unsqueeze(0).expand_as(tf_rotmat_robot_to_target),
+        ord="fro",
+    )
     _orientation_tracking_precision = _position_tracking_precision * (
-        1.0
-        - torch.tanh(
-            torch.abs(angle_robot_to_target_orient) / TANH_STD_ORIENTATION_TRACKING
-        )
+        1.0 - torch.tanh(orientation_error / TANH_STD_ORIENTATION_TRACKING)
     )
     reward_orientation_tracking = (
         WEIGHT_ORIENTATION_TRACKING * _orientation_tracking_precision
@@ -352,7 +369,7 @@ def _compute_step_return(
 
     # Reward: Action rate at target
     WEIGHT_ACTION_RATE_AT_TARGET = 128.0
-    TANH_STD_ACTION_RATE_AT_TARGET = 0.1
+    TANH_STD_ACTION_RATE_AT_TARGET = 0.2
     reward_action_rate_at_target = (
         WEIGHT_ACTION_RATE_AT_TARGET
         * _orientation_tracking_precision
@@ -388,6 +405,7 @@ def _compute_step_return(
         },
         {
             "penalty_action_rate": penalty_action_rate,
+            "penalty_action_magnitude": penalty_action_magnitude,
             # "penalty_fuel_consumption": penalty_fuel_consumption,
             "penalty_position_tracking": penalty_position_tracking,
             # "reward_point_towards_target": reward_point_towards_target,

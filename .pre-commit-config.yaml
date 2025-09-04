@@ -84,5 +84,5 @@ repos:
     rev: v2.4.1
     hooks:
       - id: codespell
-        args: ["--ignore-words-list", "crate,HAA"]
+        args: ["--ignore-words-list", "crate,HAA,fro"]
         exclude: cliff.toml

@@ -182,14 +182,15 @@ def run_agent_with_env(
         # Add wrapper for video recording
         if video_enable:
             from datetime import datetime
+
             env = gymnasium.wrappers.RecordVideo(
                 env,
-                video_folder=logdir.joinpath("videos").joinpath(
-                    datetime.now().strftime("%Y%m%d_%H%M%S")
-                ).as_posix(),
+                video_folder=logdir.joinpath("videos")
+                .joinpath(datetime.now().strftime("%Y%m%d_%H%M%S"))
+                .as_posix(),
                 name_prefix=env_id.rsplit("/", 1)[-1],
                 disable_logger=True,
-                episode_trigger= lambda _: True,  
+                # episode_trigger=lambda _: True,
             )
 
         # Add wrapper for performance tests

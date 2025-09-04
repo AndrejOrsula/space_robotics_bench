@@ -99,10 +99,10 @@ class TaskCfg(OrbitalEnvCfg):
         prim_path="/Visuals/target",
         markers={
             "target": ArrowCfg(
-                tail_radius=0.025,
-                tail_length=0.5,
-                head_radius=0.1,
-                head_length=0.2,
+                tail_radius=0.01,
+                tail_length=0.25,
+                head_radius=0.05,
+                head_length=0.1,
                 visual_material=PreviewSurfaceCfg(emissive_color=(0.2, 0.2, 0.8)),
             )
         },

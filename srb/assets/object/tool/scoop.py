@@ -28,7 +28,6 @@ class Scoop(Tool):
         ),
     )
     asset_cfg.spawn.assets[0].geo.ops[0].mount_radius = 0.0375  # type: ignore
-    asset_cfg.spawn.assets[0].mat = simforge_foundry.SmoothMetalMat()  # type: ignore
 
     ## Frames
     frame_mount: Frame = Frame(prim_relpath="scoop_random")

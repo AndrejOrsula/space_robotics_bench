@@ -392,7 +392,7 @@ def _compute_step_return(
         {
             "state": {
                 "act_previous": act_previous,
-                "tf_rot6d_robot": tf_rot6d_robot,
+                # "tf_rot6d_robot": tf_rot6d_robot,
                 "vel_lin_robot": vel_lin_robot,
                 "vel_ang_robot": vel_ang_robot,
                 "tf_pos_robot_to_target": tf_pos_robot_to_target,

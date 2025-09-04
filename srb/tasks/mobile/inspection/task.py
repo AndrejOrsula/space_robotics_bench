@@ -354,7 +354,7 @@ def _compute_step_return(
 
     # Reward: Target orientation tracking once position is reached | Robot <--> Target
     WEIGHT_ORIENTATION_TRACKING = 64.0
-    TANH_STD_ORIENTATION_TRACKING = 0.2
+    TANH_STD_ORIENTATION_TRACKING = 0.25
     orientation_error = torch.linalg.matrix_norm(
         tf_rotmat_robot_to_target
         - torch.eye(3, device=device).unsqueeze(0).expand_as(tf_rotmat_robot_to_target),
@@ -392,7 +392,7 @@ def _compute_step_return(
         {
             "state": {
                 "act_previous": act_previous,
-                # "tf_rot6d_robot": tf_rot6d_robot,
+                "tf_rot6d_robot": tf_rot6d_robot,
                 "vel_lin_robot": vel_lin_robot,
                 "vel_ang_robot": vel_ang_robot,
                 "tf_pos_robot_to_target": tf_pos_robot_to_target,

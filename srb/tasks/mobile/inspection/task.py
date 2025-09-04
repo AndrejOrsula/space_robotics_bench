@@ -110,7 +110,7 @@ class TaskCfg(OrbitalEnvCfg):
 
     ## Viewer
     viewer: ViewerCfg = ViewerCfg(
-        eye=(5.0, -5.0, 5.0),
+        eye=(3.0, -3.0, 3.0),
         lookat=(0.0, 0.0, 0.0),
         origin_type="asset_root",
         asset_name="robot",
@@ -391,6 +391,7 @@ def _compute_step_return(
     return StepReturn(
         {
             "state": {
+                "act_previous": act_previous,
                 "tf_rot6d_robot": tf_rot6d_robot,
                 "vel_lin_robot": vel_lin_robot,
                 "vel_ang_robot": vel_ang_robot,

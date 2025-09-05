@@ -1,4 +1,4 @@
-n_timesteps: 200000000
+n_timesteps: 300000000
 policy: "MultiInputPolicy"
 batch_size: 1024
 clip_range: 0.1

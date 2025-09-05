@@ -1,6 +1,6 @@
 ### Training ###
 run:
-  steps: 200000000
+  steps: 30000000
   train_ratio: 16.0
 replay:
   size: 5000000

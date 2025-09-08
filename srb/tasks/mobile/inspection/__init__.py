@@ -6,7 +6,7 @@ from .task_visual import VisualTask, VisualTaskCfg
 BASE_TASK_NAME = __name__.split(".")[-1]
 register_srb_tasks(
     {
-        BASE_TASK_NAME: {},
+        BASE_TASK_NAME: {"task_cfg": VisualTaskCfg},
         f"{BASE_TASK_NAME}_visual": {
             "entry_point": VisualTask,
             "task_cfg": VisualTaskCfg,

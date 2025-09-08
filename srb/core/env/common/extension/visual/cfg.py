@@ -22,7 +22,7 @@ class VisualExtCfg:
 
     ## Camera sensors
     cameras_cfg: Dict[str, CameraCfg] = MISSING  # type: ignore
-    camera_resolution: Tuple[int, int] | None = (64, 64)
+    camera_resolution: Tuple[int, int] | None = (128, 128)
     camera_update_period: float = -1.0
     camera_data_types: (
         Sequence[
@@ -46,7 +46,7 @@ class VisualExtCfg:
             ]
         ]
         | None
-    ) = ("rgb", "depth")
+    ) = ("rgb", )
 
     def wrap(self, env_cfg: "AnyEnvCfg"):
         ## Add camera sensors to the scene

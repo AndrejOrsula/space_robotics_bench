@@ -1,4 +1,4 @@
-n_timesteps: 100000000
+n_timesteps: 150000000
 policy: "MultiInputPolicy"
 batch_size: 512
 buffer_size: 5000000

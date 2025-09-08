@@ -31,3 +31,9 @@ class PinnedArrowCfg(PinCfg, ArrowCfg):
 @configclass
 class PinnedSphereCfg(PinCfg, SphereCfg):
     func: Callable = impl.spawn_pinned_sphere
+
+@configclass
+class SphereCfg(ShapeCfg):
+    func: Callable = impl.spawn_sphere
+    radius: float = MISSING  # type: ignore
+

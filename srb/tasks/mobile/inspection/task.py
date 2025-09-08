@@ -183,7 +183,7 @@ class Task(OrbitalEnv):
                         nanoseconds=0,
                     ),
                 )
-                logging.info(
+                logging.debug(
                     f"Got transform from 'srb/env0' to 'srb/env0/robot': {tf_stamped}"
                 )
                 # self._goal = ... (target transform)

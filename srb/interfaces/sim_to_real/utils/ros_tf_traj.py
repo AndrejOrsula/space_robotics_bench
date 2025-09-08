@@ -693,12 +693,12 @@ def main():
     # Option 1: Explicitly set the values
     pattern_cfg = CapsulePatternCfg(
         length=10.0,  # Use your desired larger length
-        radius=2.0,   # Use your desired larger radius
+        radius=2.0,  # Use your desired larger radius
         direction="counter-clockwise",
         initial_pos=numpy.array([0.0, 0.0, 1.0], dtype=numpy.float32),
         initial_quat_wxyz=yaw_to_quat_wxyz(0.0, deg=True),
     )
-    
+
     # Option 2: Use class defaults
     # pattern_cfg = CapsulePatternCfg(
     #     direction="counter-clockwise",
@@ -748,7 +748,7 @@ def main():
     traj_cfg = RosTfTrajectoryGeneratorCfg(
         pattern=pattern_cfg,
         n_loops=-1,
-        velocity=0.1,
+        velocity=0.25,
         rate=20.0,
     )
 

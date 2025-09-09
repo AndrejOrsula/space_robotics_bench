@@ -1,5 +1,6 @@
 from dataclasses import MISSING
 from typing import Sequence
+from srb.utils.math import rpy_to_quat
 
 import torch
 from rclpy.time import Duration, Time
@@ -100,7 +101,8 @@ class TaskCfg(OrbitalEnvCfg):
     scenery: ExtravehicularScenery | MobileRobot | AssetVariant | None = (
         assets.Gateway()
     )
-    scenery.asset_cfg.init_state.pos = (0.0, 1.0, -5.0)
+    scenery.asset_cfg.init_state.pos = (0.0, 7.0, -10.0)
+    scenery.asset_cfg.init_state.quat = rpy_to_quat(0.0, 0.0, 90.0)
     # TODO: Re-enable collisions with the scenery
     scenery.asset_cfg.spawn.collision_props.collision_enabled = False  # type: ignore
     scenery.asset_cfg.spawn.mesh_collision_props.mesh_approximation = None  # type: ignore
@@ -197,11 +199,14 @@ class Task(OrbitalEnv):
         self._episode_frames = defaultdict(lambda: deque())  # Store frames for each camera
         self._episode_counter = 0
         self._video_fps = 10  # Target FPS for videos (matches agent_rate of 10Hz)
+        self._debug_img = False  # Whether to save individual images for debugging
 
         if not CV2_AVAILABLE and (kwargs.get('enable_cameras', False) or kwargs.get('video', False)):
             print("Warning: Video recording requested but opencv-python not available. Install with: pip install opencv-python")
         else:
             print(f"Video recording enabled: {self._video_enabled}")
+            self.videos_dir = SRB_LOGS_DIR.joinpath("oc_videos").joinpath(f"{datetime.now().strftime('%Y%m%d_%H%M%S')}")
+            self.videos_dir.mkdir(parents=True, exist_ok=True)
 
     def _reset_idx(self, env_ids: Sequence[int]):
         super()._reset_idx(env_ids)
@@ -264,7 +269,7 @@ class Task(OrbitalEnv):
             
             # Optional: Still save individual images for debugging (less frequent)
             save_every = 100
-            if self.episode_length_buf[0] % save_every == 0:
+            if self._debug_img and self.episode_length_buf[0] % save_every == 0:
                 for image_key, image in images.items():
                     file_path = SRB_LOGS_DIR.joinpath(f"inspection_{image_key}_{self.episode_length_buf[0]}.png").as_posix()
                     print(f"Saving debug image to {file_path}")
@@ -286,14 +291,12 @@ class Task(OrbitalEnv):
         if not self._episode_frames or not CV2_AVAILABLE:
             return
 
-        videos_dir = SRB_LOGS_DIR.joinpath("oc_videos")
-        videos_dir.mkdir(parents=True, exist_ok=True)
 
         for image_key, frames in self._episode_frames.items():
             if len(frames) == 0:
                 continue
 
-            video_path = videos_dir / f"inspection_episode_{self._episode_counter}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp4"
+            video_path = self.videos_dir / f"inspection_episode_{self._episode_counter}.mp4"
             print(f"Saving video to {video_path} ({len(frames)} frames)")
             
             # Get frame dimensions
@@ -325,7 +328,6 @@ class Task(OrbitalEnv):
             try:
                 tf_stamped = self.tf_buffer.lookup_transform(
                     "srb/env0",
-                    # "srb/env0/robot",
                     "target",
                     Time(),
                     timeout=Duration(
@@ -334,7 +336,7 @@ class Task(OrbitalEnv):
                     ),
                 )
                 logging.debug(
-                    f"Got transform from 'srb/env0' to 'srb/env0/robot': {tf_stamped}"
+                    f"Got transform from 'srb/env0' to 'target': {tf_stamped}"
                 )
                 # self._goal = ... (target transform)
                 self._goal[:, 0] = tf_stamped.transform.translation.x
@@ -346,7 +348,7 @@ class Task(OrbitalEnv):
                 self._goal[:, 6] = tf_stamped.transform.rotation.z
             except Exception as e:
                 logging.warning(
-                    f"Failed to get transform from 'srb/env0' to 'srb/env0/robot': {e}"
+                    f"Failed to get transform from 'srb/env0' to 'target': {e}"
                 )
 
         # get the camera images

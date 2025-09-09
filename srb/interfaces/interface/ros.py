@@ -287,7 +287,7 @@ class RosInterface(InterfaceBase):
                 )
 
         ## Publish sensor data (all scene sensors)
-        self._publish_sensor_data(time_msg)
+        # self._publish_sensor_data(time_msg)
 
         ## Process async requests
         for request, kwargs in self._async_exec_queue.items():

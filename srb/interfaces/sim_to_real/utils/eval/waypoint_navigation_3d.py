@@ -442,6 +442,7 @@ def _plot_3d_trajectories_with_confidence(grouped_results: Dict, output_dir: Pat
         ax.set_xlabel("X (m)")
         ax.set_ylabel("Y (m)")
         ax.set_zlabel("Z (m)")
+        ax.set_box_aspect([1,1,1])  # Equal aspect ratio for all axes
         ax.legend()
         ax.set_title(f"3D Trajectory Comparison: {traj_name}")
 
@@ -536,7 +537,7 @@ def _plot_3d_trajectories_with_confidence(grouped_results: Dict, output_dir: Pat
             ax.set_xlabel(xlabel)
             ax.set_ylabel(ylabel)
             ax.set_aspect("equal", adjustable="box")
-            ax.legend()
+            ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
             ax.set_title(f"{proj_name} Projection: {traj_name}")
             ax.grid(True, alpha=0.3)
 
@@ -699,6 +700,7 @@ def run_animation(args: argparse.Namespace):
         ax.set_xlabel("X (m)")
         ax.set_ylabel("Y (m)")
         ax.set_zlabel("Z (m)")
+        ax.set_box_aspect([1,1,1])  # Equal aspect ratio for all axes
 
         # Plot target path
         ax.plot(df["target_x"], df["target_y"], df["target_z"], "r--", linewidth=1.5, label="Target Path", alpha=0.7)

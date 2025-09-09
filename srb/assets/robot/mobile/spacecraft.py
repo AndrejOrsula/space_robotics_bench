@@ -216,8 +216,8 @@ class Cubesat(OrbitalRobot):
     frame_onboard_camera: Frame = Frame(
         prim_relpath="cubesat/camera_onboard",
         offset=Transform(
-            pos=(0.075, 0.0, 0.0),
-            rot=rpy_to_quat(0.0, 0.0, 0.0),
+            pos=(0.0, 0.1, 0.0),
+            rot=rpy_to_quat(0.0, 0.0, 90.0),
         ),
     )
 

@@ -170,8 +170,13 @@ class TaskCfg(OrbitalEnvCfg):
             )
             self._robot = self.robot
 
-        self.scene.scenery.init_state.pos = (4.0, 9.0, -10.0)  # type: ignore
-        self.scene.scenery.init_state.rot = rpy_to_quat(0.0, 0.0, 90.0)  # type: ignore
+        # # Traj 1
+        # self.scene.scenery.init_state.pos = (4.0, 9.0, -10.0)  # type: ignore
+        # self.scene.scenery.init_state.rot = rpy_to_quat(0.0, 0.0, 90.0)  # type: ignore
+
+        # Traj 2
+        self.scene.scenery.init_state.pos = (4.0, 18.3, -13.225)  # type: ignore
+        self.scene.scenery.init_state.rot = rpy_to_quat(0.0, -30.0, 90.0)  # type: ignore
 
 
 @configclass

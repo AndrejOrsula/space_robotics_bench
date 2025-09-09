@@ -190,7 +190,7 @@ def run_agent_with_env(
                 .as_posix(),
                 name_prefix=env_id.rsplit("/", 1)[-1],
                 disable_logger=True,
-                # episode_trigger=lambda _: True,
+                episode_trigger=lambda _: True,
             )
 
         # Add wrapper for performance tests

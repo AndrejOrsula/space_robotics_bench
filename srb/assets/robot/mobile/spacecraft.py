@@ -38,6 +38,7 @@ class ISS(OrbitalRobot):
                 max_depenetration_velocity=5.0,
             ),
             mass_props=MassPropertiesCfg(density=1500.0),
+            semantic_tags=[("class", "spacecraft")],
         ),
     )
 
@@ -87,6 +88,7 @@ class Gateway(OrbitalRobot):
                 max_depenetration_velocity=5.0,
             ),
             mass_props=MassPropertiesCfg(density=1500.0),
+            semantic_tags=[("class", "spacecraft")],
         ),
     )
 
@@ -134,6 +136,7 @@ class Cubesat(OrbitalRobot):
                 max_depenetration_velocity=5.0,
             ),
             mass_props=MassPropertiesCfg(density=1000.0),
+            semantic_tags=[("class", "spacecraft")],
         ),
     )
 
@@ -239,6 +242,7 @@ class VenusExpress(OrbitalRobot):
                 max_depenetration_velocity=5.0,
             ),
             mass_props=MassPropertiesCfg(density=1500.0),
+            semantic_tags=[("class", "spacecraft")],
         ),
     )
 
@@ -383,6 +387,7 @@ class Starship(OrbitalRobot):
                 max_depenetration_velocity=5.0,
             ),
             mass_props=MassPropertiesCfg(mass=100000.0),
+            semantic_tags=[("class", "spacecraft")],
         ),
     )
 
@@ -469,6 +474,7 @@ class SuperHeavy(OrbitalRobot):
                 max_depenetration_velocity=5.0,
             ),
             mass_props=MassPropertiesCfg(mass=200000.0),
+            semantic_tags=[("class", "spacecraft")],
         ),
     )
 

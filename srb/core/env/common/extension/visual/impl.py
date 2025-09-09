@@ -66,6 +66,26 @@ def construct_observation(
 
 
 @torch.jit.script
+def process_img_u8_as_u8(image: torch.Tensor) -> torch.Tensor:
+    return image
+
+
+@torch.jit.script
+def process_img_u8_as_f32(image: torch.Tensor) -> torch.Tensor:
+    return image.to(torch.float32) / 255.0
+
+
+@torch.jit.script
+def process_img_f32_as_u8(image: torch.Tensor) -> torch.Tensor:
+    return (255.0 * image).to(torch.uint8)
+
+
+@torch.jit.script
+def process_img_f32_as_f32(image: torch.Tensor) -> torch.Tensor:
+    return image
+
+
+@torch.jit.script
 def process_rgb_u8(image: torch.Tensor) -> torch.Tensor:
     return image[..., :3]
 
@@ -99,9 +119,21 @@ def process_depth_u8(
 _PROCESSORS_U8 = {
     "rgb": process_rgb_u8,
     "depth": process_depth_u8,
+    "distance_to_camera": process_depth_u8,
+    "normals": process_rgb_u8,
+    # "motion_vectors": ...,
+    "semantic_segmentation": process_img_u8_as_u8,
+    "instance_segmentation_fast": process_img_u8_as_u8,
+    "instance_id_segmentation_fast": process_img_u8_as_u8,
 }
 
 _PROCESSORS_F32 = {
     "rgb": process_rgb_f32,
     "depth": process_depth_f32,
+    "distance_to_camera": process_depth_f32,
+    "normals": process_rgb_f32,
+    "motion_vectors": process_img_f32_as_f32,
+    "semantic_segmentation": process_img_u8_as_f32,
+    "instance_segmentation_fast": process_img_u8_as_f32,
+    "instance_id_segmentation_fast": process_img_u8_as_f32,
 }

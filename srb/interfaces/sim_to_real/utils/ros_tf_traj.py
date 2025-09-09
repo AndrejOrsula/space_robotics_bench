@@ -749,7 +749,7 @@ def main():
         pattern=pattern_cfg,
         n_loops=-1,
         velocity=0.25,
-        rate=20.0,
+        rate=50.0,
     )
 
     broadcaster = None

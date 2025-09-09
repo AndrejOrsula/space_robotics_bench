@@ -18,19 +18,18 @@ from itertools import cycle
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-import matplotlib.ticker as ticker
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from mpl_toolkits.mplot3d import Axes3D
 
 try:
     import rclpy
     from rclpy.node import Node
     from rclpy.time import Duration, Time
     from tf2_ros import Buffer, TransformListener
+
     ROS_AVAILABLE = True
 except ImportError:
     ROS_AVAILABLE = False
@@ -116,33 +115,39 @@ class TrajectoryCollectorNode(Node):
                 self.start_time = now
 
             time_elapsed = (now - self.start_time).nanoseconds / 1e9
-            robot_roll, robot_pitch, robot_yaw = self._quaternion_to_euler(robot_tf.transform.rotation)
-            target_roll, target_pitch, target_yaw = self._quaternion_to_euler(target_tf.transform.rotation)
+            robot_roll, robot_pitch, robot_yaw = self._quaternion_to_euler(
+                robot_tf.transform.rotation
+            )
+            target_roll, target_pitch, target_yaw = self._quaternion_to_euler(
+                target_tf.transform.rotation
+            )
 
             with self.data_lock:
-                self.data.append({
-                    "time": time_elapsed,
-                    "robot_x": robot_tf.transform.translation.x,
-                    "robot_y": robot_tf.transform.translation.y,
-                    "robot_z": robot_tf.transform.translation.z,
-                    "robot_roll": robot_roll,
-                    "robot_pitch": robot_pitch,
-                    "robot_yaw": robot_yaw,
-                    "robot_quat_w": robot_tf.transform.rotation.w,
-                    "robot_quat_x": robot_tf.transform.rotation.x,
-                    "robot_quat_y": robot_tf.transform.rotation.y,
-                    "robot_quat_z": robot_tf.transform.rotation.z,
-                    "target_x": target_tf.transform.translation.x,
-                    "target_y": target_tf.transform.translation.y,
-                    "target_z": target_tf.transform.translation.z,
-                    "target_roll": target_roll,
-                    "target_pitch": target_pitch,
-                    "target_yaw": target_yaw,
-                    "target_quat_w": target_tf.transform.rotation.w,
-                    "target_quat_x": target_tf.transform.rotation.x,
-                    "target_quat_y": target_tf.transform.rotation.y,
-                    "target_quat_z": target_tf.transform.rotation.z,
-                })
+                self.data.append(
+                    {
+                        "time": time_elapsed,
+                        "robot_x": robot_tf.transform.translation.x,
+                        "robot_y": robot_tf.transform.translation.y,
+                        "robot_z": robot_tf.transform.translation.z,
+                        "robot_roll": robot_roll,
+                        "robot_pitch": robot_pitch,
+                        "robot_yaw": robot_yaw,
+                        "robot_quat_w": robot_tf.transform.rotation.w,
+                        "robot_quat_x": robot_tf.transform.rotation.x,
+                        "robot_quat_y": robot_tf.transform.rotation.y,
+                        "robot_quat_z": robot_tf.transform.rotation.z,
+                        "target_x": target_tf.transform.translation.x,
+                        "target_y": target_tf.transform.translation.y,
+                        "target_z": target_tf.transform.translation.z,
+                        "target_roll": target_roll,
+                        "target_pitch": target_pitch,
+                        "target_yaw": target_yaw,
+                        "target_quat_w": target_tf.transform.rotation.w,
+                        "target_quat_x": target_tf.transform.rotation.x,
+                        "target_quat_y": target_tf.transform.rotation.y,
+                        "target_quat_z": target_tf.transform.rotation.z,
+                    }
+                )
 
         except Exception as e:
             self.get_logger().warn(f"TF lookup failed: {e}", throttle_duration_sec=5.0)
@@ -161,11 +166,11 @@ class TrajectoryCollectorNode(Node):
 def _quaternion_angle_difference(q1, q2):
     """Calculate angular difference between two quaternions in radians."""
     # Compute the dot product
-    dot_product = q1[0]*q2[0] + q1[1]*q2[1] + q1[2]*q2[2] + q1[3]*q2[3]
-    
+    dot_product = q1[0] * q2[0] + q1[1] * q2[1] + q1[2] * q2[2] + q1[3] * q2[3]
+
     # Ensure the dot product is in valid range
     dot_product = np.clip(np.abs(dot_product), 0.0, 1.0)
-    
+
     # Calculate the angle
     return 2 * np.arccos(dot_product)
 
@@ -192,15 +197,19 @@ def _process_file(input_path: Path):
 
     # 3D Euclidean distance error
     df["euclidean_error"] = np.sqrt(
-        (df["target_x"] - df["robot_x"]) ** 2 + 
-        (df["target_y"] - df["robot_y"]) ** 2 +
-        (df["target_z"] - df["robot_z"]) ** 2
+        (df["target_x"] - df["robot_x"]) ** 2
+        + (df["target_y"] - df["robot_y"]) ** 2
+        + (df["target_z"] - df["robot_z"]) ** 2
     )
 
     # Quaternion-based orientation error (more accurate for 3D)
-    robot_quats = df[["robot_quat_w", "robot_quat_x", "robot_quat_y", "robot_quat_z"]].values
-    target_quats = df[["target_quat_w", "target_quat_x", "target_quat_y", "target_quat_z"]].values
-    
+    robot_quats = df[
+        ["robot_quat_w", "robot_quat_x", "robot_quat_y", "robot_quat_z"]
+    ].values
+    target_quats = df[
+        ["target_quat_w", "target_quat_x", "target_quat_y", "target_quat_z"]
+    ].values
+
     orientation_errors = []
     for i in range(len(df)):
         error = _quaternion_angle_difference(robot_quats[i], target_quats[i])
@@ -210,35 +219,39 @@ def _process_file(input_path: Path):
     # Individual axis orientation errors for analysis
     roll_error_raw = df["target_roll"] - df["robot_roll"]
     df["roll_error_rad"] = np.arctan2(np.sin(roll_error_raw), np.cos(roll_error_raw))
-    
-    pitch_error_raw = df["target_pitch"] - df["robot_pitch"]  
+
+    pitch_error_raw = df["target_pitch"] - df["robot_pitch"]
     df["pitch_error_rad"] = np.arctan2(np.sin(pitch_error_raw), np.cos(pitch_error_raw))
-    
+
     yaw_error_raw = df["target_yaw"] - df["robot_yaw"]
     df["yaw_error_rad"] = np.arctan2(np.sin(yaw_error_raw), np.cos(yaw_error_raw))
 
     # 3D velocity, acceleration, and jerk
     df["robot_velocity"] = (
         np.sqrt(
-            df["robot_x"].diff() ** 2 + 
-            df["robot_y"].diff() ** 2 +
-            df["robot_z"].diff() ** 2
-        ) / dt_filled
+            df["robot_x"].diff() ** 2
+            + df["robot_y"].diff() ** 2
+            + df["robot_z"].diff() ** 2
+        )
+        / dt_filled
     ).fillna(0)
-    
+
     df["robot_accel"] = (df["robot_velocity"].diff() / dt_filled).fillna(0)
     df["robot_jerk"] = (df["robot_accel"].diff() / dt_filled).fillna(0)
 
     # Angular velocity and acceleration
     df["robot_angular_velocity"] = (
         np.sqrt(
-            df["robot_roll"].diff() ** 2 + 
-            df["robot_pitch"].diff() ** 2 +
-            df["robot_yaw"].diff() ** 2
-        ) / dt_filled
+            df["robot_roll"].diff() ** 2
+            + df["robot_pitch"].diff() ** 2
+            + df["robot_yaw"].diff() ** 2
+        )
+        / dt_filled
     ).fillna(0)
-    
-    df["robot_angular_accel"] = (df["robot_angular_velocity"].diff() / dt_filled).fillna(0)
+
+    df["robot_angular_accel"] = (
+        df["robot_angular_velocity"].diff() / dt_filled
+    ).fillna(0)
 
     # Summary metrics compatible with task.py variables
     summary = {
@@ -300,10 +313,14 @@ def _quaternion_to_direction_vector(quat_w, quat_x, quat_y, quat_z, length=0.3):
     forward_x = 1 - 2 * (quat_y**2 + quat_z**2)
     forward_y = 2 * (quat_x * quat_y + quat_w * quat_z)
     forward_z = 2 * (quat_x * quat_z - quat_w * quat_y)
-    
+
     # Normalize and scale
     norm = np.sqrt(forward_x**2 + forward_y**2 + forward_z**2)
-    return length * forward_x/norm, length * forward_y/norm, length * forward_z/norm
+    return (
+        length * forward_x / norm,
+        length * forward_y / norm,
+        length * forward_z / norm,
+    )
 
 
 def _plot_3d_trajectories_with_confidence(grouped_results: Dict, output_dir: Path):
@@ -312,9 +329,7 @@ def _plot_3d_trajectories_with_confidence(grouped_results: Dict, output_dir: Pat
     Creates both 3D plots and 2D projections (XY, XZ, YZ planes).
     Includes orientation visualization as arrows.
     """
-    print(
-        "\n--- Generating 3D Trajectory Plots with Confidence Intervals (png) ---"
-    )
+    print("\n--- Generating 3D Trajectory Plots with Confidence Intervals (png) ---")
 
     color_palette = sns.color_palette("colorblind")
     method_color_map = {
@@ -329,7 +344,7 @@ def _plot_3d_trajectories_with_confidence(grouped_results: Dict, output_dir: Pat
     for traj_name, methods in grouped_results.items():
         # 3D Plot
         fig = plt.figure(figsize=(12, 10))
-        ax = fig.add_subplot(111, projection='3d')
+        ax = fig.add_subplot(111, projection="3d")
 
         target_df_for_centering = None
         for method_name, paths in methods.items():
@@ -350,9 +365,18 @@ def _plot_3d_trajectories_with_confidence(grouped_results: Dict, output_dir: Pat
             continue
 
         # Center the trajectories
-        center_x = (target_df_for_centering["target_x"].min() + target_df_for_centering["target_x"].max()) / 2.0
-        center_y = (target_df_for_centering["target_y"].min() + target_df_for_centering["target_y"].max()) / 2.0
-        center_z = (target_df_for_centering["target_z"].min() + target_df_for_centering["target_z"].max()) / 2.0
+        center_x = (
+            target_df_for_centering["target_x"].min()
+            + target_df_for_centering["target_x"].max()
+        ) / 2.0
+        center_y = (
+            target_df_for_centering["target_y"].min()
+            + target_df_for_centering["target_y"].max()
+        ) / 2.0
+        center_z = (
+            target_df_for_centering["target_z"].min()
+            + target_df_for_centering["target_z"].max()
+        ) / 2.0
 
         target_df_plotted = False
         for i, (method_name, paths) in enumerate(methods.items()):
@@ -402,9 +426,17 @@ def _plot_3d_trajectories_with_confidence(grouped_results: Dict, output_dir: Pat
 
             # Get color for this method
             color = method_color_map.get(method_name, next(fallback_colors))
-            
+
             # Plot mean trajectory
-            ax.plot(mean_x, mean_y, mean_z, color=color, linewidth=2.5, label=f"{method_name} (Mean)", alpha=0.9)
+            ax.plot(
+                mean_x,
+                mean_y,
+                mean_z,
+                color=color,
+                linewidth=2.5,
+                label=f"{method_name} (Mean)",
+                alpha=0.9,
+            )
 
             # Add orientation arrows along the trajectory (sample every N points for clarity)
             if target_df is not None:
@@ -414,26 +446,43 @@ def _plot_3d_trajectories_with_confidence(grouped_results: Dict, output_dir: Pat
                         # Robot orientation arrow
                         dx_r, dy_r, dz_r = _quaternion_to_direction_vector(
                             target_df["robot_quat_w"].iloc[j],
-                            target_df["robot_quat_x"].iloc[j], 
+                            target_df["robot_quat_x"].iloc[j],
                             target_df["robot_quat_y"].iloc[j],
-                            target_df["robot_quat_z"].iloc[j]
+                            target_df["robot_quat_z"].iloc[j],
                         )
-                        ax.quiver(mean_x[j], mean_y[j], mean_z[j], dx_r, dy_r, dz_r, 
-                                 color=color, alpha=0.7, arrow_length_ratio=0.1, linewidth=1.5)
-                        
+                        ax.quiver(
+                            mean_x[j],
+                            mean_y[j],
+                            mean_z[j],
+                            dx_r,
+                            dy_r,
+                            dz_r,
+                            color=color,
+                            alpha=0.7,
+                            arrow_length_ratio=0.1,
+                            linewidth=1.5,
+                        )
+
                         # Target orientation arrow (only for first method to avoid clutter)
                         if i == 0:
                             dx_t, dy_t, dz_t = _quaternion_to_direction_vector(
                                 target_df["target_quat_w"].iloc[j],
                                 target_df["target_quat_x"].iloc[j],
-                                target_df["target_quat_y"].iloc[j], 
-                                target_df["target_quat_z"].iloc[j]
+                                target_df["target_quat_y"].iloc[j],
+                                target_df["target_quat_z"].iloc[j],
                             )
-                            ax.quiver(target_df["target_x"].iloc[j] - center_x, 
-                                     target_df["target_y"].iloc[j] - center_y,
-                                     target_df["target_z"].iloc[j] - center_z, 
-                                     dx_t, dy_t, dz_t,
-                                     color='red', alpha=0.8, arrow_length_ratio=0.1, linewidth=2)
+                            ax.quiver(
+                                target_df["target_x"].iloc[j] - center_x,
+                                target_df["target_y"].iloc[j] - center_y,
+                                target_df["target_z"].iloc[j] - center_z,
+                                dx_t,
+                                dy_t,
+                                dz_t,
+                                color="red",
+                                alpha=0.8,
+                                arrow_length_ratio=0.1,
+                                linewidth=2,
+                            )
 
             # Plot individual runs with transparency
             for x_traj, y_traj, z_traj in zip(all_x, all_y, all_z):
@@ -442,12 +491,12 @@ def _plot_3d_trajectories_with_confidence(grouped_results: Dict, output_dir: Pat
         ax.set_xlabel("X (m)")
         ax.set_ylabel("Y (m)")
         ax.set_zlabel("Z (m)")
-        ax.set_box_aspect([1,1,1])  # Equal aspect ratio for all axes
+        ax.set_box_aspect([1, 1, 1])  # Equal aspect ratio for all axes
         ax.legend()
         ax.set_title(f"3D Trajectory Comparison: {traj_name}")
 
         plot_path = output_dir / f"trajectory_3d_{traj_name}.png"
-        fig.savefig(plot_path, format="png", dpi=300, bbox_inches='tight')
+        fig.savefig(plot_path, format="png", dpi=300, bbox_inches="tight")
         print(f"Saved 3D trajectory plot: {plot_path}")
         plt.close(fig)
 
@@ -455,10 +504,18 @@ def _plot_3d_trajectories_with_confidence(grouped_results: Dict, output_dir: Pat
         projections = [
             ("XY", "robot_x", "robot_y", "target_x", "target_y", "X (m)", "Y (m)"),
             ("XZ", "robot_x", "robot_z", "target_x", "target_z", "X (m)", "Z (m)"),
-            ("YZ", "robot_y", "robot_z", "target_y", "target_z", "Y (m)", "Z (m)")
+            ("YZ", "robot_y", "robot_z", "target_y", "target_z", "Y (m)", "Z (m)"),
         ]
 
-        for proj_name, robot_dim1, robot_dim2, target_dim1, target_dim2, xlabel, ylabel in projections:
+        for (
+            proj_name,
+            robot_dim1,
+            robot_dim2,
+            target_dim1,
+            target_dim2,
+            xlabel,
+            ylabel,
+        ) in projections:
             fig, ax = plt.subplots(figsize=(8, 8))
 
             target_df_plotted = False
@@ -469,8 +526,16 @@ def _plot_3d_trajectories_with_confidence(grouped_results: Dict, output_dir: Pat
                 for p in paths:
                     try:
                         df = pd.read_csv(p.with_name(f"{p.stem}_processed.csv"))
-                        center_dim1 = center_x if "x" in robot_dim1 else (center_y if "y" in robot_dim1 else center_z)
-                        center_dim2 = center_x if "x" in robot_dim2 else (center_y if "y" in robot_dim2 else center_z)
+                        center_dim1 = (
+                            center_x
+                            if "x" in robot_dim1
+                            else (center_y if "y" in robot_dim1 else center_z)
+                        )
+                        center_dim2 = (
+                            center_x
+                            if "x" in robot_dim2
+                            else (center_y if "y" in robot_dim2 else center_z)
+                        )
                         all_dim1.append(df[robot_dim1].values - center_dim1)
                         all_dim2.append(df[robot_dim2].values - center_dim2)
                         if target_df is None:
@@ -483,8 +548,16 @@ def _plot_3d_trajectories_with_confidence(grouped_results: Dict, output_dir: Pat
 
                 # Plot target path once
                 if not target_df_plotted and target_df is not None:
-                    center_dim1 = center_x if "x" in target_dim1 else (center_y if "y" in target_dim1 else center_z)
-                    center_dim2 = center_x if "x" in target_dim2 else (center_y if "y" in target_dim2 else center_z)
+                    center_dim1 = (
+                        center_x
+                        if "x" in target_dim1
+                        else (center_y if "y" in target_dim1 else center_z)
+                    )
+                    center_dim2 = (
+                        center_x
+                        if "x" in target_dim2
+                        else (center_y if "y" in target_dim2 else center_z)
+                    )
                     ax.plot(
                         target_df[target_dim1] - center_dim1,
                         target_df[target_dim2] - center_dim2,
@@ -507,8 +580,14 @@ def _plot_3d_trajectories_with_confidence(grouped_results: Dict, output_dir: Pat
                     mean_dim1, mean_dim2 = all_dim1[0], all_dim2[0]
 
                 color = method_color_map.get(method_name, next(fallback_colors))
-                ax.plot(mean_dim1, mean_dim2, color=color, linewidth=2.5, label=f"{method_name} (Mean)")
-                
+                ax.plot(
+                    mean_dim1,
+                    mean_dim2,
+                    color=color,
+                    linewidth=2.5,
+                    label=f"{method_name} (Mean)",
+                )
+
                 # Add 2D orientation arrows for this projection
                 if target_df is not None:
                     step = max(1, len(mean_dim1) // 8)  # Show ~8 orientation arrows
@@ -517,12 +596,12 @@ def _plot_3d_trajectories_with_confidence(grouped_results: Dict, output_dir: Pat
                             # Get full 3D orientation vector
                             dx_r, dy_r, dz_r = _quaternion_to_direction_vector(
                                 target_df["robot_quat_w"].iloc[j],
-                                target_df["robot_quat_x"].iloc[j], 
+                                target_df["robot_quat_x"].iloc[j],
                                 target_df["robot_quat_y"].iloc[j],
                                 target_df["robot_quat_z"].iloc[j],
-                                length=0.2  # Smaller arrows for 2D plots
+                                length=0.2,  # Smaller arrows for 2D plots
                             )
-                            
+
                             # Project to 2D plane
                             if proj_name == "XY":
                                 arrow_u, arrow_v = dx_r, dy_r
@@ -530,19 +609,28 @@ def _plot_3d_trajectories_with_confidence(grouped_results: Dict, output_dir: Pat
                                 arrow_u, arrow_v = dx_r, dz_r
                             else:  # YZ
                                 arrow_u, arrow_v = dy_r, dz_r
-                                
-                            ax.arrow(mean_dim1[j], mean_dim2[j], arrow_u, arrow_v,
-                                   head_width=0.05, head_length=0.05, fc=color, ec=color, alpha=0.7)
+
+                            ax.arrow(
+                                mean_dim1[j],
+                                mean_dim2[j],
+                                arrow_u,
+                                arrow_v,
+                                head_width=0.05,
+                                head_length=0.05,
+                                fc=color,
+                                ec=color,
+                                alpha=0.7,
+                            )
 
             ax.set_xlabel(xlabel)
             ax.set_ylabel(ylabel)
             ax.set_aspect("equal", adjustable="box")
-            ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+            ax.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
             ax.set_title(f"{proj_name} Projection: {traj_name}")
             ax.grid(True, alpha=0.3)
 
             plot_path = output_dir / f"trajectory_{proj_name.lower()}_{traj_name}.png"
-            fig.savefig(plot_path, format="png", dpi=300, bbox_inches='tight')
+            fig.savefig(plot_path, format="png", dpi=300, bbox_inches="tight")
             print(f"Saved {proj_name} projection plot: {plot_path}")
             plt.close(fig)
 
@@ -558,18 +646,30 @@ def _generate_summary_plots_and_table(
             if summary_path.exists():
                 with open(summary_path) as f:
                     summary = json.load(f)
-                    summary_rows.append({
-                        "Method": method_name,
-                        "Trajectory": path.stem.split("_")[0],
-                        "ATE (m)": summary.get("ate_m", 0),
-                        "Orientation Error (rad)": summary.get("ate_rad", 0),
-                        "Jerk (m/s³)": summary.get("jerk_avg_m_s3", 0),
-                        "Angular Accel (rad/s²)": summary.get("angular_accel_avg_rad_s2", 0),
-                        "Max Position Error (m)": summary.get("max_position_error_m", 0),
-                        "Max Orientation Error (rad)": summary.get("max_orientation_error_rad", 0),
-                        "Final Position Error (m)": summary.get("final_position_error_m", 0),
-                        "Final Orientation Error (rad)": summary.get("final_orientation_error_rad", 0),
-                    })
+                    summary_rows.append(
+                        {
+                            "Method": method_name,
+                            "Trajectory": path.stem.split("_")[0],
+                            "ATE (m)": summary.get("ate_m", 0),
+                            "Orientation Error (rad)": summary.get("ate_rad", 0),
+                            "Jerk (m/s³)": summary.get("jerk_avg_m_s3", 0),
+                            "Angular Accel (rad/s²)": summary.get(
+                                "angular_accel_avg_rad_s2", 0
+                            ),
+                            "Max Position Error (m)": summary.get(
+                                "max_position_error_m", 0
+                            ),
+                            "Max Orientation Error (rad)": summary.get(
+                                "max_orientation_error_rad", 0
+                            ),
+                            "Final Position Error (m)": summary.get(
+                                "final_position_error_m", 0
+                            ),
+                            "Final Orientation Error (rad)": summary.get(
+                                "final_orientation_error_rad", 0
+                            ),
+                        }
+                    )
 
     if not summary_rows:
         print("Error: No summary data could be found. Cannot generate report.")
@@ -578,19 +678,19 @@ def _generate_summary_plots_and_table(
 
     print("\n--- Generating 3D Performance Bar Charts (png) ---")
     metrics_to_plot = [
-        "ATE (m)", 
-        "Orientation Error (rad)", 
-        "Jerk (m/s³)", 
+        "ATE (m)",
+        "Orientation Error (rad)",
+        "Jerk (m/s³)",
         "Angular Accel (rad/s²)",
         "Max Position Error (m)",
-        "Max Orientation Error (rad)"
+        "Max Orientation Error (rad)",
     ]
-    
+
     for metric in metrics_to_plot:
         if metric not in df_summary.columns or df_summary[metric].sum() == 0:
             print(f"Skipping {metric} - no data available.")
             continue
-        
+
         fig, ax = plt.subplots(figsize=(10, 6))
         sns.barplot(
             data=df_summary, x="Method", y=metric, ax=ax, palette="viridis", capsize=0.1
@@ -598,10 +698,15 @@ def _generate_summary_plots_and_table(
         ax.set_title(f"3D Performance Comparison: {metric}")
         ax.tick_params(axis="x", rotation=30)
         fig.tight_layout()
-        
-        safe_metric_name = metric.replace(" ", "_").replace("(", "").replace(")", "").replace("/", "_per_")
+
+        safe_metric_name = (
+            metric.replace(" ", "_")
+            .replace("(", "")
+            .replace(")", "")
+            .replace("/", "_per_")
+        )
         plot_path = output_dir / f"comparison_3d_{safe_metric_name.lower()}.png"
-        fig.savefig(plot_path, format="png", dpi=300, bbox_inches='tight')
+        fig.savefig(plot_path, format="png", dpi=300, bbox_inches="tight")
         print(f"Saved comparison plot: {plot_path}")
         plt.close(fig)
 
@@ -612,7 +717,7 @@ def _generate_summary_plots_and_table(
     ate_means = df_agg[("ATE (m)", "mean")]
     jerk_means = df_agg[("Jerk (m/s³)", "mean")]
     orient_means = df_agg[("Orientation Error (rad)", "mean")]
-    
+
     min_ate_method = ate_means.idxmin()
     min_jerk_method = jerk_means.idxmin()
     min_orient_method = orient_means.idxmin()
@@ -622,7 +727,7 @@ def _generate_summary_plots_and_table(
         ate_str = f"{row[('ATE (m)', 'mean')]:.3f} $\\pm$ {row[('ATE (m)', 'std')]:.3f}"
         orient_str = f"{row[('Orientation Error (rad)', 'mean')]:.3f} $\\pm$ {row[('Orientation Error (rad)', 'std')]:.3f}"
         jerk_str = f"{row[('Jerk (m/s³)', 'mean')]:.3f} $\\pm$ {row[('Jerk (m/s³)', 'std')]:.3f}"
-        
+
         # Bold the best results
         if method == min_ate_method:
             ate_str = f"\\textbf{{{ate_str}}}"
@@ -633,12 +738,12 @@ def _generate_summary_plots_and_table(
 
         formatted_rows[method] = {
             "ATE (m)": ate_str,
-            "Orientation Error (rad)": orient_str, 
-            "Jerk (m/s³)": jerk_str
+            "Orientation Error (rad)": orient_str,
+            "Jerk (m/s³)": jerk_str,
         }
 
     df_final = pd.DataFrame.from_dict(formatted_rows, orient="index")
-    
+
     latex_str = df_final.to_latex(
         index=True,
         escape=False,
@@ -685,13 +790,15 @@ def run_animation(args: argparse.Namespace):
 
         # Create 3D animation
         fig = plt.figure(figsize=(12, 10))
-        ax = fig.add_subplot(111, projection='3d')
+        ax = fig.add_subplot(111, projection="3d")
 
         # Set axis limits
-        all_pos = np.concatenate([
-            df[["target_x", "target_y", "target_z"]].values,
-            df[["robot_x", "robot_y", "robot_z"]].values,
-        ])
+        all_pos = np.concatenate(
+            [
+                df[["target_x", "target_y", "target_z"]].values,
+                df[["robot_x", "robot_y", "robot_z"]].values,
+            ]
+        )
         margin = 0.5
         ax.set_xlim(all_pos[:, 0].min() - margin, all_pos[:, 0].max() + margin)
         ax.set_ylim(all_pos[:, 1].min() - margin, all_pos[:, 1].max() + margin)
@@ -700,81 +807,129 @@ def run_animation(args: argparse.Namespace):
         ax.set_xlabel("X (m)")
         ax.set_ylabel("Y (m)")
         ax.set_zlabel("Z (m)")
-        ax.set_box_aspect([1,1,1])  # Equal aspect ratio for all axes
+        ax.set_box_aspect([1, 1, 1])  # Equal aspect ratio for all axes
 
         # Plot target path
-        ax.plot(df["target_x"], df["target_y"], df["target_z"], "r--", linewidth=1.5, label="Target Path", alpha=0.7)
+        ax.plot(
+            df["target_x"],
+            df["target_y"],
+            df["target_z"],
+            "r--",
+            linewidth=1.5,
+            label="Target Path",
+            alpha=0.7,
+        )
 
         # Initialize animated elements
-        robot_path, = ax.plot([], [], [], "b-", linewidth=2.5, label="Robot Path")
-        
+        (robot_path,) = ax.plot([], [], [], "b-", linewidth=2.5, label="Robot Path")
+
         # Only show position markers if not arrows-only mode
         if not args.arrows_only:
-            robot_point = ax.scatter([], [], [], color="blue", s=30, label="Robot", alpha=0.6)
-            target_point = ax.scatter([], [], [], color="red", s=30, label="Target", alpha=0.6)
+            robot_point = ax.scatter(
+                [], [], [], color="blue", s=30, label="Robot", alpha=0.6
+            )
+            target_point = ax.scatter(
+                [], [], [], color="red", s=30, label="Target", alpha=0.6
+            )
         else:
             robot_point = None
             target_point = None
-        
+
         # Initialize orientation arrows (will be updated in animation)
         robot_orientation = None
         target_orientation = None
 
-        time_text = fig.text(0.02, 0.95, "", fontsize=12, bbox=dict(facecolor="white", alpha=0.8))
-        error_text = fig.text(0.02, 0.90, "", fontsize=10, bbox=dict(facecolor="white", alpha=0.8))
+        time_text = fig.text(
+            0.02, 0.95, "", fontsize=12, bbox=dict(facecolor="white", alpha=0.8)
+        )
+        error_text = fig.text(
+            0.02, 0.90, "", fontsize=10, bbox=dict(facecolor="white", alpha=0.8)
+        )
         ax.legend(loc="upper right")
 
         def update(frame: int) -> Tuple:
             nonlocal robot_orientation, target_orientation
-            
+
             # Clear previous orientation arrows
             if robot_orientation is not None:
                 robot_orientation.remove()
             if target_orientation is not None:
                 target_orientation.remove()
-            
+
             # Update robot path
-            robot_path.set_data(df["robot_x"][:frame+1], df["robot_y"][:frame+1])
-            robot_path.set_3d_properties(df["robot_z"][:frame+1])
-            
+            robot_path.set_data(df["robot_x"][: frame + 1], df["robot_y"][: frame + 1])
+            robot_path.set_3d_properties(df["robot_z"][: frame + 1])
+
             # Update current positions
             if frame < len(df):
-                robot_x, robot_y, robot_z = df["robot_x"].iloc[frame], df["robot_y"].iloc[frame], df["robot_z"].iloc[frame]
-                target_x, target_y, target_z = df["target_x"].iloc[frame], df["target_y"].iloc[frame], df["target_z"].iloc[frame]
-                
+                robot_x, robot_y, robot_z = (
+                    df["robot_x"].iloc[frame],
+                    df["robot_y"].iloc[frame],
+                    df["robot_z"].iloc[frame],
+                )
+                target_x, target_y, target_z = (
+                    df["target_x"].iloc[frame],
+                    df["target_y"].iloc[frame],
+                    df["target_z"].iloc[frame],
+                )
+
                 # Update position markers only if not in arrows-only mode
                 if robot_point is not None and target_point is not None:
                     robot_point._offsets3d = ([robot_x], [robot_y], [robot_z])
                     target_point._offsets3d = ([target_x], [target_y], [target_z])
-                
+
                 # Add orientation arrows
                 robot_dx, robot_dy, robot_dz = _quaternion_to_direction_vector(
                     df["robot_quat_w"].iloc[frame],
                     df["robot_quat_x"].iloc[frame],
-                    df["robot_quat_y"].iloc[frame], 
+                    df["robot_quat_y"].iloc[frame],
                     df["robot_quat_z"].iloc[frame],
-                    length=0.5  # Slightly longer arrows for better visibility
+                    length=0.5,  # Slightly longer arrows for better visibility
                 )
                 target_dx, target_dy, target_dz = _quaternion_to_direction_vector(
                     df["target_quat_w"].iloc[frame],
                     df["target_quat_x"].iloc[frame],
                     df["target_quat_y"].iloc[frame],
                     df["target_quat_z"].iloc[frame],
-                    length=0.5  # Slightly longer arrows for better visibility
+                    length=0.5,  # Slightly longer arrows for better visibility
                 )
-                
+
                 if args.show_orientation:
-                    robot_orientation = ax.quiver(robot_x, robot_y, robot_z, robot_dx, robot_dy, robot_dz,
-                                                color="blue", alpha=0.9, arrow_length_ratio=0.15, linewidth=4)  # Thicker, more prominent arrows
-                    target_orientation = ax.quiver(target_x, target_y, target_z, target_dx, target_dy, target_dz, 
-                                                 color="red", alpha=0.9, arrow_length_ratio=0.15, linewidth=4)  # Thicker, more prominent arrows
-                
+                    robot_orientation = ax.quiver(
+                        robot_x,
+                        robot_y,
+                        robot_z,
+                        robot_dx,
+                        robot_dy,
+                        robot_dz,
+                        color="blue",
+                        alpha=0.9,
+                        arrow_length_ratio=0.15,
+                        linewidth=4,
+                    )  # Thicker, more prominent arrows
+                    target_orientation = ax.quiver(
+                        target_x,
+                        target_y,
+                        target_z,
+                        target_dx,
+                        target_dy,
+                        target_dz,
+                        color="red",
+                        alpha=0.9,
+                        arrow_length_ratio=0.15,
+                        linewidth=4,
+                    )  # Thicker, more prominent arrows
+
                 # Update text with time and error information
                 time_text.set_text(f"Time: {df['time'].iloc[frame]:.2f}s")
                 pos_error = df["euclidean_error"].iloc[frame]
-                orient_error = df["orientation_error_rad"].iloc[frame] * 180 / np.pi  # Convert to degrees
-                error_text.set_text(f"Pos Error: {pos_error:.3f}m | Orient Error: {orient_error:.1f}°")
-            
+                orient_error = (
+                    df["orientation_error_rad"].iloc[frame] * 180 / np.pi
+                )  # Convert to degrees
+                error_text.set_text(
+                    f"Pos Error: {pos_error:.3f}m | Orient Error: {orient_error:.1f}°"
+                )
+
             # Return only non-None elements for blitting
             return_elements = [robot_path]
             if robot_point is not None:
@@ -783,89 +938,163 @@ def run_animation(args: argparse.Namespace):
                 return_elements.append(target_point)
             return tuple(return_elements)
 
-        frame_step = max(1, len(df) // 450)  # Limit to ~450 frames for reasonable file size
+        frame_step = max(
+            1, len(df) // 450
+        )  # Limit to ~450 frames for reasonable file size
         ani = animation.FuncAnimation(
             fig, update, frames=range(0, len(df), frame_step), blit=False, interval=33
         )
 
-        anim_path = args.output_dir / f"{proc_path.stem.replace('_processed', '')}_animation_3d.mp4"
+        anim_path = (
+            args.output_dir
+            / f"{proc_path.stem.replace('_processed', '')}_animation_3d.mp4"
+        )
         try:
             ani.save(anim_path, writer="ffmpeg", fps=30, bitrate=5000)
             print(f"Saved 3D animation: {anim_path}")
         except FileNotFoundError:
-            print("Error: ffmpeg not found. Please install ffmpeg to create animations.")
+            print(
+                "Error: ffmpeg not found. Please install ffmpeg to create animations."
+            )
         plt.close(fig)
-        
+
         # Create 2D projection animations for better orientation visualization
         if not args.no_2d_projections:
             projections = [
                 ("XY", "robot_x", "robot_y", "target_x", "target_y", "X (m)", "Y (m)"),
                 ("XZ", "robot_x", "robot_z", "target_x", "target_z", "X (m)", "Z (m)"),
-                ("YZ", "robot_y", "robot_z", "target_y", "target_z", "Y (m)", "Z (m)")
+                ("YZ", "robot_y", "robot_z", "target_y", "target_z", "Y (m)", "Z (m)"),
             ]
-            
-            for proj_name, robot_dim1, robot_dim2, target_dim1, target_dim2, xlabel, ylabel in projections:
+
+            for (
+                proj_name,
+                robot_dim1,
+                robot_dim2,
+                target_dim1,
+                target_dim2,
+                xlabel,
+                ylabel,
+            ) in projections:
                 fig, ax = plt.subplots(figsize=(10, 8))
-                
+
                 # Set axis limits
-                all_pos_1 = np.concatenate([df[target_dim1].values, df[robot_dim1].values])
-                all_pos_2 = np.concatenate([df[target_dim2].values, df[robot_dim2].values])
+                all_pos_1 = np.concatenate(
+                    [df[target_dim1].values, df[robot_dim1].values]
+                )
+                all_pos_2 = np.concatenate(
+                    [df[target_dim2].values, df[robot_dim2].values]
+                )
                 margin = 0.3
                 ax.set_xlim(all_pos_1.min() - margin, all_pos_1.max() + margin)
                 ax.set_ylim(all_pos_2.min() - margin, all_pos_2.max() + margin)
                 ax.set_xlabel(xlabel)
                 ax.set_ylabel(ylabel)
                 ax.set_aspect("equal", adjustable="box")
-                
+
                 # Plot full target path
-                ax.plot(df[target_dim1], df[target_dim2], "r--", linewidth=1.5, label="Target Path", alpha=0.7)
-                
+                ax.plot(
+                    df[target_dim1],
+                    df[target_dim2],
+                    "r--",
+                    linewidth=1.5,
+                    label="Target Path",
+                    alpha=0.7,
+                )
+
                 # Initialize animated elements
-                robot_path, = ax.plot([], [], "b-", linewidth=2.5, label="Robot Path")
-                
+                (robot_path,) = ax.plot([], [], "b-", linewidth=2.5, label="Robot Path")
+
                 # Only show markers if not in arrows-only mode
                 if not args.arrows_only:
-                    robot_point, = ax.plot([], [], "bo", markersize=4, label="Robot", alpha=0.7)
-                    target_point, = ax.plot([], [], "ro", markersize=4, label="Target", alpha=0.7)
+                    (robot_point,) = ax.plot(
+                        [], [], "bo", markersize=4, label="Robot", alpha=0.7
+                    )
+                    (target_point,) = ax.plot(
+                        [], [], "ro", markersize=4, label="Target", alpha=0.7
+                    )
                 else:
                     robot_point, target_point = None, None
-                
-                robot_arrow = ax.annotate("", xy=(0, 0), xytext=(0, 0), 
-                                        arrowprops=dict(arrowstyle="->", color="blue", lw=3, alpha=0.9))
-                target_arrow = ax.annotate("", xy=(0, 0), xytext=(0, 0),
-                                         arrowprops=dict(arrowstyle="->", color="red", lw=3, alpha=0.9))
-                
-                time_text = ax.text(0.02, 0.98, "", transform=ax.transAxes, fontsize=12, va="top",
-                                  bbox=dict(facecolor="white", alpha=0.8))
-                error_text = ax.text(0.02, 0.93, "", transform=ax.transAxes, fontsize=10, va="top",
-                                   bbox=dict(facecolor="white", alpha=0.8))
+
+                robot_arrow = ax.annotate(
+                    "",
+                    xy=(0, 0),
+                    xytext=(0, 0),
+                    arrowprops=dict(arrowstyle="->", color="blue", lw=3, alpha=0.9),
+                )
+                target_arrow = ax.annotate(
+                    "",
+                    xy=(0, 0),
+                    xytext=(0, 0),
+                    arrowprops=dict(arrowstyle="->", color="red", lw=3, alpha=0.9),
+                )
+
+                time_text = ax.text(
+                    0.02,
+                    0.98,
+                    "",
+                    transform=ax.transAxes,
+                    fontsize=12,
+                    va="top",
+                    bbox=dict(facecolor="white", alpha=0.8),
+                )
+                error_text = ax.text(
+                    0.02,
+                    0.93,
+                    "",
+                    transform=ax.transAxes,
+                    fontsize=10,
+                    va="top",
+                    bbox=dict(facecolor="white", alpha=0.8),
+                )
                 ax.legend(loc="upper right")
                 ax.grid(True, alpha=0.3)
-                
+
                 def update_2d(frame: int):
                     if frame < len(df):
                         # Update paths and points
-                        robot_path.set_data(df[robot_dim1][:frame+1], df[robot_dim2][:frame+1])
-                        
+                        robot_path.set_data(
+                            df[robot_dim1][: frame + 1], df[robot_dim2][: frame + 1]
+                        )
+
                         # Update position markers only if not in arrows-only mode
                         if robot_point is not None and target_point is not None:
-                            robot_point.set_data([df[robot_dim1].iloc[frame]], [df[robot_dim2].iloc[frame]])
-                            target_point.set_data([df[target_dim1].iloc[frame]], [df[target_dim2].iloc[frame]])
-                        
+                            robot_point.set_data(
+                                [df[robot_dim1].iloc[frame]],
+                                [df[robot_dim2].iloc[frame]],
+                            )
+                            target_point.set_data(
+                                [df[target_dim1].iloc[frame]],
+                                [df[target_dim2].iloc[frame]],
+                            )
+
                         # Update orientation arrows
-                        robot_pos = (df[robot_dim1].iloc[frame], df[robot_dim2].iloc[frame])
-                        target_pos = (df[target_dim1].iloc[frame], df[target_dim2].iloc[frame])
-                        
+                        robot_pos = (
+                            df[robot_dim1].iloc[frame],
+                            df[robot_dim2].iloc[frame],
+                        )
+                        target_pos = (
+                            df[target_dim1].iloc[frame],
+                            df[target_dim2].iloc[frame],
+                        )
+
                         # Get 3D direction and project to 2D
                         robot_dx, robot_dy, robot_dz = _quaternion_to_direction_vector(
-                            df["robot_quat_w"].iloc[frame], df["robot_quat_x"].iloc[frame],
-                            df["robot_quat_y"].iloc[frame], df["robot_quat_z"].iloc[frame], length=0.4  # Slightly longer
+                            df["robot_quat_w"].iloc[frame],
+                            df["robot_quat_x"].iloc[frame],
+                            df["robot_quat_y"].iloc[frame],
+                            df["robot_quat_z"].iloc[frame],
+                            length=0.4,  # Slightly longer
                         )
-                        target_dx, target_dy, target_dz = _quaternion_to_direction_vector(
-                            df["target_quat_w"].iloc[frame], df["target_quat_x"].iloc[frame],
-                            df["target_quat_y"].iloc[frame], df["target_quat_z"].iloc[frame], length=0.4  # Slightly longer
+                        target_dx, target_dy, target_dz = (
+                            _quaternion_to_direction_vector(
+                                df["target_quat_w"].iloc[frame],
+                                df["target_quat_x"].iloc[frame],
+                                df["target_quat_y"].iloc[frame],
+                                df["target_quat_z"].iloc[frame],
+                                length=0.4,  # Slightly longer
+                            )
                         )
-                        
+
                         # Project to current 2D plane
                         if proj_name == "XY":
                             robot_dir = (robot_dx, robot_dy)
@@ -876,46 +1105,69 @@ def run_animation(args: argparse.Namespace):
                         else:  # YZ
                             robot_dir = (robot_dy, robot_dz)
                             target_dir = (target_dy, target_dz)
-                        
+
                         if args.show_orientation:
                             robot_arrow.set_position(robot_pos)
-                            robot_arrow.xy = (robot_pos[0] + robot_dir[0], robot_pos[1] + robot_dir[1])
-                            target_arrow.set_position(target_pos)  
-                            target_arrow.xy = (target_pos[0] + target_dir[0], target_pos[1] + target_dir[1])
-                        
+                            robot_arrow.xy = (
+                                robot_pos[0] + robot_dir[0],
+                                robot_pos[1] + robot_dir[1],
+                            )
+                            target_arrow.set_position(target_pos)
+                            target_arrow.xy = (
+                                target_pos[0] + target_dir[0],
+                                target_pos[1] + target_dir[1],
+                            )
+
                         # Update text
                         time_text.set_text(f"Time: {df['time'].iloc[frame]:.2f}s")
                         pos_error = df["euclidean_error"].iloc[frame]
-                        orient_error = df["orientation_error_rad"].iloc[frame] * 180 / np.pi
-                        error_text.set_text(f"Pos Error: {pos_error:.3f}m | Orient Error: {orient_error:.1f}°")
-                    
+                        orient_error = (
+                            df["orientation_error_rad"].iloc[frame] * 180 / np.pi
+                        )
+                        error_text.set_text(
+                            f"Pos Error: {pos_error:.3f}m | Orient Error: {orient_error:.1f}°"
+                        )
+
                     # Return only non-None elements for blitting
                     return_elements = [robot_path]
                     if robot_point is not None:
                         return_elements.append(robot_point)
                     if target_point is not None:
                         return_elements.append(target_point)
-                    return_elements.extend([robot_arrow, target_arrow, time_text, error_text])
+                    return_elements.extend(
+                        [robot_arrow, target_arrow, time_text, error_text]
+                    )
                     return tuple(return_elements)
-                
+
                 frame_step = max(1, len(df) // 300)
                 ani_2d = animation.FuncAnimation(
-                    fig, update_2d, frames=range(0, len(df), frame_step), blit=True, interval=50
+                    fig,
+                    update_2d,
+                    frames=range(0, len(df), frame_step),
+                    blit=True,
+                    interval=50,
                 )
-                
-                anim_2d_path = args.output_dir / f"{proc_path.stem.replace('_processed', '')}_animation_{proj_name.lower()}.mp4"
+
+                anim_2d_path = (
+                    args.output_dir
+                    / f"{proc_path.stem.replace('_processed', '')}_animation_{proj_name.lower()}.mp4"
+                )
                 try:
                     ani_2d.save(anim_2d_path, writer="ffmpeg", fps=20, bitrate=3000)
                     print(f"Saved {proj_name} animation: {anim_2d_path}")
                 except FileNotFoundError:
-                    print("Error: ffmpeg not found. Please install ffmpeg to create animations.")
+                    print(
+                        "Error: ffmpeg not found. Please install ffmpeg to create animations."
+                    )
                 plt.close(fig)
+
+
 def run_collection(args: argparse.Namespace):
     """Entry point for the 'collect' command."""
     if not ROS_AVAILABLE:
         print("Error: ROS 2 is not available. Cannot run collection.")
         return
-        
+
     args.output.parent.mkdir(parents=True, exist_ok=True)
     rclpy.init()
     node = TrajectoryCollectorNode(args)

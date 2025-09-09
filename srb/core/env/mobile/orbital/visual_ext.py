@@ -29,11 +29,17 @@ class OrbitalEnvVisualExtCfg(VisualExtCfg):
                     rot=env_cfg._robot.frame_onboard_camera.offset.rot,
                 ),
                 spawn=PinholeCameraCfg(
-                    focal_length=25.0,
+                    focal_length=5.0,
                     horizontal_aperture=12.0,
-                    clipping_range=(0.1, 200.0 + 0.1),
+                    clipping_range=(1.0, 19.0 + 1.0),
                 ),
-            ),
+                data_types=[
+                    "rgb",
+                    "depth",
+                    "normals",
+                    "semantic_segmentation",
+                ],
+            )
         }
 
         super().wrap(env_cfg)

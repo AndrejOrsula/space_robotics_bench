@@ -226,6 +226,7 @@ def spawn_pinned_sphere(
 
     return prim
 
+
 @clone
 def spawn_sphere(
     prim_path: str,

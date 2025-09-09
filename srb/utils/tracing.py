@@ -30,7 +30,7 @@ def with_rich() -> bool:
         width=120,
         show_locals=(
             environ.get("RICH_TRACEBACK_LOCALS")
-            or environ.get("SF_RICH_TRACEBACK_LOCALS", "false")
+            or environ.get("SRB_RICH_TRACEBACK_LOCALS", "false")
         ).lower()
         in ("true", "1"),
         suppress=(numpy, pydantic, torch, *optional_suppress),

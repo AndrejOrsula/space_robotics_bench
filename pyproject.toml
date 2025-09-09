@@ -9,7 +9,7 @@ ignore_missing_imports = true
 [project]
 name = "srb"
 version = "0.0.5"
-description = "Space Robotics Bench"
+description = "Robot Learning Beyond Earth"
 authors = [{ name = "Andrej Orsula", email = "orsula.andrej@gmail.com" }]
 maintainers = [{ name = "Andrej Orsula", email = "orsula.andrej@gmail.com" }]
 urls = { Repository = "https://github.com/AndrejOrsula/space_robotics_bench", Documentation = "https://AndrejOrsula.github.io/space_robotics_bench" }
@@ -135,7 +135,6 @@ test = [
   "pytest~=8.0",
   "pytest-order~=1.0",
   "pytest-sugar~=1.0",
-  "lark~=1.0",
 ]
 tracing = [
   #

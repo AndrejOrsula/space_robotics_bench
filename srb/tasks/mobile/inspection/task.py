@@ -170,13 +170,38 @@ class TaskCfg(OrbitalEnvCfg):
             )
             self._robot = self.robot
 
-        # # Traj 1
+        # # Traj 1 (Gateway)
         # self.scene.scenery.init_state.pos = (4.0, 9.0, -10.0)  # type: ignore
         # self.scene.scenery.init_state.rot = rpy_to_quat(0.0, 0.0, 90.0)  # type: ignore
 
-        # Traj 2
-        self.scene.scenery.init_state.pos = (4.0, 18.3, -13.225)  # type: ignore
-        self.scene.scenery.init_state.rot = rpy_to_quat(0.0, -30.0, 90.0)  # type: ignore
+        # # Traj 2_1, 2_2 (Gateway)
+        # self.scene.scenery.init_state.pos = (4.0, 18.3, -13.225)  # type: ignore
+        # self.scene.scenery.init_state.rot = rpy_to_quat(0.0, -30.0, 90.0)  # type: ignore
+
+        # # Traj 3 (Gateway)
+        # self.scene.scenery.init_state.pos = (5, 1.9443, -1.2023)  # type: ignore
+        # self.scene.scenery.init_state.rot = rpy_to_quat(0, 55, 0)  # type: ignore
+
+        # Traj 4_1,4_2,4_3 (ISS)
+        self.scene.scenery = assets.ISS().asset_cfg
+        self.scene.scenery.spawn.collision_props.collision_enabled = False  # type: ignore
+        self.scene.scenery.spawn.mesh_collision_props.mesh_approximation = None  # type: ignore
+        self.scene.scenery.init_state.pos = (1.9467, 1.8242, -8.5216)  # type: ignore
+        self.scene.scenery.init_state.rot = rpy_to_quat(0, 0, 0)  # type: ignore
+
+        # # Traj 5 (ISS)
+        # self.scene.scenery = assets.ISS().asset_cfg
+        # self.scene.scenery.spawn.collision_props.collision_enabled = False  # type: ignore
+        # self.scene.scenery.spawn.mesh_collision_props.mesh_approximation = None  # type: ignore
+        # self.scene.scenery.init_state.pos = (-26.75, 4.152, -0.334)  # type: ignore
+        # self.scene.scenery.init_state.rot = rpy_to_quat(120, 0, 0)  # type: ignore
+
+        # # Traj 6 (Venus Express)
+        # self.scene.scenery = assets.VenusExpress().asset_cfg
+        # self.scene.scenery.spawn.collision_props.collision_enabled = False  # type: ignore
+        # self.scene.scenery.spawn.mesh_collision_props.mesh_approximation = None  # type: ignore
+        # self.scene.scenery.init_state.pos = (3.8343, 1.9074, 1.0534)  # type: ignore
+        # self.scene.scenery.init_state.rot = rpy_to_quat(0, 0, 0)  # type: ignore
 
 
 @configclass

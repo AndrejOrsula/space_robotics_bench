@@ -31,7 +31,7 @@ class OrbitalEnvVisualExtCfg(VisualExtCfg):
                 spawn=PinholeCameraCfg(
                     focal_length=4.0,
                     horizontal_aperture=12.0,
-                    clipping_range=(1.0, 25.0 + 1.0),
+                    clipping_range=(1.1, 40.0 + 1.1),
                 ),
                 data_types=[
                     "rgb",

@@ -706,35 +706,35 @@ def main():
     #     initial_quat_wxyz=yaw_to_quat_wxyz(0.0, deg=True),
     # )
     # pattern_cfg = LemniscatePatternCfg(
-    #     scale=2.65,
+    #     scale=7.0,
     #     direction="clockwise",
-    #     initial_pos=numpy.array([3.6, -3.1, 0.0], dtype=numpy.float32),
+    #     initial_pos=numpy.array([0.0, 0.0, 0.0], dtype=numpy.float32),
     #     initial_quat_wxyz=yaw_to_quat_wxyz(45.0, deg=True),
     # )
     # pattern_cfg = LissajousPatternCfg(
-    #     scale=1.5,
+    #     scale=4.0,
     #     direction="counter-clockwise",
     #     initial_pos=numpy.array([2.75, -2.9, 0.0], dtype=numpy.float32),
     #     initial_quat_wxyz=yaw_to_quat_wxyz(-155.0, deg=True),
     # )
     # pattern_cfg = RectanglePatternCfg(
-    #     width=4.3,
-    #     height=2.5,
+    #     width=8.0,
+    #     height=4.0,
     #     direction="clockwise",
     #     initial_pos=numpy.array([1.1, -1.5, 0.0], dtype=numpy.float32),
     #     initial_quat_wxyz=yaw_to_quat_wxyz(0.0, deg=True),
     # )
     # pattern_cfg = CirclePatternCfg(
-    #     radius=1.4,
+    #     radius=5.0,
     #     direction="counter-clockwise",
     #     initial_pos=numpy.array([2.7, -4.15, 0.0], dtype=numpy.float32),
     #     initial_quat_wxyz=yaw_to_quat_wxyz(0.0, deg=True),
     # )
     # pattern_cfg = SpiralPatternCfg(
-    #     max_radius=1.0,
+    #     max_radius=6.0,
     #     n_loops=2,
     #     direction="clockwise",
-    #     initial_pos=numpy.array([2.0, -2.75, 0.0], dtype=numpy.float32),
+    #     initial_pos=numpy.array([0.0, 0.0, 0.0], dtype=numpy.float32),
     #     initial_quat_wxyz=yaw_to_quat_wxyz(0.0, deg=True),
     # )
     # pattern_cfg = LinePatternCfg(

@@ -802,7 +802,10 @@ def run_animation(args: argparse.Namespace):
         margin = 0.5
         ax.set_xlim(all_pos[:, 0].min() - margin, all_pos[:, 0].max() + margin)
         ax.set_ylim(all_pos[:, 1].min() - margin, all_pos[:, 1].max() + margin)
-        ax.set_zlim(all_pos[:, 2].min() - margin, all_pos[:, 2].max() + margin)
+        ax.set_zlim(
+            0.5 * all_pos[:, 0].min() + 0.5 * all_pos[:, 1].min() - margin,
+            0.5 * all_pos[:, 0].max() + 0.5 * all_pos[:, 1].max() + margin,
+        )
 
         ax.set_xlabel("X (m)")
         ax.set_ylabel("Y (m)")
@@ -979,10 +982,16 @@ def run_animation(args: argparse.Namespace):
 
                 # Set axis limits
                 all_pos_1 = np.concatenate(
-                    [df[target_dim1].values, df[robot_dim1].values]
+                    [
+                        df[target_dim1].values,
+                        df[robot_dim1].values,
+                    ]
                 )
                 all_pos_2 = np.concatenate(
-                    [df[target_dim2].values, df[robot_dim2].values]
+                    [
+                        df[target_dim2].values,
+                        df[robot_dim2].values,
+                    ]
                 )
                 margin = 0.3
                 ax.set_xlim(all_pos_1.min() - margin, all_pos_1.max() + margin)
@@ -1135,7 +1144,12 @@ def run_animation(args: argparse.Namespace):
                     if target_point is not None:
                         return_elements.append(target_point)
                     return_elements.extend(
-                        [robot_arrow, target_arrow, time_text, error_text]
+                        [
+                            robot_arrow,
+                            target_arrow,
+                            time_text,
+                            error_text,
+                        ]
                     )
                     return tuple(return_elements)
 

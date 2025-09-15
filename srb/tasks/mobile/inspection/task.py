@@ -1,9 +1,6 @@
-from collections import defaultdict, deque
 from dataclasses import MISSING
-from datetime import datetime
 from typing import Sequence
 
-import numpy as np
 import torch
 from rclpy.time import Duration, Time
 from tf2_ros import Buffer, TransformListener
@@ -18,9 +15,6 @@ except ImportError:
     CV2_AVAILABLE = False
     print("Warning: opencv-python not available. Video recording will be disabled.")
 
-from typing import Dict
-
-from torchvision.utils import make_grid, save_image
 
 from srb import assets
 from srb._typing import StepReturn
@@ -41,7 +35,6 @@ from srb.core.env import (
     OrbitalSceneCfg,
     ViewerCfg,
 )
-from srb.core.env.common.extension.visual.impl import construct_observation
 from srb.core.manager import EventTermCfg, SceneEntityCfg  # noqa: F401
 from srb.core.marker import VisualizationMarkers, VisualizationMarkersCfg
 from srb.core.mdp import apply_external_force_torque, offset_pose_natural  # noqa: F401
@@ -49,8 +42,6 @@ from srb.core.sim import ArrowCfg, PreviewSurfaceCfg
 from srb.utils import logging
 from srb.utils.cfg import configclass
 from srb.utils.math import matrix_from_quat, rotmat_to_rot6d, subtract_frame_transforms
-from srb.utils.path import SRB_LOGS_DIR
-from srb.utils.str import sanitize_cam_name
 
 ##############
 ### Config ###
@@ -217,9 +208,9 @@ class VisualTaskCfg(OrbitalEnvVisualExtCfg, TaskCfg):
 
 
 class Task(OrbitalEnv):
-    cfg: VisualTaskCfg
+    cfg: TaskCfg
 
-    def __init__(self, cfg: VisualTaskCfg, **kwargs):
+    def __init__(self, cfg: TaskCfg, **kwargs):
         super().__init__(cfg, **kwargs)
 
         ## Get scene assets
@@ -232,38 +223,38 @@ class Task(OrbitalEnv):
         self._goal[:, 0:3] = self.scene.env_origins
         self._goal[:, 3] = 1.0
 
-        # Get camera
-        self.__cameras = [
-            (
-                self.scene.sensors[camera_key],
-                f"image_{sanitize_cam_name(camera_key)}",
-                cfg.cameras_cfg[camera_key].data_types,
-                cfg.cameras_cfg[camera_key].spawn.clipping_range,  # type: ignore
-            )
-            for camera_key in cfg.cameras_cfg.keys()
-        ]
+        # # Get camera
+        # self.__cameras = [
+        #     (
+        #         self.scene.sensors[camera_key],
+        #         f"image_{sanitize_cam_name(camera_key)}",
+        #         cfg.cameras_cfg[camera_key].data_types,
+        #         cfg.cameras_cfg[camera_key].spawn.clipping_range,  # type: ignore
+        #     )
+        #     for camera_key in cfg.cameras_cfg.keys()
+        # ]
 
-        # Video recording setup
-        self._video_enabled = True  # TODO: fix make configurable
-        self._episode_frames = defaultdict(
-            lambda: deque()
-        )  # Store frames for each camera
-        self._episode_counter = 0
-        self._video_fps = 10  # Target FPS for videos (matches agent_rate of 10Hz)
-        self._debug_img = False  # Whether to save individual images for debugging
+        # # Video recording setup
+        # self._video_enabled = True  # TODO: fix make configurable
+        # self._episode_frames = defaultdict(
+        #     lambda: deque()
+        # )  # Store frames for each camera
+        # self._episode_counter = 0
+        # self._video_fps = 10  # Target FPS for videos (matches agent_rate of 10Hz)
+        # self._debug_img = False  # Whether to save individual images for debugging
 
-        if not CV2_AVAILABLE and (
-            kwargs.get("enable_cameras", False) or kwargs.get("video", False)
-        ):
-            print(
-                "Warning: Video recording requested but opencv-python not available. Install with: pip install opencv-python"
-            )
-        else:
-            print(f"Video recording enabled: {self._video_enabled}")
-            self.videos_dir = SRB_LOGS_DIR.joinpath("oc_videos").joinpath(
-                f"{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-            )
-            self.videos_dir.mkdir(parents=True, exist_ok=True)
+        # if not CV2_AVAILABLE and (
+        #     kwargs.get("enable_cameras", False) or kwargs.get("video", False)
+        # ):
+        #     print(
+        #         "Warning: Video recording requested but opencv-python not available. Install with: pip install opencv-python"
+        #     )
+        # else:
+        #     print(f"Video recording enabled: {self._video_enabled}")
+        #     self.videos_dir = SRB_LOGS_DIR.joinpath("oc_videos").joinpath(
+        #         f"{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        #     )
+        #     self.videos_dir.mkdir(parents=True, exist_ok=True)
 
     def _reset_idx(self, env_ids: Sequence[int]):
         super()._reset_idx(env_ids)
@@ -274,11 +265,11 @@ class Task(OrbitalEnv):
             [1.0, 0.0, 0.0, 0.0], device=self.device
         )
 
-        # Save video for completed episodes and reset frame buffers
-        if self._video_enabled and len(env_ids) > 0:
-            self._save_episode_videos()
-            self._episode_frames.clear()
-            self._episode_counter += 1
+        # # Save video for completed episodes and reset frame buffers
+        # if self._video_enabled and len(env_ids) > 0:
+        #     self._save_episode_videos()
+        #     self._episode_frames.clear()
+        #     self._episode_counter += 1
 
         if hasattr(self.unwrapped, "ros_node"):
             # ADD ROS SUBSCRIBER TO GET THE WAYPOINTS FROM TRAJ GENERATOR AND UPDATE GOALS
@@ -288,110 +279,110 @@ class Task(OrbitalEnv):
             )
             logging.info("TF listener initialized.")
 
-    def extract_camera_observations(self) -> Dict[str, torch.Tensor]:
-        # Early return if video recording is disabled
-        if not self._video_enabled:
-            return {}
+    # def extract_camera_observations(self) -> Dict[str, torch.Tensor]:
+    #     # Early return if video recording is disabled
+    #     if not self._video_enabled:
+    #         return {}
 
-        # Only construct observations when video recording is enabled
-        images = {
-            image_key: image
-            for camera, image_basename, data_types, clipping_range in self.__cameras
-            for image_key, image in construct_observation(
-                image_basename=image_basename,
-                data_types=data_types,
-                clipping_range=clipping_range,  # type: ignore
-                merge_channels=False,
-                **camera.data.output,
-            ).items()
-        }
+    #     # Only construct observations when video recording is enabled
+    #     images = {
+    #         image_key: image
+    #         for camera, image_basename, data_types, clipping_range in self.__cameras
+    #         for image_key, image in construct_observation(
+    #             image_basename=image_basename,
+    #             data_types=data_types,
+    #             clipping_range=clipping_range,  # type: ignore
+    #             merge_channels=False,
+    #             **camera.data.output,
+    #         ).items()
+    #     }
 
-        # Store frames for video creation and optionally save debug images
-        if self._video_enabled:
-            for image_key, image in images.items():
-                # Convert tensor to numpy array suitable for video
-                if image.dtype == torch.uint8:
-                    # Shape: [1, H, W, C] -> [H, W, C] or [1, H, W] -> [H, W]
-                    frame = image[0].cpu().numpy()
-                else:
-                    # Convert float [0,1] to uint8 [0,255]
-                    frame = (image[0].cpu().numpy() * 255).astype(np.uint8)
+    #     # Store frames for video creation and optionally save debug images
+    #     if self._video_enabled:
+    #         for image_key, image in images.items():
+    #             # Convert tensor to numpy array suitable for video
+    #             if image.dtype == torch.uint8:
+    #                 # Shape: [1, H, W, C] -> [H, W, C] or [1, H, W] -> [H, W]
+    #                 frame = image[0].cpu().numpy()
+    #             else:
+    #                 # Convert float [0,1] to uint8 [0,255]
+    #                 frame = (image[0].cpu().numpy() * 255).astype(np.uint8)
 
-                # Convert to BGR for OpenCV VideoWriter
-                if CV2_AVAILABLE:
-                    if frame.ndim == 2 or (frame.ndim == 3 and frame.shape[-1] == 1):
-                        # Grayscale to BGR
-                        frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
-                    elif frame.shape[-1] == 4:
-                        # RGBA to BGR (discards alpha by blending with black background)
-                        frame = cv2.cvtColor(frame, cv2.COLOR_RGBA2BGR)
-                    elif frame.shape[-1] == 3:
-                        # RGB to BGR
-                        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+    #             # Convert to BGR for OpenCV VideoWriter
+    #             if CV2_AVAILABLE:
+    #                 if frame.ndim == 2 or (frame.ndim == 3 and frame.shape[-1] == 1):
+    #                     # Grayscale to BGR
+    #                     frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+    #                 elif frame.shape[-1] == 4:
+    #                     # RGBA to BGR (discards alpha by blending with black background)
+    #                     frame = cv2.cvtColor(frame, cv2.COLOR_RGBA2BGR)
+    #                 elif frame.shape[-1] == 3:
+    #                     # RGB to BGR
+    #                     frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
 
-                self._episode_frames[image_key].append(frame)
+    #             self._episode_frames[image_key].append(frame)
 
-            # Optional: Still save individual images for debugging (less frequent)
-            save_every = 100
-            if self._debug_img and self.episode_length_buf[0] % save_every == 0:
-                for image_key, image in images.items():
-                    file_path = SRB_LOGS_DIR.joinpath(
-                        f"inspection_{image_key}_{self.episode_length_buf[0]}.png"
-                    ).as_posix()
-                    print(f"Saving debug image to {file_path}")
+    #         # Optional: Still save individual images for debugging (less frequent)
+    #         save_every = 100
+    #         if self._debug_img and self.episode_length_buf[0] % save_every == 0:
+    #             for image_key, image in images.items():
+    #                 file_path = SRB_LOGS_DIR.joinpath(
+    #                     f"inspection_{image_key}_{self.episode_length_buf[0]}.png"
+    #                 ).as_posix()
+    #                 print(f"Saving debug image to {file_path}")
 
-                    # Convert uint8 tensor to float and normalize to [0, 1] range for save_image
-                    if image.dtype == torch.uint8:
-                        image_normalized = image.float() / 255.0
-                    else:
-                        image_normalized = image
+    #                 # Convert uint8 tensor to float and normalize to [0, 1] range for save_image
+    #                 if image.dtype == torch.uint8:
+    #                     image_normalized = image.float() / 255.0
+    #                 else:
+    #                     image_normalized = image
 
-                    save_image(
-                        make_grid(
-                            torch.swapaxes(
-                                image_normalized.unsqueeze(1), 1, -1
-                            ).squeeze(-1),
-                            nrow=round(image_normalized.shape[0] ** 0.5),
-                        ),
-                        file_path,
-                    )
+    #                 save_image(
+    #                     make_grid(
+    #                         torch.swapaxes(
+    #                             image_normalized.unsqueeze(1), 1, -1
+    #                         ).squeeze(-1),
+    #                         nrow=round(image_normalized.shape[0] ** 0.5),
+    #                     ),
+    #                     file_path,
+    #                 )
 
-        return {}
+    #     return {}
 
-    def _save_episode_videos(self):
-        """Save videos from collected frames for each camera."""
-        if not self._episode_frames or not CV2_AVAILABLE:
-            return
+    # def _save_episode_videos(self):
+    #     """Save videos from collected frames for each camera."""
+    #     if not self._episode_frames or not CV2_AVAILABLE:
+    #         return
 
-        for image_key, frames in self._episode_frames.items():
-            if len(frames) == 0:
-                continue
+    #     for image_key, frames in self._episode_frames.items():
+    #         if len(frames) == 0:
+    #             continue
 
-            video_path = (
-                self.videos_dir
-                / f"inspection_{image_key}_episode_{self._episode_counter}.mp4"
-            )
-            print(f"Saving video to {video_path} ({len(frames)} frames)")
+    #         video_path = (
+    #             self.videos_dir
+    #             / f"inspection_{image_key}_episode_{self._episode_counter}.mp4"
+    #         )
+    #         print(f"Saving video to {video_path} ({len(frames)} frames)")
 
-            # Get frame dimensions
-            height, width = frames[0].shape[:2]
+    #         # Get frame dimensions
+    #         height, width = frames[0].shape[:2]
 
-            # Initialize video writer
-            fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-            video_writer = cv2.VideoWriter(
-                str(video_path), fourcc, self._video_fps, (width, height)
-            )
+    #         # Initialize video writer
+    #         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    #         video_writer = cv2.VideoWriter(
+    #             str(video_path), fourcc, self._video_fps, (width, height)
+    #         )
 
-            if not video_writer.isOpened():
-                print(f"Warning: Could not open video writer for {video_path}")
-                continue
+    #         if not video_writer.isOpened():
+    #             print(f"Warning: Could not open video writer for {video_path}")
+    #             continue
 
-            # Write all frames
-            for frame in frames:
-                video_writer.write(frame)
+    #         # Write all frames
+    #         for frame in frames:
+    #             video_writer.write(frame)
 
-            video_writer.release()
-            print(f"Video saved: {video_path}")
+    #         video_writer.release()
+    #         print(f"Video saved: {video_path}")
 
     def extract_step_return(self) -> StepReturn:
         if hasattr(self, "tf_buffer"):
@@ -421,8 +412,8 @@ class Task(OrbitalEnv):
                     f"Failed to get transform from 'srb/env0' to 'target': {e}"
                 )
 
-        # get the camera images
-        self.extract_camera_observations()
+        # # get the camera images
+        # self.extract_camera_observations()
         ## Visualize target
         self._target_marker.visualize(self._goal[:, 0:3], self._goal[:, 3:7])
 

@@ -13,7 +13,9 @@ class BeneficiationUnit(Object):
     asset_cfg: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/beneficiation_unit",
         spawn=UsdFileCfg(
-            usd_path=(SRB_ASSETS_DIR_SRB_OBJECT.joinpath("PRIVATE").as_posix()),
+            usd_path=(
+                SRB_ASSETS_DIR_SRB_OBJECT.joinpath("beneficiation_unit.usdz").as_posix()
+            ),
             collision_props=CollisionPropertiesCfg(),
             mesh_collision_props=MeshCollisionPropertiesCfg(
                 mesh_approximation="convexDecomposition"

@@ -16,7 +16,9 @@ class MarsRover(WheeledRobot):
     asset_cfg: ArticulationCfg = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/mars_rover",
         spawn=UsdFileCfg(
-            usd_path=SRB_ASSETS_DIR_SRB_ROBOT.joinpath("PRIVATE").as_posix(),
+            usd_path=SRB_ASSETS_DIR_SRB_ROBOT.joinpath("rover")
+            .joinpath("mars_rover.usdz")
+            .as_posix(),
             activate_contact_sensors=True,
             collision_props=CollisionPropertiesCfg(
                 contact_offset=0.02, rest_offset=0.005

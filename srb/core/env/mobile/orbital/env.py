@@ -4,7 +4,7 @@ import torch
 
 from srb import assets
 from srb.core.action import ThrustAction
-from srb.core.asset import AssetVariant, OrbitalRobot, Scenery
+from srb.core.asset import AssetVariant, MobileRobot, OrbitalRobot, Scenery
 from srb.core.domain import Domain
 from srb.core.env import ViewerCfg
 from srb.core.env.mobile.env import (
@@ -59,7 +59,7 @@ class OrbitalEnvCfg(MobileEnvCfg):
     ## Assets
     robot: OrbitalRobot | AssetVariant = assets.Cubesat()
     _robot: OrbitalRobot = MISSING  # type: ignore
-    scenery: Scenery | AssetVariant | None = None
+    scenery: Scenery | MobileRobot | AssetVariant | None = None
 
     ## Scene
     scene: OrbitalSceneCfg = OrbitalSceneCfg()

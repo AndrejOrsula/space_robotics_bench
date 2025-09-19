@@ -89,7 +89,9 @@ class ManipulationEnvCfg(DirectEnvCfg):
 
         ## Add pedestal and offset the robot
         if self.pedestal is not None:
-            self.scene.pedestal = self.pedestal.as_asset_base_cfg()
+            self.scene.pedestal = self.pedestal.as_asset_base_cfg(
+                disable_articulation=True, disable_rigid_body=True
+            )
             self.scene.robot.init_state.pos, self.scene.robot.init_state.rot = (
                 combine_frame_transforms_tuple(
                     self._robot.asset_cfg.init_state.pos,

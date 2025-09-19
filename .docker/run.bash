@@ -71,8 +71,8 @@ if [[ "${WITH_HISTORY,,}" = true ]]; then
     )
     DOCKER_ENVIRON+=(
         HISTFILE="/.history/.bash_history"
-        HISTCONTROL="ignoredups:erasedups"
-        PROMPT_COMMAND="history -a; history -c; history -r"
+        # HISTCONTROL="ignoredups:erasedups"
+        # PROMPT_COMMAND="history -a; history -c; history -r"
         PYTHON_HISTORY="/.history/.python_history"
     )
 fi

@@ -21,13 +21,13 @@ from srb.utils.math import deg_to_rad, rpy_to_quat
 from srb.utils.path import SRB_ASSETS_DIR_SRB_ROBOT
 
 
-class Gateway(OrbitalRobot):
+class ISS(OrbitalRobot):
     ## Model
     asset_cfg: RigidObjectCfg = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/gateway",
+        prim_path="{ENV_REGEX_NS}/iss",
         spawn=UsdFileCfg(
             usd_path=SRB_ASSETS_DIR_SRB_ROBOT.joinpath("spacecraft")
-            .joinpath("gateway.usdz")
+            .joinpath("iss.usdz")
             .as_posix(),
             activate_contact_sensors=True,
             collision_props=CollisionPropertiesCfg(),
@@ -38,6 +38,57 @@ class Gateway(OrbitalRobot):
                 max_depenetration_velocity=5.0,
             ),
             mass_props=MassPropertiesCfg(density=1500.0),
+            semantic_tags=[("class", "spacecraft")],
+        ),
+    )
+
+    ## Actions
+    actions: ActionGroup = BodyAccelerationActionGroup(
+        BodyAccelerationActionCfg(asset_name="robot", scale=0.05)
+    )
+
+    ## Frames
+    frame_base: Frame = Frame(prim_relpath="base")
+    frame_payload_mount: Frame = Frame(
+        prim_relpath="base",
+        offset=Transform(
+            pos=(0.0, 19.9631, 5.81683),
+            rot=rpy_to_quat(0.0, 0.0, 0.0),
+        ),
+    )
+    frame_manipulator_mount: Frame = Frame(
+        prim_relpath="base",
+        offset=Transform(
+            pos=(0.0, 0.0, 0.0),
+            rot=rpy_to_quat(0.0, 0.0, 0.0),
+        ),
+    )
+    frame_onboard_camera: Frame = Frame(
+        prim_relpath="base/camera_onboard",
+        offset=Transform(
+            pos=(0.0, -16.2149, 2.27954),
+        ),
+    )
+
+
+class Gateway(OrbitalRobot):
+    ## Model
+    asset_cfg: RigidObjectCfg = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/gateway",
+        spawn=UsdFileCfg(
+            usd_path=SRB_ASSETS_DIR_SRB_ROBOT.joinpath("spacecraft")
+            .joinpath("gateway_aligned.usdz")
+            .as_posix(),
+            activate_contact_sensors=True,
+            collision_props=CollisionPropertiesCfg(),
+            mesh_collision_props=MeshCollisionPropertiesCfg(
+                mesh_approximation="convexDecomposition"
+            ),
+            rigid_props=RigidBodyPropertiesCfg(
+                max_depenetration_velocity=5.0,
+            ),
+            mass_props=MassPropertiesCfg(density=1500.0),
+            semantic_tags=[("class", "spacecraft")],
         ),
     )
 
@@ -85,6 +136,7 @@ class Cubesat(OrbitalRobot):
                 max_depenetration_velocity=5.0,
             ),
             mass_props=MassPropertiesCfg(density=1000.0),
+            semantic_tags=[("class", "spacecraft")],
         ),
     )
 
@@ -96,46 +148,55 @@ class Cubesat(OrbitalRobot):
                 ThrusterCfg(
                     offset=(-0.05, -0.05, 0.05),
                     direction=(-0.5, -0.5, 1.0),
-                    power=10.0,
+                    # power=10.0,
+                    power=5.0,
                 ),
                 ThrusterCfg(
                     offset=(-0.05, 0.05, 0.05),
                     direction=(-0.5, 0.5, 1.0),
-                    power=10.0,
+                    # power=10.0,
+                    power=5.0,
                 ),
                 ThrusterCfg(
                     offset=(0.05, -0.05, 0.05),
                     direction=(0.5, -0.5, 1.0),
-                    power=10.0,
+                    # power=10.0,
+                    power=5.0,
                 ),
                 ThrusterCfg(
                     offset=(0.05, 0.05, 0.05),
                     direction=(0.5, 0.5, 1.0),
-                    power=10.0,
+                    # power=10.0,
+                    power=5.0,
                 ),
                 ThrusterCfg(
                     offset=(-0.05, -0.05, -0.05),
                     direction=(-0.5, -0.5, -1.0),
-                    power=10.0,
+                    # power=10.0,
+                    power=5.0,
                 ),
                 ThrusterCfg(
                     offset=(-0.05, 0.05, -0.05),
                     direction=(-0.5, 0.5, -1.0),
-                    power=10.0,
+                    # power=10.0,
+                    power=5.0,
                 ),
                 ThrusterCfg(
                     offset=(0.05, -0.05, -0.05),
                     direction=(0.5, -0.5, -1.0),
-                    power=10.0,
+                    # power=10.0,
+                    power=5.0,
                 ),
                 ThrusterCfg(
                     offset=(0.05, 0.05, -0.05),
                     direction=(0.5, 0.5, -1.0),
-                    power=10.0,
+                    # power=10.0,
+                    power=5.0,
                 ),
             ),
             fuel_capacity=5.0,
-            fuel_consumption_rate=(5.0 / (8 * 10.0)) / 20.0,
+            # fuel_consumption_rate=(5.0 / (8 * 10.0)) / 20.0,
+            fuel_consumption_rate=0.0,
         )
     )
 
@@ -158,8 +219,8 @@ class Cubesat(OrbitalRobot):
     frame_onboard_camera: Frame = Frame(
         prim_relpath="cubesat/camera_onboard",
         offset=Transform(
-            pos=(0.075, 0.0, 0.0),
-            rot=rpy_to_quat(0.0, 0.0, 0.0),
+            pos=(0.0, 0.1, 0.0),
+            rot=rpy_to_quat(0.0, 0.0, 90.0),
         ),
     )
 
@@ -181,6 +242,7 @@ class VenusExpress(OrbitalRobot):
                 max_depenetration_velocity=5.0,
             ),
             mass_props=MassPropertiesCfg(density=1500.0),
+            semantic_tags=[("class", "spacecraft")],
         ),
     )
 
@@ -325,6 +387,7 @@ class Starship(OrbitalRobot):
                 max_depenetration_velocity=5.0,
             ),
             mass_props=MassPropertiesCfg(mass=100000.0),
+            semantic_tags=[("class", "spacecraft")],
         ),
     )
 
@@ -411,6 +474,7 @@ class SuperHeavy(OrbitalRobot):
                 max_depenetration_velocity=5.0,
             ),
             mass_props=MassPropertiesCfg(mass=200000.0),
+            semantic_tags=[("class", "spacecraft")],
         ),
     )
 

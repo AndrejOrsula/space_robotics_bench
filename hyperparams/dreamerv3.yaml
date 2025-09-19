@@ -1,9 +1,9 @@
 ### Training ###
 run:
   steps: 100000000
-  train_ratio: 256.0
+  train_ratio: 16.0
 replay:
-  size: 2500000
+  size: 5000000
   online: True
   fracs: { uniform: 0.0, priority: 0.5, recency: 0.5 }
   chunksize: 1024

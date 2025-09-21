@@ -24,7 +24,7 @@
 		"type=bind,source=/etc/timezone,target=/etc/timezone,readonly",
 		// GUI (X11)
 		"type=bind,source=/tmp/.X11-unix,target=/tmp/.X11-unix",
-		"type=bind,source=${localEnv:TMPDIR:/tmp}/xauth_docker_vsc_${localWorkspaceFolderBasename},target=${localEnv:TMPDIR:/tmp}/xauth_docker_vsc_${localWorkspaceFolderBasename}",
+		"type=bind,source=${localEnv:TMPDIR:/tmp}/xauth_docker_vsc_${localWorkspaceFolderBasename}_${localEnv:USER},target=${localEnv:TMPDIR:/tmp}/xauth_docker_vsc_${localWorkspaceFolderBasename}_${localEnv:USER}",
 		/// Isaac Sim
 		// Data
 		"type=bind,source=${localEnv:HOME}/.nvidia-omniverse/data/ov,target=/root/.local/share/ov/data",
@@ -44,7 +44,7 @@
 	"containerEnv": {
 		// GUI (X11)
 		"DISPLAY": "${localEnv:DISPLAY}",
-		"XAUTHORITY": "${localEnv:TMPDIR:/tmp}/xauth_docker_vsc_${localWorkspaceFolderBasename}",
+		"XAUTHORITY": "${localEnv:TMPDIR:/tmp}/xauth_docker_vsc_${localWorkspaceFolderBasename}_${localEnv:USER}",
 		// NVIDIA GPU
 		"NVIDIA_VISIBLE_DEVICES": "all",
 		"NVIDIA_DRIVER_CAPABILITIES": "all"

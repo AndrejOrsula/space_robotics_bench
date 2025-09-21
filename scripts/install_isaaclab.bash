@@ -5,7 +5,7 @@ set -e
 
 ## Config
 SRC_REPOSITORY="${SRC_REPOSITORY:-"https://github.com/isaac-sim/IsaacLab.git"}"
-SRC_BRANCH="${SRC_BRANCH:-"v2.1.0"}"
+SRC_BRANCH="${SRC_BRANCH:-"v2.2.1"}"
 DEST_DIR="${1:-"${DEST_DIR:-"$HOME/isaaclab"}"}"
 
 echo "[INFO] Source repository: ${SRC_REPOSITORY}"

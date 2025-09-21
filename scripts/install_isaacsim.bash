@@ -4,7 +4,7 @@
 set -e
 
 ## Config
-SRC_URL="${SRC_URL:-"https://download.isaacsim.omniverse.nvidia.com/isaac-sim-standalone%404.5.0-rc.36%2Brelease.19112.f59b3005.gl.linux-x86_64.release.zip"}"
+SRC_URL="${SRC_URL:-"https://download.isaacsim.omniverse.nvidia.com/isaac-sim-standalone-5.0.0-linux-x86_64.zip"}"
 DEST_DIR="${1:-"${DEST_DIR:-"$HOME/isaac-sim"}"}"
 ARCHIVE_PATH="/tmp/isaac-sim-$(date +%s).zip"
 OMNI_HUB_ARCHIVE="/tmp/omni_hub-$(date +%s).zip"

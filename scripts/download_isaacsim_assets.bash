@@ -5,9 +5,9 @@ set -e
 
 ## Config
 SRC_URLS=(
-    "https://download.isaacsim.omniverse.nvidia.com/isaac-sim-assets-1%404.5.0-rc.36%2Brelease.19112.f59b3005.zip"
-    "https://download.isaacsim.omniverse.nvidia.com/isaac-sim-assets-2%404.5.0-rc.36%2Brelease.19112.f59b3005.zip"
-    "https://download.isaacsim.omniverse.nvidia.com/isaac-sim-assets-3%404.5.0-rc.36%2Brelease.19112.f59b3005.zip"
+    "https://download.isaacsim.omniverse.nvidia.com/isaac-sim-assets-complete-5.0.0.zip.001"
+    "https://download.isaacsim.omniverse.nvidia.com/isaac-sim-assets-complete-5.0.0.zip.002"
+    "https://download.isaacsim.omniverse.nvidia.com/isaac-sim-assets-complete-5.0.0.zip.003"
 )
 DEST_DIR="${1:-"${DEST_DIR:-"$HOME/isaac-sim-assets"}"}"
 ARCHIVE_PATH="/tmp/isaac-sim-assets-$(date +%s).zip"

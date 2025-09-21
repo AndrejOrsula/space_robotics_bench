@@ -119,14 +119,11 @@ def run_agent_with_env(
     # Update the offline registry cache
     update_offline_srb_cache()
 
-    from datetime import datetime
-
     from omni.physx import acquire_physx_interface
 
     from srb.interfaces.teleop import EventOmniKeyboardTeleopInterface
-    from srb.utils.cfg import DEFAULT_DATETIME_FORMAT, last_logdir, new_logdir
     from srb.utils import logging
-    from srb.utils.cfg import last_logdir, new_logdir
+    from srb.utils.cfg import DEFAULT_DATETIME_FORMAT, last_logdir, new_logdir
     from srb.utils.hydra.sim import hydra_task_config
     from srb.utils.isaacsim import hide_isaacsim_ui
 
@@ -293,11 +290,13 @@ def run_agent_with_env(
 
         # Run the implementation
         def agent_impl(**kwargs):
-            kwargs.update({
-                "env_id": env_id,
-                "agent_cfg": agent_cfg,
-                "env_cfg": env_cfg,
-            })
+            kwargs.update(
+                {
+                    "env_id": env_id,
+                    "agent_cfg": agent_cfg,
+                    "env_cfg": env_cfg,
+                }
+            )
 
             match agent_subcommand:
                 case "zero":
@@ -588,14 +587,16 @@ def _teleop_agent_direct(
                         contact_forces = (
                             contacts_end_effector.data.net_forces_w  # type: ignore
                         )[0].mean(dim=0)
-                        contact_ft = torch.cat([
-                            contact_forces,
-                            torch.zeros(
-                                3,
-                                device=contact_forces.device,
-                                dtype=contact_forces.dtype,
-                            ),
-                        ])
+                        contact_ft = torch.cat(
+                            [
+                                contact_forces,
+                                torch.zeros(
+                                    3,
+                                    device=contact_forces.device,
+                                    dtype=contact_forces.dtype,
+                                ),
+                            ]
+                        )
                         ft_feedback = (
                             torch.tensor([0.33, 0.33, 0.33, 0.0, 0.0, 0.0])
                             * contact_ft.cpu()
@@ -635,10 +636,12 @@ def _teleop_agent_via_policy(
             for event_name in event_names:
                 for recognized_cmd_key in recognized_cmd_keys:
                     if recognized_cmd_key in event_name:
-                        events_to_remove.append((
-                            category,
-                            event_names.index(event_name),
-                        ))
+                        events_to_remove.append(
+                            (
+                                category,
+                                event_names.index(event_name),
+                            )
+                        )
                         break
         for category, event_id in reversed(events_to_remove):
             env.unwrapped.event_manager._mode_term_names[category].pop(  # type: ignore
@@ -734,15 +737,17 @@ def _teleop_agent_via_policy(
                         )
                         setattr(env.unwrapped, self._internal_cmd_attr_name, cmd)  # type: ignore
                     else:
-                        cmd = torch.concat((
-                            torch.from_numpy(twist).to(
-                                device=env.unwrapped.device,  # type: ignore
-                                dtype=torch.float32,
-                            ),
-                            torch.Tensor((-1.0 if event else 1.0,)).to(
-                                device=env.unwrapped.device,  # type: ignore
-                            ),
-                        ))
+                        cmd = torch.concat(
+                            (
+                                torch.from_numpy(twist).to(
+                                    device=env.unwrapped.device,  # type: ignore
+                                    dtype=torch.float32,
+                                ),
+                                torch.Tensor((-1.0 if event else 1.0,)).to(
+                                    device=env.unwrapped.device,  # type: ignore
+                                ),
+                            )
+                        )
                         setattr(
                             env.unwrapped,
                             self._internal_cmd_attr_name,  # type: ignore
@@ -1057,11 +1062,13 @@ def run_real_agent_with_env(
 
         # Run the implementation
         def agent_impl(**kwargs):
-            kwargs.update({
-                "env_id": env_id,
-                "agent_cfg": agent_cfg,
-                "env_cfg": None,
-            })
+            kwargs.update(
+                {
+                    "env_id": env_id,
+                    "agent_cfg": agent_cfg,
+                    "env_cfg": None,
+                }
+            )
 
             match real_agent_subcommand:
                 case "zero":

@@ -1,11 +1,11 @@
 ## Base <https://hub.docker.com/_/ubuntu>
 ARG BASE_IMAGE_NAME="ubuntu"
-ARG BASE_IMAGE_TAG="22.04"
+ARG BASE_IMAGE_TAG="24.04"
 
 ## Isaac Sim <https://catalog.ngc.nvidia.com/orgs/nvidia/containers/isaac-sim>
 ## Label as isaac-sim for copying into the final image
 ARG ISAAC_SIM_IMAGE_NAME="nvcr.io/nvidia/isaac-sim"
-ARG ISAAC_SIM_IMAGE_TAG="4.5.0"
+ARG ISAAC_SIM_IMAGE_TAG="5.0.0"
 FROM ${ISAAC_SIM_IMAGE_NAME}:${ISAAC_SIM_IMAGE_TAG} AS isaac-sim
 
 ## Continue with the base image
@@ -38,7 +38,7 @@ RUN sed -i 's|$SCRIPT_DIR/../../../$LD_LIBRARY_PATH:||' "${ISAAC_SIM_PATH}/setup
     sed -i 's|$SCRIPT_DIR/../../../$PYTHONPATH:||' "${ISAAC_SIM_PATH}/setup_python_env.sh"
 
 ## Build Python with enabled optimizations to improve the runtime training performance
-ARG PYTHON_VERSION="3.10.16"
+ARG PYTHON_VERSION="3.11.13"
 ARG PYTHON_PREFIX="/usr/local"
 ENV PYTHONEXE="${PYTHON_PREFIX}/bin/python${PYTHON_VERSION%.*}"
 # hadolint ignore=DL3003,DL3008
@@ -48,20 +48,36 @@ RUN PYTHON_DL_PATH="/tmp/Python-${PYTHON_VERSION}.tar.xz" && \
     DEBIAN_FRONTEND=noninteractive apt-get install -yq --no-install-recommends \
     build-essential \
     ca-certificates \
+    checkinstall \
     curl \
+    gdb \
+    git \
+    inetutils-inetd \
+    lcov \
     libbz2-dev \
-    libdb4o-cil-dev \
-    libgdm-dev \
-    libhidapi-dev \
+    libc6-dev \
+    libedit-dev \
+    libffi-dev \
+    libgdbm-compat-dev \
+    libgdbm-dev \
     liblzma-dev \
     libncurses5-dev \
-    libpcap-dev \
+    libncursesw5-dev \
+    libnss3-dev  \
     libreadline-dev \
+    libreadline6-dev \
     libsqlite3-dev \
     libssl-dev \
-    libtk8.6 \
-    lzma \
-    xz-utils && \
+    libzstd-dev \
+    llvm \
+    lzma-dev \
+    pkg-config \
+    python3-openssl \
+    tk-dev \
+    uuid-dev \
+    wget \
+    xz-utils \
+    zlib1g-dev && \
     rm -rf /var/lib/apt/lists/* && \
     curl --proto "=https" --tlsv1.2 -sSfL "https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tar.xz" -o "${PYTHON_DL_PATH}" && \
     mkdir -p "${PYTHON_SRC_DIR}" && \
@@ -137,71 +153,45 @@ RUN echo -e "\n# Rust ${RUST_VERSION}" >> /entrypoint.bash && \
     echo "export PYO3_PYTHON=\"${ISAAC_SIM_PYTHON}\"" >> /entrypoint.bash && \
     curl --proto "=https" --tlsv1.2 -sSfL "https://sh.rustup.rs" | sh -s -- --no-modify-path -y --default-toolchain "${RUST_VERSION}" --profile default
 
-## Install (Space) ROS
-ARG INSTALL_SPACEROS=false
-ARG ROS_DISTRO="humble"
-ARG SPACEROS_TAG="${ROS_DISTRO}-2024.10.0"
-# hadolint ignore=SC1091,DL3008
-RUN if [[ "${INSTALL_SPACEROS,,}" != true ]]; then \
-    curl --proto "=https" --tlsv1.2 -sSfL "https://raw.githubusercontent.com/ros/rosdistro/master/ros.key" -o /usr/share/keyrings/ros-archive-keyring.gpg && \
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(source /etc/os-release && echo "${UBUNTU_CODENAME}") main" > /etc/apt/sources.list.d/ros2.list && \
+# ## Install ROS | Note: Unsuitable because Isaac Sim 5.0 requires Python 3.11 that is not supported by any non-EoL ROS 2 distribution
+# ARG ROS_DISTRO="jazzy"
+# # hadolint ignore=SC1091,DL3008
+# RUN curl --proto "=https" --tlsv1.2 -sSfL "https://raw.githubusercontent.com/ros/rosdistro/master/ros.key" -o /usr/share/keyrings/ros-archive-keyring.gpg && \
+#     echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(source /etc/os-release && echo "${UBUNTU_CODENAME}") main" > /etc/apt/sources.list.d/ros2.list && \
+#     apt-get update && \
+#     DEBIAN_FRONTEND=noninteractive apt-get install -yq --no-install-recommends \
+#     ros-dev-tools \
+#     "ros-${ROS_DISTRO}-ros-base" \
+#     "ros-${ROS_DISTRO}-rmw-fastrtps-cpp" \
+#     "ros-${ROS_DISTRO}-rmw-cyclonedds-cpp" && \
+#     rm -rf /var/lib/apt/lists/* && \
+#     "${ISAAC_SIM_PYTHON}" -m pip install --no-input --no-cache-dir catkin_pkg && \
+#     rosdep init --rosdistro "${ROS_DISTRO}" && \
+#     echo -e "\n# ROS ${ROS_DISTRO^}" >> /entrypoint.bash && \
+#     echo "source \"/opt/ros/${ROS_DISTRO}/setup.bash\" --" >> /entrypoint.bash
+
+## Build ROS
+ARG ROS_DISTRO="jazzy"
+ENV ROS_UNDERLAY_PATH="/root/ros/${ROS_DISTRO}"
+WORKDIR "${ROS_UNDERLAY_PATH}"
+# hadolint ignore=SC2086,DL3008
+RUN curl --proto "=https" --tlsv1.2 -sSfL "https://raw.githubusercontent.com/ros/rosdistro/master/ros.key" -o /usr/share/keyrings/ros-archive-keyring.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" | tee /etc/apt/sources.list.d/ros2.list > /dev/null && \
     apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -yq --no-install-recommends \
-    ros-dev-tools \
-    "ros-${ROS_DISTRO}-ros-base" \
-    "ros-${ROS_DISTRO}-rmw-fastrtps-cpp" \
-    "ros-${ROS_DISTRO}-rmw-cyclonedds-cpp" && \
-    rm -rf /var/lib/apt/lists/* && \
-    "${ISAAC_SIM_PYTHON}" -m pip install --no-input --no-cache-dir catkin_pkg && \
-    rosdep init --rosdistro "${ROS_DISTRO}" && \
-    echo -e "\n# ROS ${ROS_DISTRO^}" >> /entrypoint.bash && \
-    echo "source \"/opt/ros/${ROS_DISTRO}/setup.bash\" --" >> /entrypoint.bash ; \
-    fi
-# hadolint ignore=SC1091,DL3003,DL3008
-RUN if [[ "${INSTALL_SPACEROS,,}" = true ]]; then \
-    curl --proto "=https" --tlsv1.2 -sSfL "https://raw.githubusercontent.com/ros/rosdistro/master/ros.key" -o /usr/share/keyrings/ros-archive-keyring.gpg && \
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(source /etc/os-release && echo "${UBUNTU_CODENAME}") main" > /etc/apt/sources.list.d/ros2.list && \
-    apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -yq --no-install-recommends \
-    clang-14 \
-    cmake \
-    g++ \
-    gcc \
-    libboost-dev \
-    libboost-filesystem-dev \
-    libboost-test-dev \
-    libboost-thread-dev \
-    libedit-dev \
-    libgmp-dev \
-    libsqlite3-dev \
-    libtbb-dev \
-    libz-dev \
-    llvm-14 \
-    llvm-14-dev \
-    llvm-14-tools \
     ros-dev-tools && \
-    rm -rf /var/lib/apt/lists/* && \
-    "${ISAAC_SIM_PYTHON}" -m pip install --no-input --no-cache-dir catkin_pkg rosinstall_generator && \
     rosdep init --rosdistro "${ROS_DISTRO}" && \
-    SPACEROS_DIR="/opt/spaceros" && \
-    SPACEROS_SRC_DIR="${SPACEROS_DIR}/src" && \
-    SPACEROS_INSTALL_DIR="${SPACEROS_DIR}/install" && \
-    SPACEROS_LOG_DIR="${SPACEROS_DIR}/log" && \
-    mkdir -p "${SPACEROS_SRC_DIR}" && \
-    vcs import --shallow --recursive --force --input "https://raw.githubusercontent.com/space-ros/space-ros/refs/tags/${SPACEROS_TAG}/ros2.repos" "${SPACEROS_SRC_DIR}" && \
-    vcs import --shallow --recursive --force --input "https://raw.githubusercontent.com/space-ros/space-ros/refs/tags/${SPACEROS_TAG}/ikos.repos" "${SPACEROS_SRC_DIR}" && \
-    vcs import --shallow --recursive --force --input "https://raw.githubusercontent.com/space-ros/space-ros/refs/tags/${SPACEROS_TAG}/spaceros.repos" "${SPACEROS_SRC_DIR}" && \
-    apt-get update && \
-    rosdep update --rosdistro "${ROS_DISTRO}" && \
-    DEBIAN_FRONTEND=noninteractive rosdep install --default-yes --ignore-src -r --rosdistro "${ROS_DISTRO}" --from-paths "${SPACEROS_SRC_DIR}" --skip-keys "$(curl --proto =https --tlsv1.2 -sSfL https://raw.githubusercontent.com/space-ros/space-ros/refs/tags/${SPACEROS_TAG}/excluded-pkgs.txt | tr '\n' ' ') urdfdom_headers ikos" && \
-    rm -rf /var/lib/apt/lists/* /root/.ros/rosdep/sources.cache && \
-    cd "${SPACEROS_DIR}" && \
-    colcon build --cmake-args -DPython3_EXECUTABLE="${ISAAC_SIM_PYTHON}" -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DLLVM_CONFIG_EXECUTABLE="/usr/lib/llvm-14/bin/llvm-config" --no-warn-unused-cli && \
-    cd - && \
-    rm -rf "${SPACEROS_LOG_DIR}" && \
-    echo -e "\n# Space ROS ${ROS_DISTRO^}" >> /entrypoint.bash && \
-    echo "source \"${SPACEROS_INSTALL_DIR}/setup.bash\" --" >> /entrypoint.bash ; \
-    fi
+    rosdep update && \
+    "${ISAAC_SIM_PYTHON}" -m pip install build --no-input --no-cache-dir setuptools-scm && \
+    "${ISAAC_SIM_PYTHON}" -m pip install --no-input --no-cache-dir catkin_pkg lark empy==3.3.4 && \
+    mkdir -p "${ROS_UNDERLAY_PATH}/src" && \
+    curl --proto "=https" --tlsv1.2 -sSfL "https://raw.githubusercontent.com/ros2/ros2/${ROS_DISTRO}/ros2.repos" -o "${ROS_UNDERLAY_PATH}/src/ros2.repos" && \
+    vcs import "${ROS_UNDERLAY_PATH}/src" < "${ROS_UNDERLAY_PATH}/src/ros2.repos" && \
+    DEBIAN_FRONTEND=noninteractive RTI_NC_LICENSE_ACCEPTED=yes rosdep install --default-yes --ignore-src --rosdistro "${ROS_DISTRO}" --from-paths "${ROS_UNDERLAY_PATH}/src" && \
+    colcon build --merge-install --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release -DPython3_EXECUTABLE="${ISAAC_SIM_PYTHON}" --build-base "${ROS_UNDERLAY_PATH}/build" --install-base "${ROS_UNDERLAY_PATH}/install" --packages-skip python_orocos_kdl_vendor qt_gui_cpp --packages-skip-by-dep python_orocos_kdl_vendor qt_gui_cpp && \
+    echo -e "\n# ROS ${ROS_DISTRO^} (built from source)" >> /entrypoint.bash && \
+    echo "source \"${ROS_UNDERLAY_PATH}/install/setup.bash\" --" >> /entrypoint.bash && \
+    rm -rf "${ROS_UNDERLAY_PATH}/src/ros2.repos" /var/lib/apt/lists/* /root/.ros/rosdep/sources.cache ./log
 
 ## Install Blender
 ARG BLENDER_PATH="/root/blender"
@@ -232,7 +222,7 @@ ARG ISAACLAB_DEV=true
 ARG ISAACLAB_PATH="/root/isaaclab"
 ARG ISAACLAB_REMOTE="https://github.com/isaac-sim/IsaacLab.git"
 ARG ISAACLAB_BRANCH="main"
-ARG ISAACLAB_COMMIT_SHA="3d6f55b9858dc1595c956d904577a364818f77bd" # 2025-06-28
+ARG ISAACLAB_COMMIT_SHA="7455d3dfe743344bbf7f0ac6385caf5884489539" # 2025-09-19
 # hadolint ignore=SC2044
 RUN if [[ "${DEV,,}" = true && "${ISAACLAB_DEV,,}" = true ]]; then \
     echo -e "\n# Isaac Lab ${ISAACLAB_COMMIT_SHA}" >> /entrypoint.bash && \
@@ -359,12 +349,13 @@ RUN if [[ "${BUILD_RUST,,}" = true ]]; then \
     fi
 
 ## Install project as ROS 2 package
-ARG ROS_WS="/opt/ros/${ROS_DISTRO}/ws"
+ARG ROS_WS="${ROS_UNDERLAY_PATH}/ws"
 # hadolint ignore=SC1091
 RUN source /entrypoint.bash -- && \
-    colcon build --merge-install --symlink-install --cmake-args -DPython3_EXECUTABLE="${ISAAC_SIM_PYTHON}" --paths "${SRB_PATH}" --build-base "${ROS_WS}/build" --install-base "${ROS_WS}/install" && \
+    colcon build --merge-install --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release -DPython3_EXECUTABLE="${ISAAC_SIM_PYTHON}" --paths "${SRB_PATH}" --build-base "${ROS_WS}/build" --install-base "${ROS_WS}/install" && \
     rm -rf ./log && \
-    sed -i "s|source \"/opt/ros/${ROS_DISTRO}/setup.bash\" --|source \"${ROS_WS}/install/setup.bash\" --|" /entrypoint.bash
+    sed -i "s|source \"${ROS_UNDERLAY_PATH}/setup.bash\" --|source \"${ROS_WS}/install/setup.bash\" --|" /entrypoint.bash && \
+    sed -i "s|source \"${ROS_UNDERLAY_PATH}/install/setup.bash\" --|source \"${ROS_WS}/install/setup.bash\" --|" /entrypoint.bash
 
 ## Install project as editable Python package
 # hadolint ignore=SC1091
@@ -381,7 +372,7 @@ RUN for exe in ${EXECUTABLES}; do \
 ## Configure argcomplete
 RUN echo "source /etc/bash_completion" >> "/etc/bash.bashrc" && \
     for exe in ${EXECUTABLES}; do \
-    register-python-argcomplete3 "${exe}" > "/etc/bash_completion.d/${exe}" ; \
+    register-python-argcomplete "${exe}" > "/etc/bash_completion.d/${exe}" ; \
     done
 
 ## Set the default command

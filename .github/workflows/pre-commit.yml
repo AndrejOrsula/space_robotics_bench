@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  PYTHON_VERSION: "3.10"
+  PYTHON_VERSION: "3.11"
   SKIP: cargo-fmt,cargo-update,cargo-clippy,cargo-check,cargo-test,cargo-test-doc,cargo-doc,cargo-miri-test,cargo-miri-run,cargo-deny-check
 
 jobs:

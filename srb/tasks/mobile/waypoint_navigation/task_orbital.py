@@ -29,6 +29,7 @@ from srb.core.marker import VisualizationMarkers, VisualizationMarkersCfg
 from srb.core.mdp import apply_external_force_torque, offset_pose_natural  # noqa: F401
 from srb.core.sim import ArrowCfg, PreviewSurfaceCfg
 from srb.utils import logging
+from srb.utils.cfg import DEFAULT_DATETIME_FORMAT  # noqa: F401
 from srb.utils.cfg import configclass
 from srb.utils.math import (
     matrix_from_quat,
@@ -246,7 +247,7 @@ class Task(OrbitalEnv):
         # else:
         #     print(f"Video recording enabled: {self._video_enabled}")
         #     self.videos_dir = SRB_LOGS_DIR.joinpath("oc_videos").joinpath(
-        #         f"{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        #         f"{datetime.now().strftime(DEFAULT_DATETIME_FORMAT)}"
         #     )
         #     self.videos_dir.mkdir(parents=True, exist_ok=True)
 

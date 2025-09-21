@@ -23,7 +23,7 @@ classifiers = [
 keywords = ["benchmark", "robotics", "simulation", "space"]
 readme = "README.md"
 license = { text = "MIT OR Apache-2.0" }
-requires-python = "==3.10.*"
+requires-python = "==3.11.*"
 dependencies = [
   ## Core
   "gymnasium~=0.29",
@@ -128,7 +128,7 @@ dev = [
 ]
 rich = [
   #
-  "rich~=13.0",
+  "rich~=14.0",
 ]
 test = [
   #
@@ -139,12 +139,12 @@ test = [
 tracing = [
   #
   "srb[rich]",
-  "logfire~=3.0",
+  "logfire~=4.0",
 ]
 typing = [
   #
   "mypy~=1.0",
-  "types-psutil~=6.0",
+  "types-psutil~=7.0",
   "types-PyYAML~=6.0",
   "types-toml~=0.10",
 ]

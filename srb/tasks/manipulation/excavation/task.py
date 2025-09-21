@@ -27,7 +27,7 @@ from srb.core.env import (
 )
 from srb.core.sensor import ContactSensor
 from srb.core.sim import PyramidParticlesSpawnerCfg
-from srb.utils.cfg import configclass
+from srb.utils.cfg import DEFAULT_DATETIME_FORMAT, configclass
 from srb.utils.math import matrix_from_quat, rotmat_to_rot6d, scale_transform
 
 ##############
@@ -193,7 +193,9 @@ class Task(ManipulationEnv):
                 self.num_envs, dtype=torch.float32, device=self.device
             )
             # Logging
-            log_filename = f"metrics_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.csv"
+            log_filename = (
+                f"metrics_{datetime.now().strftime(DEFAULT_DATETIME_FORMAT)}.csv"
+            )
             self._log_file = os.path.join(self.cfg.metrics_dir, log_filename)
             if not os.path.exists(self.cfg.metrics_dir):
                 os.makedirs(self.cfg.metrics_dir)

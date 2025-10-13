@@ -33,7 +33,7 @@ egui_commonmark = { version = "0.21", default-features = false, features = [
     "macros",
     "pulldown_cmark",
 ] }
-egui_extras = { version = "0.32", default-features = false, features = [
+egui_extras = { version = "0.33", default-features = false, features = [
     "all_loaders",
     "syntect",
 ] }

@@ -22,7 +22,7 @@ path = "src/main.rs"
 chrono = { version = "0.4" }
 const_format = { version = "0.2", features = ["more_str_macros"] }
 display_json = { version = "0.2" }
-eframe = { version = "0.32", default-features = false, features = [
+eframe = { version = "0.33", default-features = false, features = [
     "accesskit",
     "glow",
     "persistence",

@@ -27,7 +27,7 @@ eframe = { version = "0.32", default-features = false, features = [
     "glow",
     "persistence",
 ] }
-egui = { version = "0.32", default-features = false }
+egui = { version = "0.33", default-features = false }
 egui_commonmark = { version = "0.21", default-features = false, features = [
     "better_syntax_highlighting",
     "macros",

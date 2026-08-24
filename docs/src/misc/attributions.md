@@ -33,7 +33,7 @@ In addition to modifications listed below, all models have been converted to the
 
 Where applicable, [EXR](https://www.openexr.com) images have been DWAA compressed.
 
-1. [Earth From Space](https://www.blenderkit.com/asset-gallery-detail/aaed845b-70f9-40b1-a1ba-41cc10c58249/) by EB Adventure Photoscans licensed under [RF](https://www.blenderkit.com/docs/licenses)
+1. [Earth From Space](https://www.blendkit.com/asset-gallery-detail/aaed845b-70f9-40b1-a1ba-41cc10c58249/) by EB Adventure Photoscans licensed under [RF](https://www.blendkit.com/docs/licenses)
 1. [Low Lunar Orbit](https://nasa3d.arc.nasa.gov/detail/gateway) by NASA's Gateway Program Office
 1. [Moon Lab](https://polyhaven.com/a/moon_lab) by Greg Zaal licensed under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0)
 1. [Sunflowers (Pure Sky)](https://polyhaven.com/a/overcast_soil_puresky) by Sergej Majboroda and Jarod Guest licensed under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0)

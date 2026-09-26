@@ -1,21 +1,56 @@
-from pathlib import Path
+"""Resolve Isaac and Isaac Lab assets from the active 6.1 asset root."""
 
-import carb.settings
+from __future__ import annotations
 
-from srb.utils import logging
+import os
 
-NUCLEUS_ASSET_ROOT_DIR = carb.settings.get_settings().get(
-    "/persistent/isaac/asset_root/cloud"
+ASSET_ROOT_ENV = "ISAACSIM_ASSET_ROOT"
+DEFAULT_ASSET_ROOT = (
+    "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.1"
 )
-NVIDIA_NUCLEUS_DIR = f"{NUCLEUS_ASSET_ROOT_DIR}/NVIDIA"
+
+
+def _settings_asset_root() -> str | None:
+    """Read Kit's configured asset root without making imports Kit-only."""
+
+    try:
+        import carb.settings
+    except ImportError:
+        return None
+
+    settings = carb.settings.get_settings()
+    for key in (
+        "/persistent/isaac/asset_root/default",
+        "/persistent/isaac/asset_root/cloud",
+    ):
+        value = settings.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
+
+def resolve_asset_root() -> str:
+    """Resolve the environment override, Kit setting, or 6.1 production root."""
+
+    configured = os.environ.get(ASSET_ROOT_ENV, "").strip()
+    root = configured or _settings_asset_root() or DEFAULT_ASSET_ROOT
+    return root.rstrip("/")
+
+
+NUCLEUS_ASSET_ROOT_DIR = resolve_asset_root()
 ISAAC_NUCLEUS_DIR = f"{NUCLEUS_ASSET_ROOT_DIR}/Isaac"
 ISAACLAB_NUCLEUS_DIR = f"{ISAAC_NUCLEUS_DIR}/IsaacLab"
+ISAAC_ROBOTS_DIR = f"{ISAAC_NUCLEUS_DIR}/Robots_Multiphysics"
+ISAACLAB_ROBOTS_DIR = f"{ISAACLAB_NUCLEUS_DIR}/Robots_Multiphysics"
 
 
-def get_local_or_nucleus_path(local_path: Path, nucleus_path: str) -> str:
-    if local_path.exists():
-        return local_path.as_posix()
-    logging.debug(
-        f"Falling back to nucleus path {nucleus_path} because {local_path} does not exist"
-    )
-    return nucleus_path
+__all__ = [
+    "ASSET_ROOT_ENV",
+    "DEFAULT_ASSET_ROOT",
+    "ISAACLAB_NUCLEUS_DIR",
+    "ISAACLAB_ROBOTS_DIR",
+    "ISAAC_NUCLEUS_DIR",
+    "ISAAC_ROBOTS_DIR",
+    "NUCLEUS_ASSET_ROOT_DIR",
+    "resolve_asset_root",
+]

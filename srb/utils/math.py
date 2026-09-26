@@ -1,29 +1,59 @@
+import functools
+import inspect as _inspect
 import math
-from typing import Sequence, Tuple
+from math import degrees, radians  # noqa: F401
+from typing import Sequence
 
 import torch
+import torch.jit
 import torch.nn.functional as F
-from isaaclab.utils.math import *  # noqa: F403  # type: ignore
-from isaaclab.utils.math import combine_frame_transforms, matrix_from_quat
-from isaaclab.utils.math import subtract_frame_transforms as _subtract_frame_transforms
-from isaaclab.utils.math import transform_points as _transform_points
+from isaaclab.utils import math as _isaac_math
+from isaaclab.utils.math import *  # noqa: F403  # type: ignore[import-untyped]
 
 
-@torch.jit.script
-def deg_to_rad(deg: float) -> float:
-    return deg * math.pi / 180.0
+def _to_torch(x):
+    # Isaac Lab v3 ProxyArray supports arithmetic but fails TorchScript checks.
+    return x.torch if hasattr(x, "torch") else x
 
 
-@torch.jit.script
-def rad_to_deg(rad: float) -> float:
-    return rad * 180.0 / math.pi
+def _proxy_safe(_func):
+    """Wrap an Isaac Lab function to unwrap ProxyArray inputs."""
+
+    @functools.wraps(_func)
+    def _wrapped(*args, **kwargs):
+        coerced_args = tuple(_to_torch(a) for a in args)
+        coerced_kwargs = {k: _to_torch(v) for k, v in kwargs.items()}
+        return _func(*coerced_args, **coerced_kwargs)
+
+    return _wrapped
+
+
+# Wrap upstream functions so ProxyArray inputs reach TorchScript as tensors.
+
+for _name in dir(_isaac_math):
+    if _name.startswith("_"):
+        continue
+    _obj = getattr(_isaac_math, _name)
+    _is_jit = isinstance(_obj, torch.jit.ScriptFunction)
+    _is_py_fn = (
+        _inspect.isfunction(_obj) or _inspect.isbuiltin(_obj) or _inspect.ismethod(_obj)
+    )
+    if _is_jit or _is_py_fn:
+        globals()[_name] = _proxy_safe(_obj)
+del _name, _obj, _is_jit, _is_py_fn, _inspect
+
+# Keep unwrapped aliases for callers compiled by TorchScript.
+_isaac_matrix_from_quat = _isaac_math.matrix_from_quat
+_isaac_combine_frame_transforms = _isaac_math.combine_frame_transforms
+_isaac_subtract_frame_transforms = _isaac_math.subtract_frame_transforms
+_isaac_transform_points = _isaac_math.transform_points
 
 
 def rpy_to_quat(
     *rpy: float | Sequence[float], deg: bool = True
-) -> Tuple[float, float, float, float]:
+) -> tuple[float, float, float, float]:
     """
-    Returns wxyz quaternion from roll-pitch-yaw angles.
+    Returns quaternion from roll-pitch-yaw angles.
     Accepts either separate values or a sequence of 3 numbers.
 
     Args:
@@ -31,7 +61,7 @@ def rpy_to_quat(
         deg: If True, input is in degrees, otherwise in radians
 
     Returns:
-        Tuple of (w, x, y, z) quaternion components
+        tuple of (x, y, z, w) quaternion components
 
     Raises:
         ValueError: If input doesn't contain exactly 3 values
@@ -46,34 +76,27 @@ def rpy_to_quat(
         )
 
     if roll == 0.0 and pitch == 0.0 and yaw == 0.0:
-        return 1.0, 0.0, 0.0, 0.0
+        return 0.0, 0.0, 0.0, 1.0
 
     if deg:
-        roll, pitch, yaw = (deg_to_rad(angle) for angle in (roll, pitch, yaw))  # type: ignore
-
+        roll, pitch, yaw = (radians(angle) for angle in (roll, pitch, yaw))  # type: ignore[misc]
     # Compute half angles
-    r2, p2, y2 = roll / 2.0, pitch / 2.0, yaw / 2.0  # type: ignore
-
+    r2, p2, y2 = roll / 2.0, pitch / 2.0, yaw / 2.0  # type: ignore[misc]
     # Precompute trig functions
     cr, cp, cy = math.cos(r2), math.cos(p2), math.cos(y2)
     sr, sp, sy = math.sin(r2), math.sin(p2), math.sin(y2)
 
     return (
-        cy * cr * cp + sy * sr * sp,  # w
         cy * sr * cp - sy * cr * sp,  # x
         cy * cr * sp + sy * sr * cp,  # y
         sy * cr * cp - cy * sr * sp,  # z
+        cy * cr * cp + sy * sr * sp,  # w
     )
 
 
 @torch.jit.script
 def rotmat_to_rot6d(rotmat: torch.Tensor) -> torch.Tensor:
     return rotmat[..., :, :2].reshape(rotmat.shape[:-2] + (6,))
-
-
-@torch.jit.script
-def quat_to_rot6d(quaternions: torch.Tensor) -> torch.Tensor:
-    return rotmat_to_rot6d(matrix_from_quat(quaternions))
 
 
 @torch.jit.script
@@ -84,6 +107,9 @@ def slerp(q1: torch.Tensor, q2: torch.Tensor, t: float) -> torch.Tensor:
     # slerp won't take the shorter path. Fix by reversing one quaternion.
     q2_corrected = torch.where(dot.unsqueeze(-1) < 0, -q2, q2)
     dot_corrected = torch.where(dot < 0, -dot, dot)
+
+    # Clamp to [0, 1] to avoid NaN from acos due to floating point precision
+    dot_corrected = torch.clamp(dot_corrected, max=1.0)
 
     # If the inputs are too close for comfort, linearly interpolate
     # and normalize the result.
@@ -105,61 +131,43 @@ def slerp(q1: torch.Tensor, q2: torch.Tensor, t: float) -> torch.Tensor:
     return F.normalize(res, p=2.0, dim=-1)
 
 
+def normalize_joint_pos(joint_pos: torch.Tensor, limits: torch.Tensor) -> torch.Tensor:
+    """Scale joints with finite limits to [-1, 1]; pass unbounded joints through."""
+    lower, upper = limits[..., 0], limits[..., 1]
+    finite = torch.isfinite(lower) & torch.isfinite(upper)
+    # Substitute unit limits for unbounded joints so the masked branch stays
+    # finite; one branch-free path avoids a per-step host sync.
+    scaled = scale_transform(  # noqa: F405
+        joint_pos,
+        torch.where(finite, lower, -1.0),
+        torch.where(finite, upper, 1.0),
+    )
+    return torch.where(finite, scaled, joint_pos)
+
+
 def combine_frame_transforms_tuple(
-    t01: Tuple[float, float, float] | Sequence[float],
-    q01: Tuple[float, float, float, float] | Sequence[float],
-    t12: Tuple[float, float, float] | Sequence[float] | None = None,
-    q12: Tuple[float, float, float, float] | Sequence[float] | None = None,
-) -> Tuple[Tuple[float, float, float], Tuple[float, float, float, float]]:
+    t01: tuple[float, float, float] | Sequence[float],
+    q01: tuple[float, float, float, float] | Sequence[float],
+    t12: tuple[float, float, float] | Sequence[float] | None = None,
+    q12: tuple[float, float, float, float] | Sequence[float] | None = None,
+) -> tuple[tuple[float, float, float], tuple[float, float, float, float]]:
     _t01 = torch.tensor(t01)
     _q01 = torch.tensor(q01)
     _t12 = torch.tensor(t12) if t12 is not None else None
     _q12 = torch.tensor(q12) if q12 is not None else None
-    t02, q02 = combine_frame_transforms(_t01, _q01, _t12, _q12)
+    t02, q02 = _isaac_combine_frame_transforms(_t01, _q01, _t12, _q12)
     return tuple(t02.cpu().tolist()), tuple(q02.cpu().tolist())
 
 
-@torch.jit.script
-def subtract_frame_transforms(
-    t01: torch.Tensor,
-    q01: torch.Tensor,
-    t02: torch.Tensor | None = None,
-    q02: torch.Tensor | None = None,
-) -> Tuple[torch.Tensor, torch.Tensor]:
-    return _subtract_frame_transforms(t01, q01, t02, q02)
-
-
 def subtract_frame_transforms_tuple(
-    t01: Tuple[float, float, float],
-    q01: Tuple[float, float, float, float],
-    t02: Tuple[float, float, float] | None = None,
-    q02: Tuple[float, float, float, float] | None = None,
-) -> Tuple[Tuple[float, float, float], Tuple[float, float, float, float]]:
+    t01: tuple[float, float, float],
+    q01: tuple[float, float, float, float],
+    t02: tuple[float, float, float] | None = None,
+    q02: tuple[float, float, float, float] | None = None,
+) -> tuple[tuple[float, float, float], tuple[float, float, float, float]]:
     _t01 = torch.tensor(t01)
     _q01 = torch.tensor(q01)
     _t02 = torch.tensor(t02) if t02 is not None else None
     _q02 = torch.tensor(q02) if q02 is not None else None
-    t12, q12 = subtract_frame_transforms(_t01, _q01, _t02, _q02)
+    t12, q12 = _isaac_subtract_frame_transforms(_t01, _q01, _t02, _q02)
     return tuple(t12.cpu().tolist()), tuple(q12.cpu().tolist())
-
-
-@torch.jit.script
-def transform_points(
-    points: torch.Tensor,
-    pos: torch.Tensor | None = None,
-    quat: torch.Tensor | None = None,
-) -> torch.Tensor:
-    return _transform_points(points, pos, quat)
-
-
-@torch.jit.script
-def transform_nodal_pos(
-    nodal_pos: torch.Tensor,
-    pos: torch.Tensor | None = None,
-    quat: torch.Tensor | None = None,
-) -> torch.Tensor:
-    mean_nodal_pos = nodal_pos.median(dim=1, keepdim=True)[0]
-    return (
-        transform_points(nodal_pos - mean_nodal_pos, pos=pos, quat=quat)
-        + mean_nodal_pos
-    )

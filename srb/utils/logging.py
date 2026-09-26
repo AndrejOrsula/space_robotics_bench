@@ -1,44 +1,73 @@
 import logging
 import sys
+import warnings
 from os import environ
+from typing import Any
 
-from srb.utils.tracing import with_logfire, with_rich
+# Suppress Gymnasium's cosmetic Box precision-cast warning at startup.
+warnings.filterwarnings(
+    "ignore",
+    message=r".*Box (low|high)'s precision lowered by casting.*",
+)
 
-# Define TRACE log level
+# Drop the viewer deprecation notice; retain forwarding-failure warnings.
+logging.getLogger("isaaclab.envs.common").addFilter(
+    lambda record: not str(record.msg).startswith("env_cfg.viewer is deprecated. Set")
+)
+
+# TRACE is below DEBUG.
 TRACE: int = 5
 logging.addLevelName(TRACE, "TRACE")
 
-# Create a logger
-logger = logging.getLogger("srb")
-logger.propagate = False
 
-# Set the logger level
-logger.setLevel(
-    (environ.get("LOG_LEVEL") or environ.get("SRB_LOG_LEVEL", "INFO")).upper()
+def _configured_log_level() -> int:
+    """Return the configured level, falling back safely for unknown values."""
+    variable = "LOG_LEVEL" if environ.get("LOG_LEVEL") else "SRB_LOG_LEVEL"
+    value = environ.get(variable, "INFO")
+    normalized = value.strip().upper()
+    level = logging.getLevelNamesMapping().get(normalized)
+    if level is not None:
+        return level
+    if normalized.isdecimal():
+        return int(normalized)
+
+    warnings.warn(
+        f"unsupported {variable}={value!r}; using INFO",
+        RuntimeWarning,
+        stacklevel=2,
+    )
+    return logging.INFO
+
+
+logger = logging.getLogger("srb")
+
+# Under pytest, allow messages to propagate so caplog can capture them even
+# though SRB installs its own handlers.
+logger.propagate = "pytest" in sys.modules
+
+logger.setLevel(_configured_log_level())
+
+
+# Skip rich/logfire imports during shell completion and help parsing.
+def _is_help_only_invocation() -> bool:
+    argv = sys.argv[1:]
+    return not argv or argv[0] in ("-h", "--help")
+
+
+_FAST_PATH = (
+    "_ARGCOMPLETE" in environ
+    or environ.get("SRB_LOGGING_FAST_PATH", "0") == "1"
+    or _is_help_only_invocation()
 )
 
-# Set up console logging handlers (either rich or plain)
-if with_rich():
-    from rich.logging import RichHandler
 
-    logger.addHandler(
-        RichHandler(
-            omit_repeated_times=False,
-            rich_tracebacks=True,
-            log_time_format="[%X]",
-        )
-    )
-else:
-    # Create a handler for logs below WARNING (DEBUG and INFO) to STDOUT
+def _install_plain_handlers() -> None:
     stdout_handler = logging.StreamHandler(sys.stdout)
-    stdout_handler.setLevel(logging.DEBUG)  # Allow DEBUG and INFO
+    stdout_handler.setLevel(TRACE)
     stdout_handler.addFilter(lambda record: record.levelno < logging.WARNING)
-
-    # Create a handler for logs WARNING and above (WARNING, ERROR, CRITICAL) to STDERR
+    # Route warnings and errors to stderr.
     stderr_handler = logging.StreamHandler(sys.stderr)
     stderr_handler.setLevel(logging.WARNING)  # Allow WARNING and above
-
-    # Define a formatter and set it for both handlers
     formatter = logging.Formatter(
         fmt="[{asctime}] {levelname:8s} {message}",
         datefmt="%H:%M:%S",
@@ -46,16 +75,44 @@ else:
     )
     stdout_handler.setFormatter(formatter)
     stderr_handler.setFormatter(formatter)
-
-    # Add handlers to the logger
     logger.addHandler(stdout_handler)
     logger.addHandler(stderr_handler)
 
-# Set up Logfire logging handler
-if with_logfire():
-    from logfire import LogfireLoggingHandler
 
-    logger.addHandler(LogfireLoggingHandler())
+if _FAST_PATH:
+    _install_plain_handlers()
+else:
+    # Rich and Logfire setup imports heavier dependencies.
+    from srb.utils.tracing import with_logfire, with_rich  # noqa: E402
+
+    if with_rich():
+        from rich.console import Console
+        from rich.logging import RichHandler
+
+        stdout_handler = RichHandler(
+            console=Console(stderr=False),
+            omit_repeated_times=False,
+            rich_tracebacks=True,
+            log_time_format="[%X]",
+        )
+        stdout_handler.setLevel(TRACE)
+        stdout_handler.addFilter(lambda record: record.levelno < logging.WARNING)
+        stderr_handler = RichHandler(
+            console=Console(stderr=True),
+            omit_repeated_times=False,
+            rich_tracebacks=True,
+            log_time_format="[%X]",
+        )
+        stderr_handler.setLevel(logging.WARNING)
+        logger.addHandler(stdout_handler)
+        logger.addHandler(stderr_handler)
+    else:
+        _install_plain_handlers()
+
+    if with_logfire():
+        from logfire import LogfireLoggingHandler
+
+        logger.addHandler(LogfireLoggingHandler())
 
 
 __all__ = [
@@ -66,6 +123,7 @@ __all__ = [
     "warning",
     "error",
     "critical",
+    "exception",
 ]
 
 debug = logger.debug
@@ -73,8 +131,10 @@ info = logger.info
 warning = logger.warning
 error = logger.error
 critical = logger.critical
+exception = logger.exception
 
 
-def trace(msg, *args, **kwargs):
-    if logger.isEnabledFor(TRACE):  # type: ignore
-        logger._log(TRACE, msg, args, **kwargs)  # type: ignore
+def trace(msg: object, *args: object, **kwargs: Any) -> None:
+    """Log at SRB's trace level through the typed public logging API."""
+    if logger.isEnabledFor(TRACE):
+        logger.log(TRACE, msg, *args, **kwargs)

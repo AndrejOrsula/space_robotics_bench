@@ -1,3 +1,5 @@
+from typing import ClassVar
+
 from srb.core.action import (
     ActionGroup,
     BinaryJointPositionActionCfg,
@@ -11,17 +13,17 @@ from srb.core.sim import (
     RigidBodyPropertiesCfg,
     UsdFileCfg,
 )
-from srb.utils.math import rpy_to_quat
+from srb.utils.math import radians
 from srb.utils.path import SRB_ASSETS_DIR_SRB_ROBOT
 
 
-class Kinova300(ActiveTool):
+class SOArm100Gripper(ActiveTool):
     ## Model
     asset_cfg: ArticulationCfg = ArticulationCfg(
-        prim_path="{ENV_REGEX_NS}/kinova300",
+        prim_path="{ENV_REGEX_NS}/so_arm100_gripper",
         spawn=UsdFileCfg(
             usd_path=SRB_ASSETS_DIR_SRB_ROBOT.joinpath("gripper")
-            .joinpath("kinova300.usdz")
+            .joinpath("so_arm100_5dof_gripper.usdz")
             .as_posix(),
             activate_contact_sensors=True,
             collision_props=CollisionPropertiesCfg(
@@ -38,46 +40,34 @@ class Kinova300(ActiveTool):
             ),
         ),
         init_state=ArticulationCfg.InitialStateCfg(
-            joint_pos={
-                "kinova300_joint_finger_[1-3]": 0.2,
-                "kinova300_joint_finger_tip_[1-3]": 0.2,
-            },
+            joint_pos={"Gripper": 0.0},
         ),
         actuators={
             "gripper": ImplicitActuatorCfg(
-                joint_names_expr=[".*_finger_[1-3]", ".*_finger_tip_[1-3]"],
-                velocity_limit=100.0,
-                effort_limit=2.0,
-                stiffness=1200.0,
-                damping=10.0,
+                joint_names_expr=["Gripper"],
+                velocity_limit_sim=1.5,
+                effort_limit_sim=2.0,
+                stiffness=10.0,
+                damping=1.0,
             ),
         },
     )
 
     ## Actions
-    actions: ActionGroup = JointPositionBinaryActionGroup(
-        BinaryJointPositionActionCfg(
-            asset_name="robot",
-            joint_names=[
-                "kinova300_joint_finger_[1-3]",
-                "kinova300_joint_finger_tip_[1-3]",
-            ],
-            close_command_expr={
-                "kinova300_joint_finger_[1-3]": 1.2,
-                "kinova300_joint_finger_tip_[1-3]": 1.2,
-            },
-            open_command_expr={
-                "kinova300_joint_finger_[1-3]": 0.2,
-                "kinova300_joint_finger_tip_[1-3]": 0.2,
-            },
+    action_modes: ClassVar[dict[str, ActionGroup]] = {
+        "joint_pos_bin": JointPositionBinaryActionGroup(
+            BinaryJointPositionActionCfg(
+                asset_name="robot",
+                joint_names=["Gripper"],
+                close_command_expr={"Gripper": 0.0},
+                open_command_expr={"Gripper": radians(60.0)},
+            ),
         ),
-    )
+    }
 
     ## Frames
-    frame_mount: Frame = Frame(
-        prim_relpath="base",
-        offset=Transform(rot=rpy_to_quat((180.0, 0.0, 0.0))),
-    )
+    frame_mount: Frame = Frame(prim_relpath="Fixed_Gripper")
     frame_tool_centre_point: Frame = Frame(
-        prim_relpath="base", offset=Transform(pos=(0.0, 0.0, 0.16))
+        prim_relpath="Fixed_Gripper",
+        offset=Transform(pos=(0.0, 0.0, 0.095)),
     )

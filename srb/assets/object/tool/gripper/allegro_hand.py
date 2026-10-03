@@ -1,4 +1,6 @@
-from srb.core.action import ActionGroup, JointPositionActionGroup
+from typing import ClassVar
+
+from srb.core.action import ActionGroup, JointPositionBoundedActionGroup
 from srb.core.actuator import ImplicitActuatorCfg
 from srb.core.asset import ActiveTool, ArticulationCfg, Frame, Transform
 from srb.core.sim import (
@@ -15,7 +17,7 @@ class AllegroHand(ActiveTool):
     asset_cfg: ArticulationCfg = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/allegro_hand",
         spawn=UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/AllegroHand/allegro_hand_instanceable.usd",
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/WonikRobotics/AllegroHand/allegro_hand_instanceable.usd",
             activate_contact_sensors=True,
             collision_props=CollisionPropertiesCfg(
                 contact_offset=0.005, rest_offset=0.0
@@ -38,14 +40,14 @@ class AllegroHand(ActiveTool):
         ),
         init_state=ArticulationCfg.InitialStateCfg(
             pos=(0.0, 0.0, 0.5),
-            rot=(0.257551, 0.283045, 0.683330, -0.621782),
+            rot=(0.283045, 0.683330, -0.621782, 0.257551),  # xyzw
             joint_pos={"^(?!thumb_joint_0).*": 0.0, "thumb_joint_0": 0.28},
         ),
         actuators={
             "fingers": ImplicitActuatorCfg(
                 joint_names_expr=[".*"],
-                effort_limit=0.5,
-                velocity_limit=100.0,
+                effort_limit_sim=0.5,
+                velocity_limit_sim=100.0,
                 stiffness=3.0,
                 damping=0.1,
                 friction=0.01,
@@ -54,7 +56,9 @@ class AllegroHand(ActiveTool):
     )
 
     ## Actions
-    actions: ActionGroup = JointPositionActionGroup()
+    action_modes: ClassVar[dict[str, ActionGroup]] = {
+        "joint_pos": JointPositionBoundedActionGroup(),
+    }
 
     ## Frames
     frame_mount: Frame = Frame(prim_relpath="allegro_mount")

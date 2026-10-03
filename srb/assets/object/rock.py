@@ -13,17 +13,37 @@ from srb.core.sim import (
 from srb.utils.path import SRB_ASSETS_DIR_SRB_OBJECT
 
 
+def _rock_physics() -> dict:
+    """Shared collision and mass setup for every rock variant."""
+    return {
+        "collision_props": CollisionPropertiesCfg(),
+        "mesh_collision_props": MeshCollisionPropertiesCfg(
+            mesh_approximation="convexHull"
+        ),
+        "rigid_props": RigidBodyPropertiesCfg(),
+        "mass_props": MassPropertiesCfg(density=2000.0),
+    }
+
+
+def _rock_usd_cfgs(stem: str, count: int) -> list[UsdFileCfg]:
+    """Per-file spawn configs for ``rock/{stem}1.usdz`` .. ``rock/{stem}{count}.usdz``."""
+    return [
+        UsdFileCfg(
+            usd_path=SRB_ASSETS_DIR_SRB_OBJECT.joinpath("rock")
+            .joinpath(f"{stem}{i}.usdz")
+            .as_posix(),
+            **_rock_physics(),
+        )
+        for i in range(1, count + 1)
+    ]
+
+
 class Asteroid(Object):
     asset_cfg: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/asteroid",
         spawn=SimforgeAssetCfg(
             assets=[simforge_foundry.Asteroid()],
-            collision_props=CollisionPropertiesCfg(),
-            mesh_collision_props=MeshCollisionPropertiesCfg(
-                mesh_approximation="convexHull"
-            ),
-            rigid_props=RigidBodyPropertiesCfg(),
-            mass_props=MassPropertiesCfg(density=2000.0),
+            **_rock_physics(),
         ),
     )
 
@@ -33,12 +53,7 @@ class MoonRock(Object):
         prim_path="{ENV_REGEX_NS}/rock",
         spawn=SimforgeAssetCfg(
             assets=[simforge_foundry.MoonRock()],
-            collision_props=CollisionPropertiesCfg(),
-            mesh_collision_props=MeshCollisionPropertiesCfg(
-                mesh_approximation="convexHull"
-            ),
-            rigid_props=RigidBodyPropertiesCfg(),
-            mass_props=MassPropertiesCfg(density=2000.0),
+            **_rock_physics(),
         ),
     )
 
@@ -48,12 +63,7 @@ class MarsRock(Object):
         prim_path="{ENV_REGEX_NS}/rock",
         spawn=SimforgeAssetCfg(
             assets=[simforge_foundry.MarsRock()],
-            collision_props=CollisionPropertiesCfg(),
-            mesh_collision_props=MeshCollisionPropertiesCfg(
-                mesh_approximation="convexHull"
-            ),
-            rigid_props=RigidBodyPropertiesCfg(),
-            mass_props=MassPropertiesCfg(density=2000.0),
+            **_rock_physics(),
         ),
     )
 
@@ -61,48 +71,14 @@ class MarsRock(Object):
 class ApolloSample(Object):
     asset_cfg: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/rock",
-        spawn=MultiAssetSpawnerCfg(
-            assets_cfg=[
-                UsdFileCfg(
-                    usd_path=(
-                        SRB_ASSETS_DIR_SRB_OBJECT.joinpath("rock")
-                        .joinpath(f"apollo_sample{i}.usdz")
-                        .as_posix()
-                    ),
-                    collision_props=CollisionPropertiesCfg(),
-                    mesh_collision_props=MeshCollisionPropertiesCfg(
-                        mesh_approximation="convexHull"
-                    ),
-                    rigid_props=RigidBodyPropertiesCfg(),
-                    mass_props=MassPropertiesCfg(density=2000.0),
-                )
-                for i in range(1, 23)
-            ],
-        ),
+        spawn=MultiAssetSpawnerCfg(assets_cfg=_rock_usd_cfgs("apollo_sample", 22)),
     )
 
 
 class SpaceportMoonRock(Object):
     asset_cfg: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/rock",
-        spawn=MultiAssetSpawnerCfg(
-            assets_cfg=[
-                UsdFileCfg(
-                    usd_path=(
-                        SRB_ASSETS_DIR_SRB_OBJECT.joinpath("rock")
-                        .joinpath(f"spaceport_moon_rock{i}.usdz")
-                        .as_posix()
-                    ),
-                    collision_props=CollisionPropertiesCfg(),
-                    mesh_collision_props=MeshCollisionPropertiesCfg(
-                        mesh_approximation="convexHull"
-                    ),
-                    rigid_props=RigidBodyPropertiesCfg(),
-                    mass_props=MassPropertiesCfg(density=2000.0),
-                )
-                for i in range(1, 8)
-            ],
-        ),
+        spawn=MultiAssetSpawnerCfg(assets_cfg=_rock_usd_cfgs("spaceport_moon_rock", 7)),
     )
 
 
@@ -110,12 +86,12 @@ class RandomRock(Object):
     asset_cfg: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/rock",
         spawn=MultiAssetSpawnerCfg(
-            assets_cfg=[
+            assets_cfg=[  # type: ignore[union-attr]
                 Asteroid().asset_cfg.spawn,
                 MoonRock().asset_cfg.spawn,
                 MarsRock().asset_cfg.spawn,
-                *ApolloSample().asset_cfg.spawn.assets_cfg,  # type: ignore
-                *SpaceportMoonRock().asset_cfg.spawn.assets_cfg,  # type: ignore
+                *ApolloSample().asset_cfg.spawn.assets_cfg,
+                *SpaceportMoonRock().asset_cfg.spawn.assets_cfg,
             ],
             collision_props=CollisionPropertiesCfg(),
             rigid_props=RigidBodyPropertiesCfg(),
@@ -127,22 +103,5 @@ class RandomRock(Object):
 class LunalabBoulder(Object):
     asset_cfg: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/rock",
-        spawn=MultiAssetSpawnerCfg(
-            assets_cfg=[
-                UsdFileCfg(
-                    usd_path=(
-                        SRB_ASSETS_DIR_SRB_OBJECT.joinpath("rock")
-                        .joinpath(f"lunalab_boulder{i}.usdz")
-                        .as_posix()
-                    ),
-                    collision_props=CollisionPropertiesCfg(),
-                    mesh_collision_props=MeshCollisionPropertiesCfg(
-                        mesh_approximation="convexHull"
-                    ),
-                    rigid_props=RigidBodyPropertiesCfg(),
-                    mass_props=MassPropertiesCfg(density=2000.0),
-                )
-                for i in range(1, 5)
-            ],
-        ),
+        spawn=MultiAssetSpawnerCfg(assets_cfg=_rock_usd_cfgs("lunalab_boulder", 4)),
     )

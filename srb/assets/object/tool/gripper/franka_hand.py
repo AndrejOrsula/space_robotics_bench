@@ -1,3 +1,5 @@
+from typing import ClassVar
+
 from srb.core.action import (
     ActionGroup,
     BinaryJointPositionActionCfg,
@@ -42,8 +44,8 @@ class FrankaHand(ActiveTool):
         actuators={
             "panda_hand": ImplicitActuatorCfg(
                 joint_names_expr=["panda_finger_joint.*"],
-                effort_limit=200.0,
-                velocity_limit=0.2,
+                effort_limit_sim=200.0,
+                velocity_limit_sim=0.2,
                 stiffness=2000.0,
                 damping=250.0,
             ),
@@ -51,14 +53,16 @@ class FrankaHand(ActiveTool):
     )
 
     ## Actions
-    actions: ActionGroup = JointPositionBinaryActionGroup(
-        BinaryJointPositionActionCfg(
-            asset_name="robot",
-            joint_names=["panda_finger_joint.*"],
-            close_command_expr={"panda_finger_joint.*": 0.0},
-            open_command_expr={"panda_finger_joint.*": 0.04},
+    action_modes: ClassVar[dict[str, ActionGroup]] = {
+        "joint_pos_bin": JointPositionBinaryActionGroup(
+            BinaryJointPositionActionCfg(
+                asset_name="robot",
+                joint_names=["panda_finger_joint.*"],
+                close_command_expr={"panda_finger_joint.*": 0.0},
+                open_command_expr={"panda_finger_joint.*": 0.04},
+            ),
         ),
-    )
+    }
 
     ## Frames
     frame_mount: Frame = Frame(prim_relpath="panda_hand")

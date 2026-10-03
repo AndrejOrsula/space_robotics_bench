@@ -1,4 +1,6 @@
-from srb.core.action import ActionGroup, JointPositionActionGroup
+from typing import ClassVar
+
+from srb.core.action import ActionGroup, JointPositionBoundedActionGroup
 from srb.core.actuator import ImplicitActuatorCfg
 from srb.core.asset import ActiveTool, ArticulationCfg, Frame, Transform
 from srb.core.sim import (
@@ -17,7 +19,7 @@ class ShadowHand(ActiveTool):
     asset_cfg: ArticulationCfg = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/shadow_hand",
         spawn=UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/ShadowHand/shadow_hand_instanceable.usd",
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/ShadowRobot/ShadowHand/shadow_hand_instanceable.usd",
             activate_contact_sensors=True,
             collision_props=CollisionPropertiesCfg(
                 contact_offset=0.005, rest_offset=0.0
@@ -39,7 +41,7 @@ class ShadowHand(ActiveTool):
         ),
         init_state=ArticulationCfg.InitialStateCfg(
             pos=(0.0, 0.0, 0.5),
-            rot=(0.0, 0.0, -0.7071, 0.7071),
+            rot=(-0.7071, 0.7071, 0.0, 0.0),  # xyzw
             joint_pos={".*": 0.0},
         ),
         actuators={
@@ -50,7 +52,7 @@ class ShadowHand(ActiveTool):
                     "robot0_(LF|TH)J4",
                     "robot0_THJ0",
                 ],
-                effort_limit={
+                effort_limit_sim={
                     "robot0_WRJ1": 4.785,
                     "robot0_WRJ0": 2.175,
                     "robot0_(FF|MF|RF|LF)J1": 0.7245,
@@ -80,7 +82,9 @@ class ShadowHand(ActiveTool):
     )
 
     ## Actions
-    actions: ActionGroup = JointPositionActionGroup()
+    action_modes: ClassVar[dict[str, ActionGroup]] = {
+        "joint_pos": JointPositionBoundedActionGroup(),
+    }
 
     ## Frames
     frame_mount: Frame = Frame(

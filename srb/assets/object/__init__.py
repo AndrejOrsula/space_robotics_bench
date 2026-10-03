@@ -1,14 +1,27 @@
-from .light import *  # noqa: F403
-from .payload import *  # noqa: F403
-from .pedestal import *  # noqa: F403
 from .tool import *  # noqa: F403
 
 # isort: split
 
-from .bag import Bag  # noqa: F401
+from .beam import Beam  # noqa: F401
 from .beneficiation_unit import BeneficiationUnit  # noqa: F401
-from .bolt_and_nut import BoltM8, NutM8  # noqa: F401
-from .juggling_ball import JugglingBall  # noqa: F401
+from .bolt_and_nut import BoltM8, BoltM8Tight, NutM8, NutM8Tight  # noqa: F401
+from .lego import (  # noqa: F401
+    LegoBlock_1x1,
+    LegoBlock_1x2,
+    LegoBlock_1x3,
+    LegoBlock_1x4,
+    LegoBlock_2x2,
+    LegoBlock_2x3,
+    LegoBlock_2x4,
+    RandomLegoBlock,
+)
+from .light import ProjectorLight  # noqa: F401
+from .payload import CargoBay, HuskyPayloadLunalab  # noqa: F401
+from .pedestal import (  # noqa: F401
+    IndustrialPedestal25,
+    IndustrialPedestal50,
+    IndustrialPedestal100,
+)
 from .peg_in_hole import (  # noqa: F401
     Hole,
     Peg,

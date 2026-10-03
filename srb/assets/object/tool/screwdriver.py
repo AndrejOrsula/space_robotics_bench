@@ -1,4 +1,5 @@
 from math import pi
+from typing import ClassVar
 
 from srb.core.action import (
     ActionGroup,
@@ -88,8 +89,8 @@ class ElectricScrewdriverM3(ActiveTool):
         actuators={
             "driver": ImplicitActuatorCfg(
                 joint_names_expr=["driver_joint", "counterweight_joint"],
-                velocity_limit=4.0 * pi,
-                effort_limit=100.0,
+                velocity_limit_sim=4.0 * pi,
+                effort_limit_sim=100.0,
                 stiffness=0.0,
                 damping=5000.0,
             ),
@@ -97,17 +98,19 @@ class ElectricScrewdriverM3(ActiveTool):
     )
 
     ## Actions
-    actions: ActionGroup = JointVelocityBinaryActionGroup(
-        BinaryJointVelocityActionCfg(
-            asset_name="robot",
-            joint_names=["driver_joint", "counterweight_joint"],
-            open_command_expr={"driver_joint": 0.0, "counterweight_joint": 0.0},
-            close_command_expr={
-                "driver_joint": 4.0 * pi,
-                "counterweight_joint": -4.0 * pi,
-            },
-        )
-    )
+    action_modes: ClassVar[dict[str, ActionGroup]] = {
+        "joint_vel_bin": JointVelocityBinaryActionGroup(
+            BinaryJointVelocityActionCfg(
+                asset_name="screwdriver",
+                joint_names=["driver_joint", "counterweight_joint"],
+                open_command_expr={"driver_joint": 0.0, "counterweight_joint": 0.0},
+                close_command_expr={
+                    "driver_joint": 4.0 * pi,
+                    "counterweight_joint": -4.0 * pi,
+                },
+            )
+        ),
+    }
 
     ## Frames
     frame_mount: Frame = Frame(prim_relpath="body")
@@ -137,8 +140,8 @@ class ElectricScrewdriverM5(ActiveTool):
         actuators={
             "driver": ImplicitActuatorCfg(
                 joint_names_expr=["driver_joint", "counterweight_joint"],
-                velocity_limit=4.0 * pi,
-                effort_limit=100.0,
+                velocity_limit_sim=4.0 * pi,
+                effort_limit_sim=100.0,
                 stiffness=0.0,
                 damping=5000.0,
             ),
@@ -146,17 +149,19 @@ class ElectricScrewdriverM5(ActiveTool):
     )
 
     ## Actions
-    actions: ActionGroup = JointVelocityBinaryActionGroup(
-        BinaryJointVelocityActionCfg(
-            asset_name="robot",
-            joint_names=["driver_joint", "counterweight_joint"],
-            open_command_expr={"driver_joint": 0.0, "counterweight_joint": 0.0},
-            close_command_expr={
-                "driver_joint": 4.0 * pi,
-                "counterweight_joint": -4.0 * pi,
-            },
-        )
-    )
+    action_modes: ClassVar[dict[str, ActionGroup]] = {
+        "joint_vel_bin": JointVelocityBinaryActionGroup(
+            BinaryJointVelocityActionCfg(
+                asset_name="screwdriver",
+                joint_names=["driver_joint", "counterweight_joint"],
+                open_command_expr={"driver_joint": 0.0, "counterweight_joint": 0.0},
+                close_command_expr={
+                    "driver_joint": 4.0 * pi,
+                    "counterweight_joint": -4.0 * pi,
+                },
+            )
+        ),
+    }
 
     ## Frames
     frame_mount: Frame = Frame(prim_relpath="body")

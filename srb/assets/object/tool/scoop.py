@@ -15,6 +15,17 @@ from srb.utils.path import SRB_ASSETS_DIR_SRB_OBJECT
 SRB_ASSETS_DIR_SRB_OBJECT_SCOOP = SRB_ASSETS_DIR_SRB_OBJECT.joinpath("scoop")
 
 
+def _scoop_spawn_cfg(filename: str) -> UsdFileCfg:
+    return UsdFileCfg(
+        usd_path=SRB_ASSETS_DIR_SRB_OBJECT_SCOOP.joinpath(filename).as_posix(),
+        activate_contact_sensors=True,
+        collision_props=CollisionPropertiesCfg(),
+        mesh_collision_props=MeshCollisionPropertiesCfg(mesh_approximation="sdf"),
+        rigid_props=RigidBodyPropertiesCfg(),
+        mass_props=MassPropertiesCfg(mass=0.001),
+    )
+
+
 class Scoop(Tool):
     asset_cfg: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/scoop",
@@ -27,8 +38,7 @@ class Scoop(Tool):
             mass_props=MassPropertiesCfg(mass=0.001),
         ),
     )
-    asset_cfg.spawn.assets[0].geo.ops[0].mount_radius = 0.0375  # type: ignore
-
+    asset_cfg.spawn.assets[0].geo.ops[0].mount_radius = 0.0375  # type: ignore[union-attr]
     ## Frames
     frame_mount: Frame = Frame(prim_relpath="scoop_random")
     frame_tool_centre_point: Frame = Frame(offset=Transform(pos=(0.0, 0.0, 0.1)))
@@ -37,18 +47,7 @@ class Scoop(Tool):
 class ScoopRectangular(Tool):
     asset_cfg: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/scoop",
-        spawn=UsdFileCfg(
-            usd_path=(
-                SRB_ASSETS_DIR_SRB_OBJECT_SCOOP.joinpath(
-                    "scoop_rectangular.usdz"
-                ).as_posix()
-            ),
-            activate_contact_sensors=True,
-            collision_props=CollisionPropertiesCfg(),
-            mesh_collision_props=MeshCollisionPropertiesCfg(mesh_approximation="sdf"),
-            rigid_props=RigidBodyPropertiesCfg(),
-            mass_props=MassPropertiesCfg(mass=0.001),
-        ),
+        spawn=_scoop_spawn_cfg("scoop_rectangular.usdz"),
     )
 
     ## Frames
@@ -59,18 +58,7 @@ class ScoopRectangular(Tool):
 class ScoopSpherical(Tool):
     asset_cfg: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/scoop",
-        spawn=UsdFileCfg(
-            usd_path=(
-                SRB_ASSETS_DIR_SRB_OBJECT_SCOOP.joinpath(
-                    "scoop_spherical.usdz"
-                ).as_posix()
-            ),
-            activate_contact_sensors=True,
-            collision_props=CollisionPropertiesCfg(),
-            mesh_collision_props=MeshCollisionPropertiesCfg(mesh_approximation="sdf"),
-            rigid_props=RigidBodyPropertiesCfg(),
-            mass_props=MassPropertiesCfg(mass=0.001),
-        ),
+        spawn=_scoop_spawn_cfg("scoop_spherical.usdz"),
     )
 
     ## Frames
@@ -81,18 +69,7 @@ class ScoopSpherical(Tool):
 class ScoopTriangular(Tool):
     asset_cfg: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/scoop",
-        spawn=UsdFileCfg(
-            usd_path=(
-                SRB_ASSETS_DIR_SRB_OBJECT_SCOOP.joinpath(
-                    "scoop_triangular.usdz"
-                ).as_posix()
-            ),
-            activate_contact_sensors=True,
-            collision_props=CollisionPropertiesCfg(),
-            mesh_collision_props=MeshCollisionPropertiesCfg(mesh_approximation="sdf"),
-            rigid_props=RigidBodyPropertiesCfg(),
-            mass_props=MassPropertiesCfg(mass=0.001),
-        ),
+        spawn=_scoop_spawn_cfg("scoop_triangular.usdz"),
     )
 
     ## Frames
@@ -103,18 +80,7 @@ class ScoopTriangular(Tool):
 class ScoopCustom1(Tool):
     asset_cfg: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/scoop",
-        spawn=UsdFileCfg(
-            usd_path=(
-                SRB_ASSETS_DIR_SRB_OBJECT_SCOOP.joinpath(
-                    "scoop_custom1.usdz"
-                ).as_posix()
-            ),
-            activate_contact_sensors=True,
-            collision_props=CollisionPropertiesCfg(),
-            mesh_collision_props=MeshCollisionPropertiesCfg(mesh_approximation="sdf"),
-            rigid_props=RigidBodyPropertiesCfg(),
-            mass_props=MassPropertiesCfg(mass=0.001),
-        ),
+        spawn=_scoop_spawn_cfg("scoop_custom1.usdz"),
     )
 
     ## Frames
@@ -125,18 +91,7 @@ class ScoopCustom1(Tool):
 class ScoopCustom2(Tool):
     asset_cfg: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/scoop",
-        spawn=UsdFileCfg(
-            usd_path=(
-                SRB_ASSETS_DIR_SRB_OBJECT_SCOOP.joinpath(
-                    "scoop_custom2.usdz"
-                ).as_posix()
-            ),
-            activate_contact_sensors=True,
-            collision_props=CollisionPropertiesCfg(),
-            mesh_collision_props=MeshCollisionPropertiesCfg(mesh_approximation="sdf"),
-            rigid_props=RigidBodyPropertiesCfg(),
-            mass_props=MassPropertiesCfg(mass=0.001),
-        ),
+        spawn=_scoop_spawn_cfg("scoop_custom2.usdz"),
     )
 
     ## Frames
@@ -147,18 +102,7 @@ class ScoopCustom2(Tool):
 class ScoopCustom3(Tool):
     asset_cfg: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/scoop",
-        spawn=UsdFileCfg(
-            usd_path=(
-                SRB_ASSETS_DIR_SRB_OBJECT_SCOOP.joinpath(
-                    "scoop_custom3.usdz"
-                ).as_posix()
-            ),
-            activate_contact_sensors=True,
-            collision_props=CollisionPropertiesCfg(),
-            mesh_collision_props=MeshCollisionPropertiesCfg(mesh_approximation="sdf"),
-            rigid_props=RigidBodyPropertiesCfg(),
-            mass_props=MassPropertiesCfg(mass=0.001),
-        ),
+        spawn=_scoop_spawn_cfg("scoop_custom3.usdz"),
     )
 
     ## Frames

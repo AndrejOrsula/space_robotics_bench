@@ -1,467 +1,1063 @@
+"""Direct-control base environment for SRB tasks."""
+
+import functools
+import sys
+from collections.abc import Iterator, Mapping, Sequence
 from functools import cached_property
-from typing import Dict, Sequence, Tuple
+from types import MappingProxyType
+from typing import TYPE_CHECKING
 
 import gymnasium
-import numpy
+import numpy as np
 import torch
 from isaaclab.envs import DirectRLEnv as __DirectRLEnv
 
 from srb._typing import StepReturn
-from srb.core.asset import Articulation, AssetBase, RigidObject
+from srb.core.asset import Articulation, AssetBase, RigidObject, TerrainImporter
+from srb.core.asset.particle_system import ParticleSystem
+from srb.core.env.common.base.seed import with_replicator_seed
+from srb.core.env.direct_env_finalize_init_execution import (
+    execute_direct_env_finalize_init_plan,
+)
+from srb.core.env.direct_env_finalize_init_plan import (
+    build_direct_env_finalize_init_plan,
+)
+from srb.core.env.direct_env_init_execution import execute_direct_env_init_plan
+from srb.core.env.direct_env_init_plan import build_direct_env_init_plan
+from srb.core.env.runtime.action_layout import ActionLayout, validate_finite_action
+from srb.core.env.runtime.actuator_delay import hold_default_joint_targets
+from srb.core.env.runtime.delay import (
+    ActionDelay,
+    DelayRuntime,
+    plan_delay_runtime_activation,
+)
+from srb.core.env.runtime.observation_assembly import ObservationAssembly
+from srb.core.env.runtime.observation_layout import box_for_dtype_shape
+from srb.core.env.runtime.outcome import DirectStepOutcomeAdapter
+from srb.core.env.runtime.outcome_observation import (
+    final_observation,
+    splice_observation_rows,
+)
+from srb.core.env.runtime.step_return import (
+    coerce_step_return_to_torch,
+    scrub_non_finite_step_return,
+    validate_step_return,
+)
 from srb.core.manager import ActionManager
-from srb.core.sim.robot_setup import AssembledBodies, RobotAssembler
+from srb.core.randomization import RandomizationView
+from srb.core.reward import RewardOutcomeRuntime
+from srb.core.scene_introspection import (
+    get_scene_entity,
+    get_scene_root_asset,
+)
+from srb.core.sim.spawners.multi_asset_compat import (
+    convert_scene_multi_variant_spawners,
+)
+from srb.core.spec.lifecycle import (
+    get_cached_srb_spec,
+    init_srb_spec_state,
+    invalidate_cached_srb_spec,
+    mark_srb_spec_reset,
+)
 from srb.utils import logging
+from srb.utils.failures import attempt_cleanup
 from srb.utils.math import combine_frame_transforms, subtract_frame_transforms
 from srb.utils.str import resolve_env_prim_path
 
 from .cfg import DirectEnvCfg
 
-
-class __PostInitCaller(type):
-    def __call__(cls, *args, **kwargs):
-        obj = type.__call__(cls, *args, **kwargs)
-        obj.__post_init__()
-        return obj
+if TYPE_CHECKING:
+    from srb.core.sim.robot_setup import AssembledBodies
 
 
-class DirectEnv(__DirectRLEnv, metaclass=__PostInitCaller):
+# A leading ``__`` name is mangled inside the class body.
+_UPSTREAM_SEED = __DirectRLEnv.seed
+
+
+class DirectEnv(__DirectRLEnv):
+    """Base environment for direct-control SRB tasks."""
+
     cfg: DirectEnvCfg
     _step_return: StepReturn
 
+    seed = with_replicator_seed(_UPSTREAM_SEED)
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        # Finalize only after the outermost subclass constructor returns.
+        if "__init__" in cls.__dict__:
+            _orig_init = cls.__dict__["__init__"]
+
+            @functools.wraps(_orig_init)
+            def _wrapped(self, *args, __orig=_orig_init, **kw):  # type: ignore[misc]
+                depth = getattr(self, "_srb_init_depth", 0)
+                owner = depth == 0
+                self._srb_init_depth = depth + 1
+                initialized = False
+                try:
+                    try:
+                        __orig(self, *args, **kw)
+                    finally:
+                        self._srb_init_depth -= 1
+                    if owner:
+                        self._finalize_init()
+                    initialized = True
+                finally:
+                    if owner and not initialized:
+                        original_error = sys.exception()
+                        assert original_error is not None
+                        self._cleanup_failed_init(original_error)
+
+            cls.__init__ = _wrapped  # type: ignore[method-assign]
+
     def __init__(self, cfg: DirectEnvCfg, **kwargs):
-        super().__init__(cfg, **kwargs)
+        # Materialize subclass-derived config and clone counts before scene setup.
+        cfg.finalize()
+        convert_scene_multi_variant_spawners(cfg.scene)
 
-        # Apply visuals
-        self.cfg.visuals.func(self.cfg.visuals)
-
-        # Add action manager
-        if self.cfg.actions:
-            self.action_manager = ActionManager(
-                self.cfg.actions,
-                env=self,  # type: ignore
-            )
-            print(self.action_manager)
-
-        ## Get scene assets
-        self._scenery: AssetBase | None = (
-            self.scene["scenery"] if self.cfg.scenery is not None else None
+        init_plan = build_direct_env_init_plan(
+            actions_enabled=bool(getattr(cfg, "actions", None)),
+            particle_systems_enabled=bool(getattr(cfg, "_particle_system_cfgs", {})),
         )
-        self._robot: Articulation = self.scene["robot"]
 
-    def __post_init__(self):
-        if self._use_step_return_workflow:
-            self._step_return = self.extract_step_return()
+        def _super_init() -> None:
+            super(DirectEnv, self).__init__(cfg, **kwargs)
+            from srb.core.sensor.event_camera.materialization import (
+                bind_event_camera_sensors,
+            )
 
-            # Verify that all observation components have the correct shape and are finite
-            for obs_cat, obs_group in self._step_return.observation.items():
-                for obs_key, obs_val in obs_group.items():
-                    assert obs_val.size(0) == self.num_envs, (
-                        f"Observation component '{obs_cat}/{obs_key}' has an incorrect shape. "
-                        f"Expected: ({self.num_envs}, ...) | Actual: {obs_val.shape}"
-                    )
-                    assert torch.isfinite(obs_val).all(), (
-                        f"Observation component '{obs_cat}/{obs_key}' contains non-finite values."
-                    )
-            # Verify that all reward components have the correct shape and are finite
-            for rew_key, rew_val in self._step_return.reward.items():
-                assert rew_val.shape == (self.num_envs,), (
-                    f"Reward component '{rew_key}' has an incorrect shape. "
-                    f"Expected: ({self.num_envs},) | Actual: {rew_val.shape}"
-                )
-                assert torch.isfinite(rew_val).all(), (
-                    f"Reward component '{rew_key}' contains non-finite values."
+            bind_event_camera_sensors(
+                self.scene,
+                getattr(self.cfg, "_event_camera_bindings", {}),
+            )
+
+        class _Hooks:
+            def init_hud_fields(_self) -> None:
+                self._hud = None
+                self._hud_last_update_step = -1
+
+            def super_init(_self) -> None:
+                _super_init()
+
+            def init_srb_spec_state(_self) -> None:
+                init_srb_spec_state(self)
+
+            def apply_visuals(_self) -> None:
+                self.cfg.visuals.func(self.cfg.visuals)
+
+            def init_action_manager(_self) -> None:
+                self.action_manager = ActionManager(
+                    self.cfg.actions,
+                    env=self,  # type: ignore[arg-type]
                 )
 
-        # Automatically determine the action and observation spaces for all sub-classes
-        self._update_gym_env_spaces()
+            def init_asset_registries(_self) -> None:
+                self._scenery: AssetBase | TerrainImporter | None = (
+                    self.scene.terrain or get_scene_entity(self.scene, "scenery")
+                    if self.cfg.scenery is not None
+                    else None
+                )
+                self._robot = get_scene_root_asset(self.scene, "robot")
+                self._robots = {"robot": self._robot}
+                for robot_name in self.cfg._robots:
+                    if robot_name != "robot":
+                        self._robots[robot_name] = get_scene_root_asset(
+                            self.scene, robot_name
+                        )
 
-        ## Initialize action/observation delay buffers
-        action_delay = self.cfg.action_delay_steps
-        self._min_action_delay_steps, self._max_action_delay_steps = (
-            (action_delay, action_delay)
-            if isinstance(action_delay, int)
-            else action_delay
-        )
-        obs_delay = self.cfg.observation_delay_steps
-        self._min_obs_delay_steps, self._max_obs_delay_steps = (
-            (obs_delay, obs_delay) if isinstance(obs_delay, int) else obs_delay
-        )
-        # Allocate action delay buffers
-        if self._max_action_delay_steps > 0:
-            logging.info(
-                f"Action delay of maximum {self._max_action_delay_steps} agent steps enabled."
-            )
-            self._action_history_buffer: torch.Tensor | None = torch.zeros(
-                (
-                    self._max_action_delay_steps,
-                    self.num_envs,
-                    self.action_manager.total_action_dim,
-                ),
-                device=self.device,
-            )
-            self._action_history_buffer_ptr: int = 0
-            self._action_delay_steps = torch.zeros(
-                self.num_envs, dtype=torch.long, device=self.device
-            )
-        else:
-            self._action_history_buffer: torch.Tensor | None = None
-        # Allocate observation delay buffers
-        # TODO[mid]: Handle observation delay for non step return workflows
-        if self._use_step_return_workflow and self._max_obs_delay_steps > 0:
-            logging.info(
-                f"Observation delay of maximum {self._max_obs_delay_steps} agent steps enabled."
-            )
-            self._obs_history_buffer: Dict[str, Dict[str, torch.Tensor]] | None = {
-                cat: {
-                    key: torch.zeros(
-                        (
-                            self._max_obs_delay_steps,
-                            self.num_envs,
-                            *val.shape[1:],
-                        ),
-                        dtype=val.dtype,
+                self._particle_systems: dict[str, ParticleSystem] = {}
+
+            def init_particle_systems(_self) -> None:
+                _ps_cfgs = getattr(self.cfg, "_particle_system_cfgs", {})
+                if _ps_cfgs:
+                    _assert_gpu_dynamics_enabled("particle systems")
+                for ps_name, ps_cfg in _ps_cfgs.items():
+                    ps = ParticleSystem(
+                        cfg=ps_cfg,
+                        num_envs=self.num_envs,
                         device=self.device,
                     )
-                    for key, val in group.items()
-                }
-                for cat, group in self._step_return.observation.items()
-            }
-            self._obs_history_buffer_ptr: int = 0
-            self._observation_delay_steps = torch.zeros(
-                self.num_envs, dtype=torch.long, device=self.device
+                    ps.initialize()
+                    self._particle_systems[ps_name] = ps
+                if _ps_cfgs:
+                    logging.info(
+                        f"Initialized {len(self._particle_systems)} particle system(s): "
+                        f"{list(self._particle_systems.keys())}"
+                    )
+
+            def reapply_viewer_pose(_self) -> None:
+                self._reapply_viewer_pose()
+
+        initialized = False
+        try:
+            execute_direct_env_init_plan(init_plan, _Hooks())
+            initialized = True
+        finally:
+            if getattr(self, "_srb_init_depth", 0) == 0 and not initialized:
+                original_error = sys.exception()
+                assert original_error is not None
+                self._cleanup_failed_init(original_error)
+
+    def _reapply_viewer_pose(self) -> None:
+        viewport_camera_controller = getattr(self, "viewport_camera_controller", None)
+        if viewport_camera_controller is None:
+            return
+
+        origin_type = getattr(viewport_camera_controller.cfg, "origin_type", None)
+        if origin_type not in ("world", "env"):
+            return
+
+        viewport_camera_controller.update_view_location(
+            eye=self.cfg.viewer.eye,
+            lookat=self.cfg.viewer.lookat,
+        )
+
+    def _warn_if_legacy_lifecycle(self) -> None:
+        """Warn if a task class bypasses the owned ``SrbEnv`` lifecycle."""
+        from srb.core.env.runtime.lifecycle import (
+            _warn_legacy_lifecycle_once,
+            runs_owned_lifecycle,
+        )
+
+        if runs_owned_lifecycle(type(self)):
+            return
+        _warn_legacy_lifecycle_once(self)
+
+    def _finalize_init(self) -> None:
+        self._warn_if_legacy_lifecycle()
+        from srb.core.sensor.episode_recording import scene_has_event_camera_sensors
+
+        plan = build_direct_env_finalize_init_plan(
+            step_return_workflow=self._use_step_return_workflow,
+            camera_record=bool(getattr(self.cfg, "camera_record", False)),
+            event_camera=scene_has_event_camera_sensors(self.scene),
+        )
+
+        class _Hooks:
+            def init_step_return(_self) -> None:
+                self._step_return = coerce_step_return_to_torch(
+                    self.extract_step_return()
+                )
+                validate_step_return(
+                    self._step_return, num_envs=self.num_envs, device=self.device
+                )
+
+            def init_reward_outcome(_self) -> None:
+                self._reward_outcome = RewardOutcomeRuntime.from_cfg(
+                    getattr(self.cfg, "reward", None),
+                    max_episode_steps=self.max_episode_length,
+                    is_finite_horizon=self.cfg.is_finite_horizon,
+                )
+                self._reward_norm = self._reward_outcome.normalization
+                reward_norm_description = self._reward_outcome.describe_normalization()
+                if reward_norm_description is not None:
+                    logging.info(reward_norm_description)
+
+            def preinit_recorders(_self) -> None:
+                self._episode_recorder = None
+                self._video_recorder = None
+
+            def update_gym_spaces(_self) -> None:
+                self._update_gym_env_spaces()
+
+            def init_direct_step_outcome_adapter(_self) -> None:
+                self._direct_step_outcome = DirectStepOutcomeAdapter(
+                    num_envs=self.num_envs,
+                    device=self.device,
+                    reward_runtime=self._reward_outcome,
+                    observation_builder=self._observation_assembly.assemble,
+                    warn_non_finite=self._warn_non_finite_step_return,
+                )
+
+            def configure_delay_runtime(_self) -> None:
+                self._configure_delay_runtime()
+
+            def init_episode_recorder(_self) -> None:
+                from srb.core.sensor.episode_recording import (
+                    make_episode_recording_runtime,
+                )
+
+                self._episode_recorder = make_episode_recording_runtime(
+                    scene=self.scene,
+                    cfg=self.cfg,
+                    num_envs=self.num_envs,
+                    event_provenance=getattr(self.cfg, "event_provenance", None),
+                )
+                self._video_recorder = self._episode_recorder
+
+        execute_direct_env_finalize_init_plan(plan, _Hooks())
+
+        # Consume startup physics after task setup to preserve initial poses.
+        self.sim.step(render=False)
+        self.scene.update(dt=self.physics_dt)
+
+    def _cleanup_failed_init(self, original_error: BaseException) -> None:
+        # Release simulation resources so construction can be retried.
+        if not getattr(self, "_is_closed", True):
+            _, close_error = attempt_cleanup(self.close)
+            if isinstance(close_error, Exception):
+                original_error.add_note(
+                    "environment close failed during constructor cleanup: "
+                    f"{close_error!r}"
+                )
+            elif close_error is not None:
+                close_error.add_note(
+                    "raised while cleaning up after constructor failure: "
+                    f"{original_error!r}"
+                )
+                raise close_error
+            return
+        try:
+            self._release_assembly_physics_parser()
+        except Exception as cleanup_error:
+            original_error.add_note(
+                "assembly PhysX parser release failed during constructor cleanup: "
+                f"{cleanup_error!r}"
             )
-        else:
-            self._obs_history_buffer: Dict[str, Dict[str, torch.Tensor]] | None = None
+        except BaseException as interrupt:
+            # Preserve interrupts while retaining the constructor error context.
+            interrupt.add_note(
+                f"raised while cleaning up after constructor failure: {original_error!r}"
+            )
+            raise
+
+    def _release_assembly_physics_parser(self) -> None:
+        release = getattr(self, "_assembly_physics_release", None)
+        if release is not None:
+            release()
+            self._assembly_physics_release = None
 
     def close(self):
-        if not self._is_closed:
-            if self.cfg.actions:
+        active_error = sys.exception()
+        close_error: BaseException | None = None
+        interrupt: BaseException | None = None
+
+        def remember(error: BaseException, operation: str) -> None:
+            nonlocal close_error, interrupt
+            if not isinstance(error, Exception) and interrupt is None:
+                # Finish teardown before propagating interrupts.
+                interrupt = error
+            elif active_error is not None:
+                active_error.add_note(
+                    f"{operation} failed during environment cleanup: {error!r}"
+                )
+            elif close_error is None:
+                close_error = error
+            else:
+                close_error.add_note(
+                    f"{operation} also failed during environment cleanup: {error!r}"
+                )
+
+        _, parser_error = attempt_cleanup(self._release_assembly_physics_parser)
+        if parser_error is not None:
+            remember(parser_error, "assembly PhysX parser release")
+
+        # Failed base construction may call close() before allocating this flag.
+        if not getattr(self, "_is_closed", True):
+            if self.cfg.actions and hasattr(self, "action_manager"):
                 del self.action_manager
 
-        super().close()
+            recorder = getattr(self, "_episode_recorder", None)
+            if recorder is not None:
+                try:
+                    if hasattr(recorder, "close"):
+                        _, recorder_error = attempt_cleanup(recorder.close)
+                        if recorder_error is not None:
+                            remember(recorder_error, "episode recorder close")
+                finally:
+                    self._episode_recorder = None
+                    self._video_recorder = None
+
+            if getattr(self, "_particle_systems", None):
+                self._particle_systems.clear()
+
+            hud = getattr(self, "_hud", None)
+            if hud is not None:
+                self._hud = None
+                # HUD errors are cosmetic; interrupts still propagate after teardown.
+                _, hud_error = attempt_cleanup(hud.close)
+                if isinstance(hud_error, Exception):
+                    logging.warning(f"Failed to close HUD: {hud_error}")
+                elif hud_error is not None:
+                    remember(hud_error, "HUD close")
+
+            # Run base teardown even when owned-resource cleanup failed.
+            _, base_error = attempt_cleanup(super().close)
+            if base_error is not None:
+                remember(base_error, "base environment close")
+
+        if interrupt is not None:
+            if close_error is not None:
+                interrupt.add_note(f"environment cleanup also failed: {close_error!r}")
+            raise interrupt
+        if close_error is not None:
+            raise close_error
+
+    def __del__(self):
+        _, error = attempt_cleanup(self.close)
+        if error is not None:
+            logging.warning(f"Failed to close environment during destruction: {error}")
+
+    def reset(
+        self,
+        seed: int | None = None,
+        options: dict | None = None,
+    ):
+        # Reseed both delay streams for Gym's reset(seed=...) contract.
+        if seed is not None:
+            if getattr(self, "_delay_runtime", None) is not None:
+                self._delay_runtime.manual_seed(int(seed))
+            if getattr(self, "_direct_action_delay", None) is not None:
+                self._direct_action_delay.manual_seed(int(seed))
+        self._last_final_observation = None
+        self._last_final_observation_ids = torch.empty(
+            0, dtype=torch.long, device=self.device
+        )
+        self._last_final_observation_mask = torch.zeros(
+            self.num_envs, dtype=torch.bool, device=self.device
+        )
+        # Keep metadata through _reset_idx; always clear the outcome afterward.
+        self._direct_explicit_reset_pending = True
+        try:
+            return super().reset(seed=seed, options=options)
+        finally:
+            self._direct_explicit_reset_pending = False
+            direct_step_outcome = getattr(self, "_direct_step_outcome", None)
+            if direct_step_outcome is not None and direct_step_outcome.has_outcome:
+                direct_step_outcome.clear()
+
+    @property
+    def last_final_observation(self):
+        observation = getattr(self, "_last_final_observation", None)
+        if observation is None:
+            return None
+        return {key: value.clone() for key, value in observation.items()}
+
+    @property
+    def last_final_observation_ids(self):
+        value = getattr(self, "_last_final_observation_ids", None)
+        if value is None:
+            return torch.empty(0, dtype=torch.long, device=self.device)
+        return value.clone()
+
+    @property
+    def last_final_observation_mask(self):
+        value = getattr(self, "_last_final_observation_mask", None)
+        if value is None:
+            return torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+        return value.clone()
+
+    @property
+    def randomization(self) -> RandomizationView:
+        """Queryable view of active terms; reflects later mutations to ``cfg.events``."""
+        return RandomizationView(self.cfg.events)
+
+    @property
+    def srb_spec(self):
+        """Lazily cached SRB validation EnvSpec, separate from Gymnasium's ``env.spec``."""
+        return get_cached_srb_spec(self)
+
+    def invalidate_srb_spec(self) -> None:
+        """Drop the cached SRB EnvSpec without resetting lifecycle state."""
+        invalidate_cached_srb_spec(self)
+
+    @property
+    def particle_systems(self) -> Mapping[str, ParticleSystem]:
+        """Read-only particle-system registry keyed by scene name."""
+        return MappingProxyType(getattr(self, "_particle_systems", {}))
+
+    def iter_particle_systems(self) -> Iterator[tuple[str, ParticleSystem]]:
+        """Iterate over registered particle systems in insertion order."""
+        return iter(getattr(self, "_particle_systems", {}).items())
+
+    def get_particle_system(
+        self,
+        name: str,
+        *,
+        fallback_to_first: bool = False,
+    ) -> ParticleSystem | None:
+        """Return a particle system by name, optionally falling back to the first."""
+        particle_systems = getattr(self, "_particle_systems", {})
+        particle_system = particle_systems.get(name)
+        if particle_system is not None or not fallback_to_first:
+            return particle_system
+        return next(iter(particle_systems.values()), None)
 
     def extract_step_return(self) -> StepReturn:
+        """Compute observations, rewards, and termination data for one step."""
         raise NotImplementedError
 
-    def _extract_step_return_wrapped(self) -> StepReturn:
-        step_return = self.extract_step_return()
+    def advance_step_state(self) -> None:
+        """Advance per-step task state; runs exactly once per environment step.
 
-        # Apply observation delay if enabled
-        if self._obs_history_buffer is not None:
-            # Store current observations in the history buffer
-            for obs_cat, obs_group in step_return.observation.items():
-                for obs_key, obs_val in obs_group.items():
-                    self._obs_history_buffer[obs_cat][obs_key][
-                        self._obs_history_buffer_ptr
-                    ] = obs_val
+        Called once before ``extract_step_return`` per step, never on reset.
+        Keep mutations here so extraction remains pure and can run again after
+        selective reset. Default no-op.
+        """
 
-            # Calculate indices to read delayed observations
-            read_indices = (
-                self._obs_history_buffer_ptr
-                - self._observation_delay_steps
-                + self._max_obs_delay_steps
-            ) % self._max_obs_delay_steps
+    def _extract_post_reset_step_return(self, reset_ids: torch.Tensor) -> StepReturn:
+        """Extract and delay-reseed a fresh return for a completed reset."""
 
-            # Fetch delayed observations
-            delayed_obs = {}
-            for obs_cat, obs_group_buffer in self._obs_history_buffer.items():
-                delayed_obs[obs_cat] = {}
-                for obs_key, history_buffer in obs_group_buffer.items():
-                    idx = read_indices.view(
-                        1, self.num_envs, *((1,) * (len(history_buffer.shape) - 2))
-                    )
-                    idx = idx.expand(-1, -1, *history_buffer.shape[2:])
-                    delayed_obs[obs_cat][obs_key] = torch.gather(
-                        history_buffer, 0, idx
-                    ).squeeze(0)
-
-            # Advance the history buffer pointer for the next agent step
-            self._obs_history_buffer_ptr = (
-                self._obs_history_buffer_ptr + 1
-            ) % self._max_obs_delay_steps
-
-            # Randomize observation delay with on-step probability
-            if (
-                self.cfg.observation_delay_on_step_change_prob > 0.0
-                and (self._min_obs_delay_steps < self._max_obs_delay_steps)
-                and (
-                    self.sim.current_time
-                    % self.cfg.observation_delay_on_step_change_freq
-                )
-                < self.cfg.agent_rate
-            ):
-                dist = torch.rand((self.num_envs,), device=self.device)
-                decrease_delay_indices = (
-                    self._observation_delay_steps > self._min_obs_delay_steps
-                ) & (dist < self.cfg.observation_delay_on_step_change_prob)
-                increase_delay_indices = (
-                    self._observation_delay_steps < self._max_obs_delay_steps
-                ) & (dist > (1.0 - self.cfg.observation_delay_on_step_change_prob))
-                self._observation_delay_steps[decrease_delay_indices] -= 1
-                self._observation_delay_steps[increase_delay_indices] += 1
-
-            # Replace observation in step_return with the delayed one
-            step_return = StepReturn(
-                observation=delayed_obs,
-                reward=step_return.reward,
-                termination=step_return.termination,
-                truncation=step_return.truncation,
-                info=step_return.info,
-            )
-
-        ## Detect environments that "exploded" due to physics and terminate them
-        invalid_envs = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
-        invalid_keys = []
-        for rew_key, rew_val in step_return.reward.items():
-            rew_invalid = ~torch.isfinite(rew_val)
-            invalid_envs = invalid_envs | rew_invalid
-            if rew_invalid.any():
-                step_return.reward[rew_key] = torch.where(
-                    rew_invalid, torch.zeros_like(rew_val), rew_val
-                )
-                invalid_keys.append(rew_key)
-        for obs_cat, obs_group in step_return.observation.items():
-            for obs_key, obs_val in obs_group.items():
-                dims = (
-                    tuple(range(1, len(obs_val.shape))) if len(obs_val.shape) > 1 else 0
-                )
-                obs_invalid = (
-                    torch.any(~torch.isfinite(obs_val), dim=dims)
-                    if dims != 0
-                    else ~torch.isfinite(obs_val)
-                )
-                invalid_envs = invalid_envs | obs_invalid
-                if obs_invalid.any():
-                    mask = (
-                        obs_invalid.unsqueeze(-1).expand_as(obs_val)
-                        if len(obs_val.shape) > 1
-                        else obs_invalid
-                    )
-                    step_return.observation[obs_cat][obs_key] = torch.where(
-                        mask, torch.zeros_like(obs_val), obs_val
-                    )
-                    invalid_keys.append(f"{obs_cat}/{obs_key}")
-        if invalid_envs.any():
+        step_return = coerce_step_return_to_torch(self.extract_step_return())
+        # Zero invalid reset rows; a still-invalid state terminates next step.
+        step_return, invalid_envs, invalid_keys = scrub_non_finite_step_return(
+            step_return, num_envs=self.num_envs, device=self.device
+        )
+        if invalid_keys and bool(invalid_envs[reset_ids].any()):
             logging.warning(
-                f"Terminating {invalid_envs.sum().item()} environment instance{'s' if invalid_envs.sum().item() > 1 else ''} due to non-finite rewards or observations: {', '.join(invalid_keys)}"
+                "Non-finite post-reset observation for "
+                f"{int(invalid_envs[reset_ids].sum().item())} reset environment(s): "
+                f"{', '.join(invalid_keys)}"
             )
-            step_return = StepReturn(
-                observation=step_return.observation,
-                reward=step_return.reward,
-                termination=torch.where(
-                    invalid_envs, torch.ones_like(invalid_envs), step_return.termination
-                ),
-                truncation=step_return.truncation,
-                info=step_return.info,
+        delay_runtime = getattr(self, "_delay_runtime", None)
+        if delay_runtime is not None:
+            step_return = delay_runtime.reseed_reset_observation(reset_ids, step_return)
+        return step_return
+
+    def _assemble_post_reset_observation(
+        self,
+        reset_ids: torch.Tensor,
+        *,
+        commit_step_return: bool = False,
+    ) -> dict[str, torch.Tensor]:
+        """Assemble the first observation of the new episode for ``reset_ids``.
+
+        Re-extract after ``_reset_idx`` and refill delay history without
+        advancing the step transform twice. Reuse the latest event tick and
+        bypass the pre-reset outcome cache; only ``reset_ids`` rows are spliced.
+        """
+        step_return = self._extract_post_reset_step_return(reset_ids)
+        if commit_step_return:
+            self._step_return = step_return
+        event_observations: dict[str, torch.Tensor] | None = None
+        recorder = getattr(self, "_episode_recorder", None)
+        if recorder is not None:
+            event_observations = recorder.latest_event_observations() or None
+        observations = self._observation_assembly.assemble(
+            step_return,
+            event_observations=event_observations,
+        )
+        observations.update(self._ephemeris_observations())
+        return observations
+
+    def _extract_step_return_wrapped(self) -> StepReturn:
+        step_return = coerce_step_return_to_torch(self.extract_step_return())
+
+        if self._delay_runtime is not None:
+            step_return = self._delay_runtime.process_observation(
+                step_return,
+                current_time=self._delay_current_time(),
+                step_dt=self._delay_step_dt(),
             )
 
         return step_return
 
+    @staticmethod
+    def _warn_non_finite_step_return(
+        invalid_envs: torch.Tensor,
+        invalid_keys: Sequence[str],
+    ) -> None:
+        invalid_count = invalid_envs.sum().item()
+        logging.warning(
+            f"Terminating {invalid_count} environment instance"
+            f"{'s' if invalid_count > 1 else ''} due to non-finite rewards or "
+            f"observations: {', '.join(invalid_keys)}"
+        )
+
     def _reset_idx(self, env_ids: Sequence[int]):
+        # The legacy hook snapshots ephemeris after reset, so retain its pre-reset value.
+        direct_step_outcome = getattr(self, "_direct_step_outcome", None)
+        self._pre_reset_ephemeris_observations = (
+            self._ephemeris_observations()
+            if getattr(self, "_use_step_return_workflow", False)
+            and direct_step_outcome is not None
+            and direct_step_outcome.has_outcome
+            else None
+        )
+
+        # Bootstrap resets can precede recorder and delay-runtime initialization.
+        episode_recorder = getattr(self, "_episode_recorder", None)
+        if episode_recorder is not None:
+            # Do not record an episode before its first step.
+            recorded_env_ids = [
+                int(env_id)
+                for env_id in env_ids
+                if int(self.episode_length_buf[env_id]) > 0
+            ]
+            if recorded_env_ids:
+                episode_recorder.save_episodes(
+                    recorded_env_ids,
+                    outcomes=self._episode_recording_outcomes(recorded_env_ids),
+                )
+
+        adapter = getattr(self, "_direct_step_outcome", None)
+        if adapter is not None:
+            adapter.reset_episode_return(env_ids)
+
         if self.cfg.actions:
             self.action_manager.reset(env_ids)
 
-        # Reset action/observation delay
-        num_reset_envs: int = len(env_ids)
-        if self._action_history_buffer is not None:
-            self._action_delay_steps[env_ids] = torch.randint(
-                self._min_action_delay_steps,
-                self._max_action_delay_steps + 1,
-                (num_reset_envs,),
-                device=self.device,
-            )
-            self._action_history_buffer[:, env_ids] = 0.0
-        if self._obs_history_buffer is not None:
-            self._observation_delay_steps[env_ids] = torch.randint(
-                self._min_obs_delay_steps,
-                self._max_obs_delay_steps + 1,
-                (num_reset_envs,),
-                device=self.device,
-            )
-            for obs_cat in self._obs_history_buffer:
-                for obs_key in self._obs_history_buffer[obs_cat]:
-                    self._obs_history_buffer[obs_cat][obs_key][:, env_ids] = 0.0
-
+        with torch.no_grad():
+            delay_runtime = getattr(self, "_delay_runtime", None)
+            direct_action_delay = getattr(self, "_direct_action_delay", None)
+            if delay_runtime is not None:
+                delay_runtime.reset(env_ids)
+            elif direct_action_delay is not None:
+                direct_action_delay.reset(env_ids)
         super()._reset_idx(env_ids)
 
-        # Move assembled bodies to the correct position to avoid physics snapping them in place
+        # Reset-time writes replay zero targets through delayed actuators; hold defaults.
+        with torch.no_grad():
+            hold_default_joint_targets(
+                self.scene.articulations.values(),
+                torch.as_tensor(env_ids, dtype=torch.long, device=self.device),
+            )
+
         self._update_assembly_fixed_joint_transforms(env_ids)
+        # Sensors such as frame transformers skip lazy FK; refresh link poses
+        # so post-reset observations see the reset state.
+        self.sim.forward()
+
+        try:
+            n_envs = int(getattr(self, "num_envs", 0))
+        except (TypeError, ValueError):
+            # Invalid counts cannot identify a global reset; other errors propagate.
+            n_envs = 0
+        if n_envs > 0 and len(env_ids) >= n_envs:
+            mark_srb_spec_reset(self)
+            self._hud_last_update_step = -1
+
+    def _episode_recording_outcomes(
+        self,
+        env_ids: Sequence[int],
+    ) -> dict[int, dict[str, object]] | None:
+        adapter = getattr(self, "_direct_step_outcome", None)
+        if adapter is None or not adapter.has_outcome:
+            return None
+        return adapter.pop_episode_recording_outcomes(env_ids)
 
     def _pre_physics_step(self, actions: torch.Tensor):
+        validate_finite_action(actions)
         if self.cfg.actions:
-            if self._action_history_buffer is not None:
-                # Store current action in the history buffer
-                self._action_history_buffer[self._action_history_buffer_ptr] = actions
-
-                # Calculate indices to read delayed actions
-                read_indices = (
-                    self._action_history_buffer_ptr
-                    - self._action_delay_steps
-                    + self._max_action_delay_steps
-                ) % self._max_action_delay_steps
-
-                # Fetch delayed actions
-                idx = read_indices.view(1, self.num_envs, 1).expand(
-                    -1, -1, self.action_manager.total_action_dim
+            if self._delay_runtime is not None:
+                actions = self._delay_runtime.process_action(
+                    actions,
+                    current_time=self._delay_current_time(),
+                    step_dt=self._delay_step_dt(),
                 )
-                delayed_actions = torch.gather(
-                    self._action_history_buffer, 0, idx
-                ).squeeze(0)
-
-                # Advance the history buffer pointer for the next agent step
-                self._action_history_buffer_ptr = (
-                    self._action_history_buffer_ptr + 1
-                ) % self._max_action_delay_steps
-
-                # Randomize action delay with on-step probability
-                if (
-                    self.cfg.action_delay_on_step_change_prob > 0.0
-                    and (self._min_action_delay_steps < self._max_action_delay_steps)
-                    and (
-                        self.sim.current_time
-                        % self.cfg.action_delay_on_step_change_freq
-                    )
-                    < self.cfg.agent_rate
-                ):
-                    dist = torch.rand((self.num_envs,), device=self.device)
-                    decrease_delay_indices = (
-                        self._action_delay_steps > self._min_action_delay_steps
-                    ) & (dist < self.cfg.action_delay_on_step_change_prob)
-                    increase_delay_indices = (
-                        self._action_delay_steps < self._max_action_delay_steps
-                    ) & (dist > (1.0 - self.cfg.action_delay_on_step_change_prob))
-                    self._action_delay_steps[decrease_delay_indices] -= 1
-                    self._action_delay_steps[increase_delay_indices] += 1
-
-                self.action_manager.process_action(delayed_actions)
-            else:
-                self.action_manager.process_action(actions)
+                validate_finite_action(actions)
+            elif self._direct_action_delay is not None:
+                actions = self._direct_action_delay.process(
+                    actions,
+                    current_time=self._delay_current_time(),
+                    step_dt=self._delay_step_dt(),
+                    change_freq=self._delay_cfg.action.change_freq,
+                    change_prob=self._delay_cfg.action.change_prob,
+                )
+                validate_finite_action(actions)
+            self.action_manager.process_action(actions)
         else:
-            super()._pre_physics_step(actions)  # type: ignore
+            super()._pre_physics_step(actions)  # type: ignore[misc]
 
     def _apply_action(self):
         try:
             if self.cfg.actions:
                 self.action_manager.apply_action()
             else:
-                super()._apply_action()  # type: ignore
-        except Exception as e:
-            logging.error(f"Failed to apply action: {e}")
+                super()._apply_action()  # type: ignore[misc]
+        except RuntimeError:
+            # Continuing would step with stale actions and corrupt the rollout.
+            logging.exception("Physics/runtime error in _apply_action")
+            raise
 
     def _update_gym_env_spaces(self):
-        # Action space
-        self.single_action_space = gymnasium.spaces.Box(
-            low=-1.0,
-            high=1.0,
-            shape=(self.action_manager.total_action_dim,),
+        self._action_layout = ActionLayout.from_action_manager(
+            self.action_manager
+            if self.cfg.actions and hasattr(self, "action_manager")
+            else None
         )
-        self.action_space = gymnasium.vector.utils.batch_space(
-            self.single_action_space, self.num_envs
+        self.single_action_space, self.action_space = self._action_layout.build_spaces(
+            num_envs=self.num_envs
         )
 
-        # Observation space
-        self.single_observation_space = gymnasium.spaces.Dict({})
-        for obs_key, obs_buf in self._get_observations().items():
-            assert isinstance(obs_buf, (numpy.ndarray, torch.Tensor))
-            if isinstance(obs_buf, torch.Tensor):
-                match obs_buf.dtype:
-                    case torch.float32:
-                        dtype = numpy.float32
-                    case torch.float64:
-                        dtype = numpy.float64
-                    case torch.int8:
-                        dtype = numpy.int8
-                    case torch.uint8:
-                        dtype = numpy.uint8
-                    case torch.int16:
-                        dtype = numpy.int16
-                    case torch.uint16:
-                        dtype = numpy.uint16
-                    case torch.int32:
-                        dtype = numpy.int32
-                    case torch.uint32:
-                        dtype = numpy.uint32
-                    case torch.int64:
-                        dtype = numpy.int64
-                    case torch.uint64:
-                        dtype = numpy.uint64
-                    case torch.bool:
-                        dtype = numpy.bool_
-                    case _:
-                        raise TypeError(
-                            f"Unsupported torch dtype '{obs_buf.dtype}' for observation '{obs_key}'."
-                        )
-            else:
-                dtype = obs_buf.dtype
-            match dtype:
-                case numpy.float32 | numpy.float64:
-                    low = numpy.finfo(dtype).min  # type: ignore
-                    high = numpy.finfo(dtype).max  # type: ignore
-                case (
-                    numpy.int8
-                    | numpy.uint8
-                    | numpy.int16
-                    | numpy.uint16
-                    | numpy.int32
-                    | numpy.uint32
-                    | numpy.int64
-                    | numpy.uint64
-                ):
-                    low = numpy.iinfo(dtype).min
-                    high = numpy.iinfo(dtype).max
-                case numpy.bool_:
-                    low = 0
-                    high = 1
-                case _:
-                    low = -numpy.inf
-                    high = numpy.inf
-            self.single_observation_space[obs_key] = gymnasium.spaces.Box(
-                low=low,
-                high=high,
-                shape=obs_buf.shape[1:],
-                dtype=dtype,  # type: ignore
+        if self._use_step_return_workflow:
+            self._observation_assembly = ObservationAssembly.from_first_step(
+                scene=self.scene,
+                step_return=self._step_return,
+                num_envs=self.num_envs,
             )
-        self.observation_space = gymnasium.vector.utils.batch_space(
-            self.single_observation_space, self.num_envs
+            self._observation_layout = self._observation_assembly.layout
+            extra_terms = tuple(
+                (term.output_key, term.dtype, term.shape)
+                for term in (
+                    *self._observation_assembly.visual_terms,
+                    *self._observation_assembly.event_terms,
+                )
+            )
+            if self.cfg.ephemeris.enabled and self.cfg.ephemeris.expose_observations:
+                extra_terms += (("ephemeris", torch.float32, (7,)),)
+            self.single_observation_space, self.observation_space = (
+                self._observation_layout.build_spaces(extra_terms=extra_terms)
+            )
+        else:
+            self.single_observation_space = gymnasium.spaces.Dict({})
+            for obs_key, obs_buf in self._get_observations().items():
+                assert isinstance(obs_buf, (np.ndarray, torch.Tensor))
+                self.single_observation_space[obs_key] = box_for_dtype_shape(
+                    key=obs_key,
+                    dtype=obs_buf.dtype,
+                    shape=tuple(obs_buf.shape[1:]),
+                )
+            from srb.core.env.runtime.observation_assembly import discover_event_terms
+
+            for term in discover_event_terms(self.scene):
+                if term.output_key in self.single_observation_space:
+                    raise ValueError(
+                        f"Event term '{term.output_key}' collides with an "
+                        "existing legacy observation space"
+                    )
+                self.single_observation_space[term.output_key] = box_for_dtype_shape(
+                    key=term.output_key,
+                    dtype=term.dtype,
+                    shape=term.shape,
+                )
+            self.observation_space = gymnasium.vector.utils.batch_space(
+                self.single_observation_space, self.num_envs
+            )
+
+    def _configure_delay_runtime(self) -> None:
+        actions_enabled = bool(self.cfg.actions and hasattr(self, "action_manager"))
+        action_dim = int(self.action_manager.total_action_dim) if actions_enabled else 0
+
+        delay_plan = plan_delay_runtime_activation(
+            self.cfg,
+            step_return_workflow=self._use_step_return_workflow,
+            actions_enabled=actions_enabled,
+            action_dim=action_dim,
         )
+        self._delay_cfg = delay_plan.delay_config
+        self._delay_runtime: DelayRuntime | None = delay_plan.build_step_return_runtime(
+            self.cfg,
+            getattr(self, "_step_return", None),
+            action_dim=action_dim,
+            num_envs=self.num_envs,
+            device=self.device,
+            actions_enabled=actions_enabled,
+        )
+        self._direct_action_delay: ActionDelay | None = (
+            delay_plan.build_legacy_action_delay(
+                action_dim=action_dim,
+                num_envs=self.num_envs,
+                device=self.device,
+            )
+        )
+        delay_plan.emit_diagnostics(logging)
+
+    def _delay_current_time(self) -> float:
+        current_time = getattr(getattr(self, "sim", None), "current_time", None)
+        if current_time is not None:
+            return float(current_time)
+        step_counter = int(getattr(self, "common_step_counter", 0))
+        step_dt = float(getattr(self, "step_dt", self._delay_step_dt()))
+        return step_counter * step_dt
+
+    def _delay_step_dt(self) -> float:
+        return float(getattr(self.cfg, "agent_rate", 1.0))
 
     @cached_property
     def max_episode_length(self):
-        # Wrap lengthy calculation in a cached property
         return super().max_episode_length
 
     @cached_property
     def _use_step_return_workflow(self) -> bool:
         return self.__class__.extract_step_return is not DirectEnv.extract_step_return
 
-    def _get_dones(self) -> Tuple[torch.Tensor, torch.Tensor]:
+    def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
         if self._use_step_return_workflow:
-            self._step_return = self._extract_step_return_wrapped()
-            if self.cfg.extras:
-                self.extras["reward_terms"] = self._step_return.reward
-            if self._step_return.info:
-                self.extras.update(self._step_return.info)
-            return self._step_return.termination, self._step_return.truncation
+            self.advance_step_state()
+            outcome = self._direct_step_outcome.begin_step(
+                self._extract_step_return_wrapped(),
+                include_reward_terms=bool(self.cfg.extras),
+            )
+            self._step_return = outcome.step_return
+            # Extras persist between hooks; clear prior-step diagnostics.
+            self.extras.pop("invalid_keys", None)
+            self.extras.pop("invalid_envs", None)
+            if outcome.extras:
+                self.extras.update(outcome.extras)
+            # Snapshot terminal sensors before selective reset; reuse this event tick after reset.
+            event_observations: dict[str, torch.Tensor] | None = None
+            if self._episode_recorder is not None:
+                sim_time_ns = int(max(0.0, self._delay_current_time()) * 1_000_000_000)
+                self._episode_recorder.record_step(sim_time_ns=sim_time_ns)
+                event_observations = (
+                    self._episode_recorder.latest_event_observations() or None
+                )
+            self._direct_pre_reset_observation = self._direct_step_outcome.observation(
+                event_observations=event_observations
+            )
+            self._direct_pre_reset_observation.update(self._ephemeris_observations())
+            return self._direct_step_outcome.dones()
         else:
-            return super()._get_dones()  # type: ignore
+            return super()._get_dones()  # type: ignore[return-value]
 
     def _get_rewards(self) -> torch.Tensor:
         if self._use_step_return_workflow:
-            return _sum_rewards(self._step_return.reward)
+            reward = self._direct_step_outcome.reward()
         else:
-            return super()._get_rewards()  # type: ignore
+            reward = super()._get_rewards()  # type: ignore[assignment]
+        self._update_hud(reward)
+        return reward  # type: ignore[return-value]
 
-    def _get_observations(self) -> Dict[str, torch.Tensor]:
+    def _hud_custom_lines(self, reward: torch.Tensor) -> Sequence[tuple[str, str]]:
+        """Return task-specific HUD lines, shown before generic metrics."""
+        return ()
+
+    def _hud_lines(self, reward: torch.Tensor) -> Sequence[tuple[str, str]]:
+        lines: list[tuple[str, str]] = list(self._hud_custom_lines(reward))
+
+        if self.cfg.hud_show_reward:
+            lines.append(("Reward", f"{_tensor_first_float(reward):+.3f}"))
+
+        if self.cfg.hud_show_time:
+            elapsed_s = _tensor_first_float(self.episode_length_buf) * float(
+                self.cfg.agent_rate
+            )
+            lines.append(("Time", _format_elapsed_s(elapsed_s)))
+
+        if self.cfg.hud_show_reset_hint:
+            lines.append(("Reset", self.cfg.hud_reset_hint))
+
+        return lines[: max(1, int(self.cfg.hud_max_lines))]
+
+    def _update_hud(self, reward: torch.Tensor) -> None:
+        if not getattr(self.cfg, "hud", False):
+            return
+
+        step = int(_tensor_first_float(self.episode_length_buf))
+        interval_steps = max(
+            1,
+            round(float(self.cfg.hud_update_interval_s) / float(self.cfg.agent_rate)),
+        )
+        if self._hud_last_update_step == step or step % interval_steps != 0:
+            return
+        self._hud_last_update_step = step
+
+        if self._hud is None:
+            from srb.core.env.common.hud import DemoHud
+
+            self._hud = DemoHud(
+                title=self.cfg.hud_title,
+                max_lines=self.cfg.hud_max_lines,
+            )
+        if self._hud is not None and self._hud.enabled:
+            self._hud.update(self._hud_lines(reward))
+
+    def _get_sensor_observations(self) -> dict[str, torch.Tensor]:
+        """Capture visual sensors for the legacy non-step-return workflow."""
+        from srb.core.sensor.visual_output import (
+            construct_visual_observation,
+            iter_visual_sensor_outputs,
+        )
+
+        obs: dict[str, torch.Tensor] = {}
+        for visual in iter_visual_sensor_outputs(self.scene):
+            obs.update(
+                construct_visual_observation(
+                    image_basename=visual.image_basename,
+                    data_types=visual.data_types,
+                    clipping_range=visual.clipping_range,
+                    merge_channels=True,
+                    **visual.sensor.data.output,
+                )
+            )
+        return obs
+
+    def _get_observations(self) -> dict[str, torch.Tensor]:
+        event_observations: dict[str, torch.Tensor] | None = None
+        # Consume once so explicit resets and unmatched hooks cannot reuse stale state.
+        pre_reset_observation = getattr(self, "_direct_pre_reset_observation", None)
+        self._direct_pre_reset_observation = None
+        if getattr(self, "_direct_explicit_reset_pending", False):
+            pre_reset_observation = None
+        if self._episode_recorder is not None and pre_reset_observation is None:
+            sim_time_ns = int(max(0.0, self._delay_current_time()) * 1_000_000_000)
+            if (
+                getattr(self, "_direct_explicit_reset_pending", False)
+                and self.common_step_counter > 0
+            ):
+                # Resets do not advance sim time; record_step would skip it.
+                self._episode_recorder.prime_envs(
+                    range(self.num_envs), sim_time_ns=sim_time_ns
+                )
+            else:
+                self._episode_recorder.record_step(sim_time_ns=sim_time_ns)
+            event_observations = (
+                self._episode_recorder.latest_event_observations() or None
+            )
+
         if self._use_step_return_workflow:
-            return _flatten_observations(self._step_return.observation)
+            if getattr(self, "_direct_explicit_reset_pending", False):
+                # Consume before extraction so repeated reset hooks cannot re-extract.
+                self._direct_explicit_reset_pending = False
+                direct_step_outcome = getattr(self, "_direct_step_outcome", None)
+                if direct_step_outcome is not None and direct_step_outcome.has_outcome:
+                    # Reset metadata is consumed; clear cached terminal rows before assembly.
+                    direct_step_outcome.clear()
+                reset_ids = torch.arange(
+                    self.num_envs, dtype=torch.long, device=self.device
+                )
+                obs = self._assemble_post_reset_observation(
+                    reset_ids, commit_step_return=True
+                )
+            elif (
+                getattr(self, "_direct_step_outcome", None) is not None
+                and self._direct_step_outcome.has_outcome
+            ):
+                obs = pre_reset_observation
+                if obs is None:
+                    obs = self._direct_step_outcome.observation(
+                        event_observations=event_observations,
+                    )
+                self._direct_pre_reset_observation = None
+                # Splicing requires matching keys; merge ephemeris before snapshot/splice.
+                if pre_reset_observation is None:
+                    obs.update(self._ephemeris_observations())
+                reset_buf = getattr(self, "reset_buf", None)
+                reset_terminated = getattr(self, "reset_terminated", None)
+                if isinstance(reset_buf, torch.Tensor) and isinstance(
+                    reset_terminated, torch.Tensor
+                ):
+                    # Visualizer-requested resets mark only ``reset_terminated``.
+                    reset_buf = reset_buf | reset_terminated
+                if isinstance(reset_buf, torch.Tensor) and bool(reset_buf.any()):
+                    reset_ids = reset_buf.nonzero(as_tuple=False).flatten()
+                    # Terminal rows use ephemeris captured by ``_reset_idx``.
+                    terminal_observation = {
+                        **obs,
+                        **(
+                            getattr(self, "_pre_reset_ephemeris_observations", None)
+                            or {}
+                        ),
+                    }
+                    # Match Isaac Lab's post-hook policy noise in terminal snapshots.
+                    noise_model = getattr(self, "_observation_noise_model", None)
+                    if (
+                        getattr(self.cfg, "observation_noise_model", None)
+                        and noise_model is not None
+                        and "policy" in terminal_observation
+                    ):
+                        terminal_observation["policy"] = noise_model(
+                            terminal_observation["policy"]
+                        )
+                    self._last_final_observation = final_observation(
+                        terminal_observation, reset_ids
+                    )
+                    self._last_final_observation_ids = reset_ids.clone()
+                    self._last_final_observation_mask = reset_buf.clone()
+                else:
+                    self._last_final_observation = None
+                    self._last_final_observation_ids = torch.empty(
+                        0, dtype=torch.long, device=self.device
+                    )
+                    self._last_final_observation_mask = torch.zeros(
+                        self.num_envs, dtype=torch.bool, device=self.device
+                    )
+                if isinstance(reset_buf, torch.Tensor) and bool(reset_buf.any()):
+                    if self._episode_recorder is not None:
+                        # The terminal tick already consumed this sim time.
+                        self._episode_recorder.prime_envs(
+                            reset_ids.tolist(),
+                            sim_time_ns=int(
+                                max(0.0, self._delay_current_time()) * 1_000_000_000
+                            ),
+                        )
+                    obs = splice_observation_rows(
+                        obs,
+                        self._assemble_post_reset_observation(reset_ids),
+                        reset_ids,
+                    )
+            else:
+                obs = self._observation_assembly.assemble(
+                    self._step_return,
+                    event_observations=event_observations,
+                )
         else:
-            return super()._get_observations()  # type: ignore
+            obs = super()._get_observations()  # type: ignore[return-value]
+            obs.update(self._get_sensor_observations())
+            if event_observations:
+                obs.update(event_observations)
+        # Merge after assembly; the matching Gym space is added during setup.
+        obs.update(self._ephemeris_observations())
+        return obs
+
+    def _ephemeris_observations(self) -> dict[str, torch.Tensor]:
+        """Return configured ephemeris observations, zeroing missing or non-finite
+        values.
+        """
+        ephemeris_cfg = getattr(self.cfg, "ephemeris", None)
+        if ephemeris_cfg is None or not (
+            ephemeris_cfg.enabled and ephemeris_cfg.expose_observations
+        ):
+            return {}
+        from srb.core.ephemeris.observations import ephemeris_observation
+
+        return {
+            "ephemeris": torch.nan_to_num(
+                ephemeris_observation(
+                    getattr(self, "_ephemeris_state", None),
+                    getattr(self, "_ephemeris_occluder", None),
+                    float(getattr(self, "_ephemeris_eclipse_factor", 1.0)),
+                    self._robot.data.root_quat_w,
+                ),
+                nan=0.0,
+                posinf=0.0,
+                neginf=0.0,
+            )
+        }
 
     def _setup_scene(self):
         super()._setup_scene()
 
-        ## Handle assemblies
-        self.joint_assemblies: Dict[str, Sequence[AssembledBodies]] = {}
+        # Cloning copies env_0 particle targets to other envs; rebind before parsing.
+        env_prim_paths = getattr(self.scene, "env_prim_paths", None)
+        if env_prim_paths:
+            from srb.core.particle_binding import (
+                repoint_particle_sets_to_env_systems,
+            )
+
+            repoint_particle_sets_to_env_systems(self.sim.stage, env_prim_paths)
+
+        # Rendering writes absolute poses as USD locals, so reset stacks to prevent compounding.
+        # Isaac Sim 6.1 Fabric crashes on these stacks with multiple articulated robots.
+        if not getattr(self.cfg.sim, "use_fabric", True) and (
+            self.sim.is_rendering or self.sim.can_render_rgb_array()
+        ):
+            from srb.core.sim.absolute_body_poses import (
+                make_rigid_body_poses_absolute,
+            )
+
+            make_rigid_body_poses_absolute(self.sim.stage)
+
+        # Static decor retains USD joints that PhysX cannot connect; disable before parsing.
+        from srb.core.sim.static_decor import disable_joints_on_static_decor
+
+        env_regex_ns = f"{getattr(self.scene, 'env_ns', '/World/envs')}/env_.*"
+        disable_joints_on_static_decor(self.cfg.scene, env_regex_ns)
+
+        from srb.core.sim.light_exposure import (
+            apply_light_exposure_overrides,
+            light_exposure_overrides,
+        )
+
+        apply_light_exposure_overrides(light_exposure_overrides(self.cfg), env_regex_ns)
+
+        self.joint_assemblies: dict[str, Sequence["AssembledBodies"]] = {}
+        if not self.cfg.joint_assemblies:
+            return
+
+        from srb.core.sim.robot_setup import RobotAssembler
+
         for key, assembly_cfg in self.cfg.joint_assemblies.items():
             self.joint_assemblies[key] = tuple(
                 RobotAssembler().assemble_rigid_bodies(
@@ -479,12 +1075,24 @@ class DirectEnv(__DirectRLEnv, metaclass=__PostInitCaller):
                 for i in range(self.num_envs)
             )
 
+        if self.num_envs > 1:
+            from srb.core.sim.robot_setup.robot_assembler import (
+                prepare_assembled_scene_physics,
+            )
+
+            self._assembly_physics_release = prepare_assembled_scene_physics(
+                self.sim.stage
+            )
+
     def _update_assembly_fixed_joint_transforms(self, env_ids: Sequence[int]):
         for key, assembly_cfg in self.cfg.joint_assemblies.items():
-            attach_asset: RigidObject | Articulation = self.scene[key]
-            base_asset: RigidObject | Articulation = self.scene[
-                assembly_cfg.base_path.rsplit("/", 1)[-1]
-            ]
+            attach_asset: RigidObject | Articulation = get_scene_root_asset(
+                self.scene, key
+            )
+            base_asset: RigidObject | Articulation = get_scene_root_asset(
+                self.scene,
+                assembly_cfg.base_path.rsplit("/", 1)[-1],
+            )
             attach_root_state = attach_asset.data.root_state_w[env_ids]
             attach_body_state = (
                 attach_asset.data.body_state_w[
@@ -507,17 +1115,13 @@ class DirectEnv(__DirectRLEnv, metaclass=__PostInitCaller):
                 else base_asset.data.root_state_w[env_ids]
             )
 
+            # attach_root = base_mount * offset * (attach_mount^-1 * attach_root);
+            # multiplication order matters when the attach mount is rotated.
             pose = torch.cat(
                 combine_frame_transforms(
-                    base_body_state[:, :3],
-                    base_body_state[:, 3:7],
                     *combine_frame_transforms(
-                        *subtract_frame_transforms(
-                            attach_body_state[:, :3],
-                            attach_body_state[:, 3:7],
-                            attach_root_state[:, :3],
-                            attach_root_state[:, 3:7],
-                        ),
+                        base_body_state[:, :3],
+                        base_body_state[:, 3:7],
                         torch.tensor(
                             assembly_cfg.fixed_joint_offset,
                             dtype=attach_root_state.dtype,
@@ -533,6 +1137,12 @@ class DirectEnv(__DirectRLEnv, metaclass=__PostInitCaller):
                         .unsqueeze(0)
                         .repeat(attach_root_state.shape[0], 1),
                     ),
+                    *subtract_frame_transforms(
+                        attach_body_state[:, :3],
+                        attach_body_state[:, 3:7],
+                        attach_root_state[:, :3],
+                        attach_root_state[:, 3:7],
+                    ),
                 ),
                 dim=1,
             )
@@ -540,22 +1150,45 @@ class DirectEnv(__DirectRLEnv, metaclass=__PostInitCaller):
             attach_asset.write_root_pose_to_sim(pose, env_ids=env_ids)
 
 
-@torch.jit.script
-def _flatten_observations(
-    obs_dict: Dict[str, Dict[str, torch.Tensor]],
-) -> Dict[str, torch.Tensor]:
-    return {
-        obs_cat: torch.cat(
-            [
-                torch.flatten(obs_group[obs_key], start_dim=1)
-                for obs_key in sorted(obs_group.keys())
-            ],
-            dim=1,
+def _assert_gpu_dynamics_enabled(feature: str) -> None:
+    """Require GPU dynamics or raise ``RuntimeError``; scenes without its API are
+    unchecked. Particle systems stay inert without the scene flag.
+    """
+    import omni.usd
+    from pxr import PhysxSchema, UsdPhysics
+
+    context = omni.usd.get_context()
+    stage = context.get_stage() if context is not None else None
+    if stage is None:
+        return
+
+    disabled = []
+    for prim in stage.Traverse():
+        if not prim.IsA(UsdPhysics.Scene):
+            continue
+        attr = PhysxSchema.PhysxSceneAPI(prim).GetEnableGPUDynamicsAttr()
+        # Get() includes the false schema default; authored-value checks miss
+        # scenes that silently run without GPU dynamics.
+        if attr and not attr.Get():
+            disabled.append(str(prim.GetPath()))
+
+    if disabled:
+        raise RuntimeError(
+            f"{feature} require PhysX GPU dynamics, but it is disabled on "
+            f"{', '.join(disabled)}. The scene would run with the "
+            f"{feature} present and never simulated. Enable "
+            "physxScene:enableGPUDynamics on the simulation owner, or "
+            "configure the environment without them."
         )
-        for obs_cat, obs_group in obs_dict.items()
-    }
 
 
-@torch.jit.script
-def _sum_rewards(rew_dict: Dict[str, torch.Tensor]) -> torch.Tensor:
-    return torch.sum(torch.stack(list(rew_dict.values()), dim=1), dim=1)
+def _tensor_first_float(value: torch.Tensor) -> float:
+    return float(value.reshape(-1)[0].detach().cpu().item())
+
+
+def _format_elapsed_s(elapsed_s: float) -> str:
+    if elapsed_s < 60.0:
+        return f"{elapsed_s:0.1f}s"
+    minutes = int(elapsed_s // 60.0)
+    seconds = int(elapsed_s % 60.0)
+    return f"{minutes:d}:{seconds:02d}"

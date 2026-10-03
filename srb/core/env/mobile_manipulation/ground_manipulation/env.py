@@ -1,12 +1,7 @@
 from dataclasses import MISSING
 
-from srb import assets
-from srb.core.action import (
-    InverseKinematicsActionGroup,
-    JointPositionRelativeActionGroup,
-    OperationalSpaceControlActionGroup,
-)
 from srb.core.asset import Articulation, AssetVariant, GroundManipulator
+from srb.core.default_assets import get_default_asset_factories
 from srb.core.env.manipulation.env import (
     ManipulationEnv,
     ManipulationEventCfg,
@@ -18,10 +13,12 @@ from srb.core.env.mobile.ground.env import (
     GroundEventCfg,
     GroundSceneCfg,
 )
-from srb.core.manager import SceneEntityCfg
-from srb.core.sensor import ContactSensorCfg
+from srb.core.scene_introspection import get_scene_articulation
+from srb.core.sensor import CameraCfg, PinholeCameraCfg, SensorBaseCfg
 from srb.utils.cfg import configclass
-from srb.utils.math import combine_frame_transforms_tuple
+from srb.utils.math import rpy_to_quat
+
+from .._helpers import finalize_mobile_manipulation_cfg
 
 
 @configclass
@@ -37,13 +34,35 @@ class GroundManipulationEventCfg(GroundEventCfg, ManipulationEventCfg):
 @configclass
 class GroundManipulationEnvCfg(GroundEnvCfg):
     ## Assets
-    robot: GroundManipulator | AssetVariant = assets.GenericGroundManipulator(
-        mobile_base=assets.Spot(), manipulator=assets.Franka()
+    robot: GroundManipulator | AssetVariant = (
+        get_default_asset_factories().ground_manipulation_robot()
     )
-    _robot: GroundManipulator = MISSING  # type: ignore
-
+    _robot: GroundManipulator = MISSING  # type: ignore[assignment]
     ## Scene
     scene: GroundManipulationSceneCfg = GroundManipulationSceneCfg()
+
+    ## Sensors
+    # `width`/`height` are set explicitly (matching the base `camera_resolution`
+    # default) rather than relying on `_add_sensors`'s active-category fill-in:
+    # that fill-in is gated on `SensorCategory.VISUAL` being in `active_sensors`
+    # (not in the base default set), but `env_sensor_cfgs` entries are
+    # structurally validated by `cfg.validate()` regardless of whether their
+    # category ends up active -- an inactive VISUAL sensor with MISSING
+    # width/height fails `TaskCfg` construction outright for any task that
+    # doesn't itself opt into VISUAL sensors (e.g. digital_twin/lunalab).
+    env_sensor_cfgs: dict[str, SensorBaseCfg] = {
+        "cam_scene": CameraCfg(
+            prim_path="{ENV_REGEX_NS}/robot/camera_scene",
+            offset=CameraCfg.OffsetCfg(
+                convention="world",
+                pos=(2.0, 0.0, 1.0),
+                rot=rpy_to_quat(0.0, 45.0, 180.0),
+            ),
+            spawn=PinholeCameraCfg(clipping_range=(0.01, 4.99)),
+            width=64,
+            height=64,
+        ),
+    }
 
     ## Events
     events: GroundManipulationEventCfg = GroundManipulationEventCfg()
@@ -53,57 +72,7 @@ class GroundManipulationEnvCfg(GroundEnvCfg):
     agent_rate: float = 1.0 / 50.0
 
     def __post_init__(self):
-        ## Jacobian-based actions are currently not supported for free-floating manipulators
-        if isinstance(self.robot, GroundManipulator) and isinstance(
-            self.robot.manipulator.actions,
-            (InverseKinematicsActionGroup, OperationalSpaceControlActionGroup),
-        ):
-            self.robot.manipulator.actions = JointPositionRelativeActionGroup()
-
-        super().__post_init__()
-        assert self.scene.manipulator is not None
-
-        ## Adapted from ManipulationEnvCfg
-        # Sensor: End-effector transform
-        self.scene.tf_end_effector.prim_path = f"{self.scene.manipulator.prim_path}/{self._robot.manipulator.frame_base.prim_relpath}"
-        self.scene.tf_end_effector.target_frames[
-            0
-        ].prim_path = f"{self.scene.manipulator.prim_path}/{self._robot.manipulator.frame_flange.prim_relpath}"
-        if self._robot.manipulator.end_effector is not None:
-            (
-                self.scene.tf_end_effector.target_frames[0].offset.pos,
-                self.scene.tf_end_effector.target_frames[0].offset.rot,
-            ) = combine_frame_transforms_tuple(
-                self._robot.manipulator.frame_flange.offset.pos,
-                self._robot.manipulator.frame_flange.offset.rot,
-                self._robot.manipulator.end_effector.frame_tool_centre_point.offset.pos,
-                self._robot.manipulator.end_effector.frame_tool_centre_point.offset.rot,
-            )
-        else:
-            (
-                self.scene.tf_end_effector.target_frames[0].offset.pos,
-                self.scene.tf_end_effector.target_frames[0].offset.rot,
-            ) = (
-                self._robot.manipulator.frame_flange.offset.pos,
-                self._robot.manipulator.frame_flange.offset.rot,
-            )
-
-        # Sensor: Robot contacts
-        self.scene.contacts_robot.prim_path = f"{self.scene.manipulator.prim_path}/.*"
-
-        # Sensor: End-effector contacts
-        self.scene.contacts_end_effector = (
-            ContactSensorCfg(
-                prim_path=f"{self._robot.manipulator.end_effector.asset_cfg.prim_path}/.*",
-            )
-            if self._robot.manipulator.end_effector is not None
-            else None
-        )
-
-        # Event: Randomize robot joints
-        self.events.randomize_robot_joints.params["asset_cfg"] = SceneEntityCfg(
-            "manipulator"
-        )
+        finalize_mobile_manipulation_cfg(self, super().__post_init__)
 
 
 class GroundManipulationEnv(GroundEnv, ManipulationEnv):
@@ -113,4 +82,6 @@ class GroundManipulationEnv(GroundEnv, ManipulationEnv):
         super().__init__(cfg, **kwargs)
 
         ## Get scene assets
-        self._manipulator: Articulation = self.scene["manipulator"]
+        self._manipulator: Articulation = get_scene_articulation(
+            self.scene, "manipulator"
+        )

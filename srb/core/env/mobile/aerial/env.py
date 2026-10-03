@@ -2,8 +2,8 @@ from dataclasses import MISSING
 
 import torch
 
-from srb import assets
-from srb.core.asset import AerialRobot, AssetVariant
+from srb.core.asset import AerialRobot, AssetVariant, Terrain
+from srb.core.default_assets import get_default_asset_factories
 from srb.core.domain import Domain
 from srb.core.env import ViewerCfg
 from srb.core.env.mobile.env import (
@@ -12,8 +12,9 @@ from srb.core.env.mobile.env import (
     MobileEventCfg,
     MobileSceneCfg,
 )
-from srb.core.manager import EventTermCfg, SceneEntityCfg
+from srb.core.manager import SceneEntityCfg
 from srb.core.mdp import reset_root_state_uniform
+from srb.core.randomization import RandomizationCategory, SrbEventTermCfg
 from srb.utils.cfg import configclass
 
 
@@ -24,9 +25,10 @@ class AerialSceneCfg(MobileSceneCfg):
 
 @configclass
 class AerialEventCfg(MobileEventCfg):
-    randomize_robot_state: EventTermCfg = EventTermCfg(
+    randomize_robot_state: SrbEventTermCfg = SrbEventTermCfg(
         func=reset_root_state_uniform,
         mode="reset",
+        category=RandomizationCategory.PHYSICS,
         params={
             "asset_cfg": SceneEntityCfg("robot"),
             "pose_range": {
@@ -46,9 +48,9 @@ class AerialEnvCfg(MobileEnvCfg):
     domain: Domain = Domain.MARS
 
     ## Assets
-    robot: AerialRobot | AssetVariant = assets.Ingenuity()
-    _robot: AerialRobot = MISSING  # type: ignore
-
+    robot: AerialRobot | AssetVariant = get_default_asset_factories().aerial_robot()
+    _robot: AerialRobot = MISSING  # type: ignore[assignment]
+    scenery: Terrain | AssetVariant | None = AssetVariant.PROCEDURAL
     ## Scene
     scene: AerialSceneCfg = AerialSceneCfg()
 
@@ -66,10 +68,14 @@ class AerialEnvCfg(MobileEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
+        # The default active_sensors set drops TERRAIN-category sensors, which
+        # would silently discard the Ingenuity altimeter (HeightmapSensorCfg)
+        # that aerial tasks use for terrain clearance (reward + crash
+        # termination). It is a single downward ray, so keep it always on.
+        from srb.core.sensor.category import SensorCategory
+
+        self.active_sensors.add(SensorCategory.TERRAIN)
 
 
 class AerialEnv(MobileEnv):
     cfg: AerialEnvCfg
-
-    def __init__(self, cfg: AerialEnvCfg, **kwargs):
-        super().__init__(cfg, **kwargs)

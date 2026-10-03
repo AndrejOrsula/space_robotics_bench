@@ -4,4 +4,4 @@ from .env import (  # noqa: F401
     ManipulationEventCfg,
     ManipulationSceneCfg,
 )
-from .visual_ext import ManipulationEnvVisualExtCfg  # noqa: F401
+from .reward import ManipulationRewardCfg  # noqa: F401

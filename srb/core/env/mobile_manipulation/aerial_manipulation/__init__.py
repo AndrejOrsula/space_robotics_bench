@@ -4,4 +4,3 @@ from .env import (  # noqa: F401
     AerialManipulationEventCfg,
     AerialManipulationSceneCfg,
 )
-from .visual_ext import AerialManipulationEnvVisualExtCfg  # noqa: F401

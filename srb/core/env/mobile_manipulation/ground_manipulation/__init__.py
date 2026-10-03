@@ -4,4 +4,3 @@ from .env import (  # noqa: F401
     GroundManipulationEventCfg,
     GroundManipulationSceneCfg,
 )
-from .visual_ext import GroundManipulationEnvVisualExtCfg  # noqa: F401

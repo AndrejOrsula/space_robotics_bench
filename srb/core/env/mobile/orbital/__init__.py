@@ -4,4 +4,3 @@ from .env import (  # noqa: F401
     OrbitalEventCfg,
     OrbitalSceneCfg,
 )
-from .visual_ext import OrbitalEnvVisualExtCfg  # noqa: F401

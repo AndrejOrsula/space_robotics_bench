@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Sequence, Type
+from typing import Sequence
 
 from srb.core.asset.common import Frame
 from srb.core.asset.object.object import Object, ObjectRegistry
@@ -12,5 +12,5 @@ class Pedestal(Object, object_entrypoint=ObjectType.PEDESTAL):
     frame_manipulator_mount: Frame
 
     @classmethod
-    def object_registry(cls) -> Sequence[Type[Pedestal]]:
-        return ObjectRegistry.registry.get(ObjectType.PEDESTAL, [])  # type: ignore
+    def object_registry(cls) -> Sequence[type[Pedestal]]:
+        return ObjectRegistry.registry.get(ObjectType.PEDESTAL, [])  # type: ignore[return-value]

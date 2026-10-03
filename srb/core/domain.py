@@ -1,33 +1,18 @@
-from enum import Enum, auto
-from typing import Tuple
+from enum import auto
 
-from typing_extensions import Self
+from srb.core.algorithms import LowercaseNameEnum
 
 
-class Domain(str, Enum):
+class Domain(LowercaseNameEnum):
     ASTEROID = auto()
     EARTH = auto()
     MARS = auto()
     MOON = auto()
     ORBIT = auto()
 
-    def __str__(self) -> str:
-        return self.name.lower()
-
-    @classmethod
-    def from_str(cls, string: str) -> Self | None:
-        return next(
-            (variant for variant in cls if string.upper() == variant.name), None
-        )
-
     @property
     def gravity_magnitude(self) -> float:
-        """
-        Magnitude of gravitational acceleration in m/s².
-
-        - Asteroid: 50% gravitational acceleration of Ceres (largest body in the asteroid belt).
-        - Orbit: No gravitational acceleration.
-        """
+        """Representative gravitational acceleration magnitude in m/s²."""
         match self:
             case Domain.ASTEROID:
                 return 0.14219
@@ -42,12 +27,7 @@ class Domain(str, Enum):
 
     @property
     def gravity_variation(self) -> float:
-        """
-        Difference between the maximum and minimum of gravitational acceleration in m/s².
-
-        - Asteroid: Ceres is considered as the maximum (largest body in the asteroid belt).
-        - Orbit: No gravitational acceleration.
-        """
+        """Difference between maximum and minimum gravity in m/s²."""
         match self:
             case Domain.ASTEROID:
                 return 0.28438
@@ -61,42 +41,28 @@ class Domain(str, Enum):
                 return 0.0
 
     @property
-    def gravity_range(self) -> Tuple[float, float]:
-        """
-        Range of gravitational acceleration in m/s² calculated as the magnitude ± variation/2.
-        """
+    def gravity_range(self) -> tuple[float, float]:
+        """Gravity range in m/s², centered on the magnitude."""
         magnitude = self.gravity_magnitude
         delta = self.gravity_variation / 2.0
         return (magnitude - delta, magnitude + delta)
 
     @property
     def light_intensity(self) -> float:
-        """
-        Intensity of Solar light in W/m².
-
-        - Asteroid: Taken at 2.7 AU.
-        - Earth | Mars: Taken at the surface. The peak value (sunny day) is subtracted by half of the variation.
-        - Moon | Orbit: Taken at 1 AU.
-        """
+        """Representative solar irradiance in W/m²."""
         match self:
             case Domain.ASTEROID:
                 return 190.0
             case Domain.EARTH:
                 return 775
             case Domain.MARS:
-                return 729
+                return 590
             case Domain.MOON | Domain.ORBIT:
                 return 1361.0
 
     @property
     def light_intensity_variation(self) -> float:
-        """
-        Difference between the maximum and minimum of Solar light intensity in W/m².
-
-        - Asteroid: Approximate range between 2.55 and 2.97 AU.
-        - Earth | Mars: Guesstimated effect of atmosphere and weather.
-        - Moon | Orbit: Minor variation due to elliptical orbit.
-        """
+        """Difference between maximum and minimum solar irradiance in W/m²."""
         match self:
             case Domain.ASTEROID:
                 return 50.0
@@ -108,76 +74,57 @@ class Domain(str, Enum):
                 return 0.5
 
     @property
-    def light_intensity_range(self) -> Tuple[float, float]:
-        """
-        Range of Solar light intensity in W/m² calculated as the intensity ± variation/2.
-        """
+    def light_intensity_range(self) -> tuple[float, float]:
+        """Solar irradiance range in W/m², centered on the intensity."""
         intensity = self.light_intensity
         delta = self.light_intensity_variation / 2.0
         return (intensity - delta, intensity + delta)
 
     @property
     def light_angular_diameter(self) -> float:
-        """
-        Angular diameter of the Solar light source in degrees.
+        """Solar angular diameter in degrees at each domain's Sun distance.
 
-        - Earth | Mars: Taken at their distance from the Sun.
-        - Asteroid | Moon | Orbit: Approximated as a point source due to lack of atmosphere.
+        The Sun subtends about 0.533° at 1 AU; diameter scales inversely with
+        distance and is independent of atmospheric scatter.
         """
         match self:
-            case Domain.EARTH:
+            case Domain.EARTH | Domain.MOON | Domain.ORBIT:
                 return 0.53
             case Domain.MARS:
                 return 0.35
-            case Domain.ASTEROID | Domain.MOON | Domain.ORBIT:
-                return 0.0
+            case Domain.ASTEROID:
+                return 0.20
 
     @property
     def light_angular_diameter_variation(self) -> float:
-        """
-        Variation of the angular diameter of the Solar light source in degrees.
-        """
+        """Variation in solar angular diameter in degrees."""
         match self:
-            case Domain.EARTH:
+            case Domain.EARTH | Domain.MOON | Domain.ORBIT:
                 return 0.021
             case Domain.MARS:
                 return 0.08
-            case Domain.ASTEROID | Domain.MOON | Domain.ORBIT:
-                return 0.0
+            case Domain.ASTEROID:
+                return 0.029
 
     @property
-    def light_angular_diameter_range(self) -> Tuple[float, float]:
-        """
-        Range of the angular diameter of the Solar light source in degrees calculated as the diameter ± variation/2.
-        """
+    def light_angular_diameter_range(self) -> tuple[float, float]:
+        """Solar angular-diameter range in degrees, centered on the diameter."""
         diameter = self.light_angular_diameter
         delta = self.light_angular_diameter_variation / 2.0
         return (diameter - delta, diameter + delta)
 
     @property
     def light_color_temperature(self) -> float:
-        """
-        Temperature of the Solar light source in K.
-
-        - Earth | Mars: Guesstimated effect of atmosphere and weather.
-        - Asteroid | Moon | Orbit: Intrinsic color temperature of the Sun.
-        """
+        """Representative solar light-source color temperature in kelvin."""
         match self:
             case Domain.EARTH:
                 return 5750.0
-            case Domain.MARS:
-                return 6250.0
-            case Domain.ASTEROID | Domain.MOON | Domain.ORBIT:
+            case Domain.ASTEROID | Domain.MARS | Domain.MOON | Domain.ORBIT:
                 return 5778.0
 
     @property
     def light_color_temperature_variation(self) -> float:
-        """
-        Variation of the temperature of the Solar light source in K.
-
-        - Earth | Mars: Guesstimated effect of atmosphere and weather.
-        - Asteroid | Moon | Orbit: No significant variation.
-        """
+        """Variation in solar light-source color temperature in kelvin."""
         match self:
             case Domain.EARTH:
                 return 1500.0
@@ -187,27 +134,9 @@ class Domain(str, Enum):
                 return 0.0
 
     @property
-    def light_color_temperature_range(self) -> Tuple[float, float]:
-        """
-        Range of the temperature of the Solar light source in K calculated as the temperature ± variation/2.
-        """
+    def light_color_temperature_range(self) -> tuple[float, float]:
+        """Color-temperature range in kelvin, centered on the temperature."""
 
         temperature = self.light_color_temperature
         delta = self.light_color_temperature_variation / 2.0
         return (temperature - delta, temperature + delta)
-
-    @property
-    def contrastive_grayscale(self) -> float:
-        """
-        Grayscale value for contrastive color based on the domain.
-
-        - Asteroid | Moon: Light gray.
-        - Earth | Mars | Orbit: Dark gray.
-        """
-        match self:
-            case Domain.ASTEROID | Domain.MOON:
-                return 0.8
-            case Domain.EARTH | Domain.MARS | Domain.ORBIT:
-                return 0.1
-            case _:
-                return 0.7071

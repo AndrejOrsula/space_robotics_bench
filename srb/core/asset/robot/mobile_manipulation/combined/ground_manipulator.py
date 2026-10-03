@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Sequence, Type
+from typing import Sequence
 
 from srb.core.asset.robot.mobile.ground_robot import GroundRobot
 from srb.core.asset.robot.mobile_manipulation.mobile_manipulator import (
@@ -22,5 +22,5 @@ class GroundManipulator(
     mobile_base: GroundRobot | None = None
 
     @classmethod
-    def mobile_manipulator_registry(cls) -> Sequence[Type[GroundManipulator]]:
-        return MobileManipulatorRegistry.registry.get(MobileManipulatorType.GROUND, [])  # type: ignore
+    def mobile_manipulator_registry(cls) -> Sequence[type[GroundManipulator]]:
+        return MobileManipulatorRegistry.registry.get(MobileManipulatorType.GROUND, [])  # type: ignore[return-value]

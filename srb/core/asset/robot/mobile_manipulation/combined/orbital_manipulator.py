@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Sequence, Type
+from typing import Sequence
 
 from srb.core.asset.robot.mobile.orbital_robot import OrbitalRobot
 from srb.core.asset.robot.mobile_manipulation.mobile_manipulator import (
@@ -22,5 +22,5 @@ class OrbitalManipulator(
     mobile_base: OrbitalRobot | None = None
 
     @classmethod
-    def mobile_manipulator_registry(cls) -> Sequence[Type[OrbitalManipulator]]:
-        return MobileManipulatorRegistry.registry.get(MobileManipulatorType.ORBITAL, [])  # type: ignore
+    def mobile_manipulator_registry(cls) -> Sequence[type[OrbitalManipulator]]:
+        return MobileManipulatorRegistry.registry.get(MobileManipulatorType.ORBITAL, [])  # type: ignore[return-value]

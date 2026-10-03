@@ -1,18 +1,9 @@
-from enum import Enum, auto
+from enum import auto
 
-from typing_extensions import Self
+from srb.core.algorithms import LowercaseNameEnum
 
 
-class RobotType(str, Enum):
+class RobotType(LowercaseNameEnum):
     MANIPULATOR = auto()
     MOBILE_MANIPULATOR = auto()
     MOBILE_ROBOT = auto()
-
-    def __str__(self) -> str:
-        return self.name.lower()
-
-    @classmethod
-    def from_str(cls, string: str) -> Self | None:
-        return next(
-            (variant for variant in cls if string.upper() == variant.name), None
-        )

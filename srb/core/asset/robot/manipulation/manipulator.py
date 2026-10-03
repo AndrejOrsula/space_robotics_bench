@@ -1,25 +1,20 @@
 from __future__ import annotations
 
 from functools import cached_property
-from typing import ClassVar, Dict, Iterable, List, Sequence, Tuple, Type
+from typing import ClassVar, Iterable, Sequence
 
 from srb.core.asset import ArticulationCfg
-from srb.core.asset.common import Frame
 from srb.core.asset.object import Tool
 from srb.core.asset.robot.manipulation.manipulator_type import ManipulatorType
 from srb.core.asset.robot.robot import Robot, RobotRegistry
 from srb.core.asset.robot.robot_type import RobotType
+from srb.core.registry_seam import register_asset_registry
 
 
 class Manipulator(Robot, robot_entrypoint=RobotType.MANIPULATOR):
     ## Model
     asset_cfg: ArticulationCfg
     end_effector: Tool | None = None
-
-    ## Frames
-    frame_flange: Frame
-    frame_base_camera: Frame
-    frame_wrist_camera: Frame
 
     def __init_subclass__(
         cls,
@@ -37,31 +32,32 @@ class Manipulator(Robot, robot_entrypoint=RobotType.MANIPULATOR):
             **kwargs,
         )
         if manipulator_entrypoint is not None:
-            assert isinstance(manipulator_entrypoint, ManipulatorType), (
-                f"Class '{cls.__name__}' is marked as a manipulator entrypoint, but '{manipulator_entrypoint}' is not a valid {ManipulatorType}"
-            )
-            assert (
-                manipulator_entrypoint not in ManipulatorRegistry.base_types.keys()
-            ), (
-                f"Class '{cls.__name__}' is marked as '{manipulator_entrypoint}' manipulator entrypoint, but it was already marked by '{ManipulatorRegistry.base_types[manipulator_entrypoint].__name__}'"
-            )
+            if not isinstance(manipulator_entrypoint, ManipulatorType):
+                raise TypeError(
+                    f"Class '{cls.__name__}' is marked as a manipulator entrypoint, but '{manipulator_entrypoint}' is not a valid {ManipulatorType}"
+                )
+            if manipulator_entrypoint in ManipulatorRegistry.base_types:
+                raise ValueError(
+                    f"Class '{cls.__name__}' is marked as '{manipulator_entrypoint}' manipulator entrypoint, but it was already marked by '{ManipulatorRegistry.base_types[manipulator_entrypoint].__name__}'"
+                )
             ManipulatorRegistry.base_types[manipulator_entrypoint] = cls
         elif manipulator_metaclass:
             ManipulatorRegistry.meta_types.append(cls)
         elif not robot_metaclass:
             for manipulator_type, base in ManipulatorRegistry.base_types.items():
                 if issubclass(cls, base):
-                    if manipulator_type not in ManipulatorRegistry.registry.keys():
+                    if manipulator_type not in ManipulatorRegistry.registry:
                         ManipulatorRegistry.registry[manipulator_type] = []
                     else:
-                        assert cls.name() not in (
+                        if cls.name() in (
                             manipulator.name()
                             for manipulator in ManipulatorRegistry.registry[
                                 manipulator_type
                             ]
-                        ), (
-                            f"Cannot register multiple manipulators with an identical name: '{cls.__module__}:{cls.__name__}' already exists as '{next(manipulator for manipulator in ManipulatorRegistry.registry[manipulator_type] if cls.name() == manipulator.name()).__module__}:{cls.__name__}'"
-                        )
+                        ):
+                            raise ValueError(
+                                f"Cannot register multiple manipulators with an identical name: '{cls.__module__}:{cls.__name__}' already exists as '{next(manipulator for manipulator in ManipulatorRegistry.registry[manipulator_type] if cls.name() == manipulator.name()).__module__}:{cls.__name__}'"
+                            )
                     ManipulatorRegistry.registry[manipulator_type].append(cls)
                     break
 
@@ -75,33 +71,33 @@ class Manipulator(Robot, robot_entrypoint=RobotType.MANIPULATOR):
         )
 
     @classmethod
-    def manipulator_registry(cls) -> Sequence[Type[Manipulator]]:
+    def manipulator_registry(cls) -> Sequence[type[Manipulator]]:
         return list(ManipulatorRegistry.values_inner())
 
     @classmethod
-    def robot_registry(cls) -> Sequence[Type[Manipulator]]:
-        return RobotRegistry.registry.get(RobotType.MANIPULATOR, [])  # type: ignore
+    def robot_registry(cls) -> Sequence[type[Manipulator]]:
+        return RobotRegistry.registry.get(RobotType.MANIPULATOR, [])  # type: ignore[return-value]
 
 
 class ManipulatorRegistry:
-    registry: ClassVar[Dict[ManipulatorType, List[Type[Manipulator]]]] = {}
-    base_types: ClassVar[Dict[ManipulatorType, Type[Manipulator]]] = {}
-    meta_types: ClassVar[List[Type[Manipulator]]] = []
+    registry: ClassVar[dict[ManipulatorType, list[type[Manipulator]]]] = {}
+    base_types: ClassVar[dict[ManipulatorType, type[Manipulator]]] = {}
+    meta_types: ClassVar[list[type[Manipulator]]] = []
 
     @classmethod
     def keys(cls) -> Iterable[ManipulatorType]:
         return cls.registry.keys()
 
     @classmethod
-    def items(cls) -> Iterable[Tuple[ManipulatorType, Sequence[Type[Manipulator]]]]:
+    def items(cls) -> Iterable[tuple[ManipulatorType, Sequence[type[Manipulator]]]]:
         return cls.registry.items()
 
     @classmethod
-    def values(cls) -> Iterable[Iterable[Type[Manipulator]]]:
+    def values(cls) -> Iterable[Iterable[type[Manipulator]]]:
         return cls.registry.values()
 
     @classmethod
-    def values_inner(cls) -> Iterable[Type[Manipulator]]:
+    def values_inner(cls) -> Iterable[type[Manipulator]]:
         return (
             manipulator
             for manipulators in cls.registry.values()
@@ -125,8 +121,13 @@ class ManipulatorRegistry:
         return {module.split(".", maxsplit=1)[0] for module in cls.registered_modules()}
 
     @classmethod
-    def get_by_name(cls, name: str) -> Type[Manipulator] | None:
+    def get_by_name(cls, name: str) -> type[Manipulator] | None:
         for manipulator in cls.values_inner():
             if manipulator.name() == name:
                 return manipulator
         return None
+
+
+# Append-only and populated by `__init_subclass__`; declared as part of the
+# supported snapshot/restore seam in `srb.core.registry_seam`.
+register_asset_registry(ManipulatorRegistry)

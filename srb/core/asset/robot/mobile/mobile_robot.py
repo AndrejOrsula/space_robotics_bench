@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from functools import cached_property
-from typing import ClassVar, Dict, Iterable, List, Sequence, Tuple, Type
+from typing import ClassVar, Iterable, Sequence
 
 from srb.core.asset.common import Frame
 from srb.core.asset.object.payload import Payload
 from srb.core.asset.robot.mobile.mobile_robot_type import MobileRobotType
 from srb.core.asset.robot.robot import Robot, RobotRegistry
 from srb.core.asset.robot.robot_type import RobotType
+from srb.core.registry_seam import register_asset_registry
 
 
 class MobileRobot(Robot, robot_entrypoint=RobotType.MOBILE_ROBOT):
@@ -15,7 +16,6 @@ class MobileRobot(Robot, robot_entrypoint=RobotType.MOBILE_ROBOT):
     payload: Payload | None = None
 
     ## Frames
-    frame_imu: Frame | None = None
     frame_payload_mount: Frame
     frame_manipulator_mount: Frame
 
@@ -35,31 +35,32 @@ class MobileRobot(Robot, robot_entrypoint=RobotType.MOBILE_ROBOT):
             **kwargs,
         )
         if mobile_robot_entrypoint is not None:
-            assert isinstance(mobile_robot_entrypoint, MobileRobotType), (
-                f"Class '{cls.__name__}' is marked as a mobile robot entrypoint, but '{mobile_robot_entrypoint}' is not a valid {MobileRobotType}"
-            )
-            assert (
-                mobile_robot_entrypoint not in MobileRobotRegistry.base_types.keys()
-            ), (
-                f"Class '{cls.__name__}' is marked as '{mobile_robot_entrypoint}' mobile robot entrypoint, but it was already marked by '{MobileRobotRegistry.base_types[mobile_robot_entrypoint].__name__}'"
-            )
+            if not isinstance(mobile_robot_entrypoint, MobileRobotType):
+                raise TypeError(
+                    f"Class '{cls.__name__}' is marked as a mobile robot entrypoint, but '{mobile_robot_entrypoint}' is not a valid {MobileRobotType}"
+                )
+            if mobile_robot_entrypoint in MobileRobotRegistry.base_types:
+                raise ValueError(
+                    f"Class '{cls.__name__}' is marked as '{mobile_robot_entrypoint}' mobile robot entrypoint, but it was already marked by '{MobileRobotRegistry.base_types[mobile_robot_entrypoint].__name__}'"
+                )
             MobileRobotRegistry.base_types[mobile_robot_entrypoint] = cls
         elif mobile_robot_metaclass:
             MobileRobotRegistry.meta_types.append(cls)
         elif not robot_metaclass:
             for mobile_robot_type, base in MobileRobotRegistry.base_types.items():
                 if issubclass(cls, base):
-                    if mobile_robot_type not in MobileRobotRegistry.registry.keys():
+                    if mobile_robot_type not in MobileRobotRegistry.registry:
                         MobileRobotRegistry.registry[mobile_robot_type] = []
                     else:
-                        assert cls.name() not in (
+                        if cls.name() in (
                             mobile_robot.name()
                             for mobile_robot in MobileRobotRegistry.registry[
                                 mobile_robot_type
                             ]
-                        ), (
-                            f"Cannot register multiple mobile robots with an identical name: '{cls.__module__}:{cls.__name__}' already exists as '{next(mobile_robot for mobile_robot in MobileRobotRegistry.registry[mobile_robot_type] if cls.name() == mobile_robot.name()).__module__}:{cls.__name__}'"
-                        )
+                        ):
+                            raise ValueError(
+                                f"Cannot register multiple mobile robots with an identical name: '{cls.__module__}:{cls.__name__}' already exists as '{next(mobile_robot for mobile_robot in MobileRobotRegistry.registry[mobile_robot_type] if cls.name() == mobile_robot.name()).__module__}:{cls.__name__}'"
+                            )
                     MobileRobotRegistry.registry[mobile_robot_type].append(cls)
                     break
 
@@ -73,33 +74,33 @@ class MobileRobot(Robot, robot_entrypoint=RobotType.MOBILE_ROBOT):
         )
 
     @classmethod
-    def mobile_robot_registry(cls) -> Sequence[Type[MobileRobot]]:
+    def mobile_robot_registry(cls) -> Sequence[type[MobileRobot]]:
         return list(MobileRobotRegistry.values_inner())
 
     @classmethod
-    def robot_registry(cls) -> Sequence[Type[MobileRobot]]:
-        return RobotRegistry.registry.get(RobotType.MOBILE_ROBOT, [])  # type: ignore
+    def robot_registry(cls) -> Sequence[type[MobileRobot]]:
+        return RobotRegistry.registry.get(RobotType.MOBILE_ROBOT, [])  # type: ignore[return-value]
 
 
 class MobileRobotRegistry:
-    registry: ClassVar[Dict[MobileRobotType, List[Type[MobileRobot]]]] = {}
-    base_types: ClassVar[Dict[MobileRobotType, Type[MobileRobot]]] = {}
-    meta_types: ClassVar[List[Type[MobileRobot]]] = []
+    registry: ClassVar[dict[MobileRobotType, list[type[MobileRobot]]]] = {}
+    base_types: ClassVar[dict[MobileRobotType, type[MobileRobot]]] = {}
+    meta_types: ClassVar[list[type[MobileRobot]]] = []
 
     @classmethod
     def keys(cls) -> Iterable[MobileRobotType]:
         return cls.registry.keys()
 
     @classmethod
-    def items(cls) -> Iterable[Tuple[MobileRobotType, Sequence[Type[MobileRobot]]]]:
+    def items(cls) -> Iterable[tuple[MobileRobotType, Sequence[type[MobileRobot]]]]:
         return cls.registry.items()
 
     @classmethod
-    def values(cls) -> Iterable[Iterable[Type[MobileRobot]]]:
+    def values(cls) -> Iterable[Iterable[type[MobileRobot]]]:
         return cls.registry.values()
 
     @classmethod
-    def values_inner(cls) -> Iterable[Type[MobileRobot]]:
+    def values_inner(cls) -> Iterable[type[MobileRobot]]:
         return (
             mobile_robot
             for mobile_robots in cls.registry.values()
@@ -123,8 +124,13 @@ class MobileRobotRegistry:
         return {module.split(".", maxsplit=1)[0] for module in cls.registered_modules()}
 
     @classmethod
-    def get_by_name(cls, name: str) -> Type[MobileRobot] | None:
+    def get_by_name(cls, name: str) -> type[MobileRobot] | None:
         for mobile_robot in cls.values_inner():
             if mobile_robot.name() == name:
                 return mobile_robot
         return None
+
+
+# Append-only and populated by `__init_subclass__`; declared as part of the
+# supported snapshot/restore seam in `srb.core.registry_seam`.
+register_asset_registry(MobileRobotRegistry)

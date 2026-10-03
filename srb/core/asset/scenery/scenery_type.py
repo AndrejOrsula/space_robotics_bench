@@ -1,19 +1,10 @@
-from enum import Enum, auto
+from enum import auto
 
-from typing_extensions import Self
+from srb.core.algorithms import LowercaseNameEnum
 
 
-class SceneryType(str, Enum):
+class SceneryType(LowercaseNameEnum):
     EXTRAVEHICULAR = auto()
     INTRAVEHICULAR = auto()
     TERRAIN = auto()
     SUBTERRANE = auto()
-
-    def __str__(self) -> str:
-        return self.name.lower()
-
-    @classmethod
-    def from_str(cls, string: str) -> Self | None:
-        return next(
-            (variant for variant in cls if string.upper() == variant.name), None
-        )

@@ -1,22 +1,16 @@
 from __future__ import annotations
 
-import functools
-import operator
-import types
+import copy
 from functools import cache, cached_property
 from itertools import chain
 from typing import (
     TYPE_CHECKING,
     Any,
     ClassVar,
-    Dict,
     Iterable,
-    List,
     Mapping,
     Sequence,
     Set,
-    Tuple,
-    Type,
 )
 
 from pydantic import BaseModel, PositiveFloat
@@ -25,14 +19,18 @@ from simforge import BlGeometry, BlModel, BlShader, TexResConfig
 from srb.core.asset import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from srb.core.asset.asset_type import AssetType
 from srb.core.asset.asset_variant import AssetVariant
+from srb.core.asset.common import ThumbnailCameraPose
 from srb.core.domain import Domain
+from srb.core.registry_seam import register_asset_registry
 from srb.core.sim import (
     ArticulationRootPropertiesCfg,
+    CollisionPropertiesCfg,
     MultiAssetSpawnerCfg,
     RigidBodyPropertiesCfg,
     ShapeCfg,
     SimforgeAssetCfg,
     SpawnerCfg,
+    TerrainImporterCfg,
 )
 from srb.utils import logging
 from srb.utils.str import convert_to_snake_case
@@ -40,13 +38,25 @@ from srb.utils.str import convert_to_snake_case
 if TYPE_CHECKING:
     from srb._typing import AnyEnvCfg
 
+    # Proper type visible to static analysis (mypy / pyright).
+    _AssetCfgType = AssetBaseCfg | RigidObjectCfg | ArticulationCfg
+else:
+    # At runtime Pydantic sees ``Any``, so it never tries to build schemas for
+    # deeply-nested Isaac Lab ``@configclass`` types whose forward references
+    # (hidden behind ``TYPE_CHECKING`` guards) cannot be resolved.
+    _AssetCfgType = Any
+
 
 class Asset(BaseModel):
     ## Scenario
     DOMAINS: ClassVar[Sequence[Domain]] = ()
+    ASSET_VARIANT: ClassVar[AssetVariant | None] = None
 
     ## Model
-    asset_cfg: AssetBaseCfg | RigidObjectCfg | ArticulationCfg
+    # NOTE: ``_AssetCfgType`` resolves to ``Any`` at runtime, preventing
+    # Pydantic from walking the deeply-nested Isaac Lab ``@configclass`` type
+    # tree.  Static analysers see the full union type instead.
+    asset_cfg: _AssetCfgType
 
     ## Attributes forwarded to the spawner
     SPAWNER_ATTRIBUTES: ClassVar[Sequence[str]] = (
@@ -54,36 +64,37 @@ class Asset(BaseModel):
         "scale",
         "texture_resolution",
     )
-    scale: Tuple[PositiveFloat, PositiveFloat, PositiveFloat] | None = None
+    scale: tuple[PositiveFloat, PositiveFloat, PositiveFloat] | None = None
     texture_resolution: TexResConfig | None = None
+
+    ## Thumbnail
+    THUMBNAIL_CAMERA_POSE: ClassVar[ThumbnailCameraPose | None] = None
 
     def __new__(cls, *args, **kwargs):
         if cls in (
             Asset,
-            *AssetRegistry.base_types.keys(),
+            *AssetRegistry.base_types.values(),
             *AssetRegistry.meta_types,
         ):
             raise TypeError(f"Cannot instantiate abstract class {cls.__name__}")
         return super().__new__(cls)
 
+    # Keyed by `cls`. Every asset class is already held for the process
+    # lifetime by `AssetRegistry`, so this cache pins nothing the registry does
+    # not already pin.
     @classmethod
     @cache
     def name(cls) -> str:
         return convert_to_snake_case(cls.__name__)
 
     @property
-    def size(self) -> Tuple[PositiveFloat, PositiveFloat] | None:
+    def size(self) -> tuple[PositiveFloat, PositiveFloat] | None:
         if self.scale is not None:
             return (self.scale[0], self.scale[1])
-        else:
-            return None
+        return None
 
     def setup_extras(self, env_cfg: "AnyEnvCfg"):
-        """
-        This method allows for additional scene setup that is specific to the asset.
-        It is called after the asset has been added to the scene, but before the simulation starts.
-        The intended use for this method is to create additional scene elements or modify existing ones.
-        """
+        """Add asset-specific scene elements or modify them before simulation starts."""
         pass
 
     def __init_subclass__(
@@ -92,28 +103,62 @@ class Asset(BaseModel):
         asset_metaclass: bool = False,
         **kwargs,
     ):
+        # Rewrite every non-ClassVar model-field annotation to ``Any`` before
+        # Pydantic processes the model (triggered by ``super().__init_subclass__``).
+        # This prevents Pydantic from recursing into deeply-nested Isaac Lab
+        # ``@configclass`` / ``@dataclass`` type trees whose forward references
+        # (hidden behind ``TYPE_CHECKING`` guards) cannot be resolved at runtime.
+        # The real types are preserved for static analysis because type-checkers
+        # evaluate annotations lazily and never execute this code path.
+        #
+        # The original annotations are preserved in ``__srb_annotations__`` so
+        # that the Hydra asset resolver can still dispatch on the real field
+        # types (e.g. ``Manipulator | _MISSING_TYPE``) at runtime.
+        _own = cls.__dict__.get("__annotations__", {})
+        _preserved: dict[str, Any] = {}
+        for field_name, annotation in list(_own.items()):
+            # Keep ClassVar annotations — they are not Pydantic model fields.
+            if isinstance(annotation, str):
+                if "ClassVar" in annotation:
+                    continue
+            elif getattr(annotation, "__origin__", None) is ClassVar:
+                continue
+            _preserved[field_name] = annotation
+            _own[field_name] = Any
+        if _preserved:
+            setattr(cls, "__srb_annotations__", _preserved)
+
         super().__init_subclass__(**kwargs)
         if asset_entrypoint is not None:
-            assert isinstance(asset_entrypoint, AssetType), (
-                f"Class '{cls.__name__}' is marked as an asset entrypoint, but '{asset_entrypoint}' is not a valid {AssetType}"
-            )
-            assert asset_entrypoint not in AssetRegistry.base_types.keys(), (
-                f"Class '{cls.__name__}' is marked as '{asset_entrypoint}' asset entrypoint, but it was already marked by '{AssetRegistry.base_types[asset_entrypoint].__name__}'"
-            )
+            if not isinstance(asset_entrypoint, AssetType):
+                raise TypeError(
+                    f"Class '{cls.__name__}' is marked as an asset entrypoint, but '{asset_entrypoint}' is not a valid {AssetType}"
+                )
+            if asset_entrypoint in AssetRegistry.base_types:
+                raise ValueError(
+                    f"Class '{cls.__name__}' is marked as '{asset_entrypoint}' asset entrypoint, but it was already marked by '{AssetRegistry.base_types[asset_entrypoint].__name__}'"
+                )
             AssetRegistry.base_types[asset_entrypoint] = cls
         elif asset_metaclass:
             AssetRegistry.meta_types.append(cls)
         else:
             for asset_type, base in AssetRegistry.base_types.items():
                 if issubclass(cls, base):
-                    if asset_type not in AssetRegistry.registry.keys():
+                    if asset_type not in AssetRegistry.registry:
                         AssetRegistry.registry[asset_type] = []
                     else:
-                        assert cls.name() not in (
-                            asset.name() for asset in AssetRegistry.registry[asset_type]
-                        ), (
-                            f"Cannot register multiple assets with an identical name: '{cls.__module__}:{cls.__name__}' already exists as '{next(asset for asset in AssetRegistry.registry[asset_type] if cls.name() == asset.name()).__module__}:{cls.__name__}'"
+                        existing = next(
+                            (
+                                asset
+                                for asset in AssetRegistry.registry[asset_type]
+                                if asset.name() == cls.name()
+                            ),
+                            None,
                         )
+                        if existing is not None:
+                            raise ValueError(
+                                f"Cannot register multiple assets with an identical name: '{cls.__module__}:{cls.__name__}' already exists as '{existing.__module__}:{existing.__name__}'"
+                            )
                     AssetRegistry.registry[asset_type].append(cls)
                     break
 
@@ -125,7 +170,7 @@ class Asset(BaseModel):
         raise ValueError(f"Class '{self.__class__.__name__}' has unknown asset type")
 
     @classmethod
-    def asset_registry(cls) -> Sequence[Type[Asset]]:
+    def asset_registry(cls) -> Sequence[type[Asset]]:
         return list(AssetRegistry.values_inner())
 
     @cached_property
@@ -142,7 +187,11 @@ class Asset(BaseModel):
                 return AssetVariant.DATASET
 
         if isinstance(self.asset_cfg.spawn, MultiAssetSpawnerCfg):
-            assert len(self.asset_cfg.spawn.assets_cfg) > 0
+            if len(self.asset_cfg.spawn.assets_cfg) <= 0:
+                raise ValueError(
+                    "MultiAssetSpawnerCfg.assets_cfg is empty. "
+                    "Add at least one asset configuration."
+                )
             variants = set(
                 __get_variant(spawner) for spawner in self.asset_cfg.spawn.assets_cfg
             )
@@ -221,7 +270,7 @@ class Asset(BaseModel):
                                     )
                             if not _set:
                                 logging.trace(
-                                    f'Input "{k}" of type "{type(k)}" not updated for "{asset.__class__.__name__}"'
+                                    f'Input "{k}" of type "{type(v)}" not updated for "{asset.__class__.__name__}"'
                                 )
                     case _model if isinstance(asset, BlModel):
                         for k, v in spawner_attributes.items():
@@ -255,7 +304,7 @@ class Asset(BaseModel):
                                 )
                             if not _set:
                                 logging.trace(
-                                    f'Input "{k}" of type "{type(k)}" not updated for "{asset.__class__.__name__}"'
+                                    f'Input "{k}" of type "{type(v)}" not updated for "{asset.__class__.__name__}"'
                                 )
                     case _:
                         logging.warning(
@@ -268,9 +317,10 @@ class Asset(BaseModel):
                 _set = False
                 if hasattr(spawner, k) and isinstance(getattr(spawner, k), type(v)):
                     setattr(spawner, k, v)
+                    _set = True
                 if not _set:
                     logging.trace(
-                        f'Input "{k}" of type "{type(k)}" not updated for "{spawner.__class__.__name__}"'
+                        f'Input "{k}" of type "{type(v)}" not updated for "{spawner.__class__.__name__}"'
                     )
         else:
             for k, v in spawner_attributes.items():
@@ -283,175 +333,96 @@ class Asset(BaseModel):
                     )
                 if not _set:
                     logging.trace(
-                        f'Input "{k}" of type "{type(k)}" not updated for "{spawner.__class__.__name__}"'
+                        f'Input "{k}" of type "{type(v)}" not updated for "{spawner.__class__.__name__}"'
                     )
 
     def as_asset_base_cfg(
-        self, disable_articulation: bool = False, disable_rigid_body: bool = False
+        self,
+        disable_articulation: bool = True,
+        disable_rigid_body: bool = True,
+        remove_rigid_props: bool = False,
+        disable_collision: bool = False,
     ) -> AssetBaseCfg:
         if isinstance(self.asset_cfg, (RigidObjectCfg, ArticulationCfg)):
+            # Copy so stripping props below leaves this asset's own spawner intact.
             asset_cfg = AssetBaseCfg(
                 prim_path=self.asset_cfg.prim_path,
-                spawn=self.asset_cfg.spawn,
-                init_state=self.asset_cfg.init_state,
+                spawn=copy.deepcopy(self.asset_cfg.spawn),
+                init_state=copy.deepcopy(self.asset_cfg.init_state),
             )
 
             def remove_props(attr: Any):
                 for props in (
-                    "articulation_props",
                     "deformable_props",
                     "fixed_tendons_props",
                     "joint_drive_props",
                     "mass_props",
-                    "rigid_props",
                 ):
                     if hasattr(attr, props):
                         setattr(attr, props, None)
                 if hasattr(attr, "activate_contact_sensors"):
-                    attr.activate_contact_sensors = False  # type: ignore
-                if disable_articulation:
+                    attr.activate_contact_sensors = False  # type: ignore[misc]
+                if (
+                    disable_articulation
+                    and getattr(attr, "articulation_props", None) is not None
+                ):
                     setattr(
                         attr,
                         "articulation_props",
                         ArticulationRootPropertiesCfg(articulation_enabled=False),
                     )
-                if disable_rigid_body:
+                if remove_rigid_props and hasattr(attr, "rigid_props"):
+                    setattr(attr, "rigid_props", None)
+                elif disable_rigid_body and hasattr(attr, "rigid_props"):
                     setattr(
                         attr,
                         "rigid_props",
-                        RigidBodyPropertiesCfg(rigid_body_enabled=False),
+                        RigidBodyPropertiesCfg(
+                            kinematic_enabled=True,
+                        ),
                     )
+                if disable_collision:
+                    if hasattr(attr, "collision_props"):
+                        attr.collision_props = CollisionPropertiesCfg(
+                            collision_enabled=False
+                        )
+                    if hasattr(attr, "mesh_collision_props"):
+                        attr.mesh_collision_props = None
 
             remove_props(asset_cfg.spawn)
             if isinstance(asset_cfg.spawn, MultiAssetSpawnerCfg):
                 for subspawner in asset_cfg.spawn.assets_cfg:
                     remove_props(subspawner)
 
-            new_annotation: Any | None = None
-            if isinstance(self.__annotations__["asset_cfg"], types.UnionType):
-                for typ in self.__annotations__["asset_cfg"].__args__:
-                    if issubclass(AssetBaseCfg, typ):
-                        break
-                else:
-                    new_annotation = functools.reduce(
-                        operator.or_,
-                        tuple(
-                            chain(
-                                (AssetBaseCfg,),
-                                self.__annotations__["asset_cfg"].__args__,
-                            ),
-                        ),
-                    )
-            elif not isinstance(self.__annotations__["asset_cfg"], AssetBaseCfg):
-                new_annotation = functools.reduce(
-                    operator.or_, (AssetBaseCfg, self.__annotations__["asset_cfg"])
-                )
-            if new_annotation is not None:
-                self.__annotations__["asset_cfg"] = new_annotation
-                self.model_fields["asset_cfg"].annotation = new_annotation
-                self.model_rebuild(force=True)
-
             return asset_cfg
-        elif isinstance(self.asset_cfg, AssetBaseCfg):
-            return self.asset_cfg.copy()  # type: ignore
+        elif isinstance(self.asset_cfg, (AssetBaseCfg, TerrainImporterCfg)):
+            return self.asset_cfg.copy()  # type: ignore[attr-defined]
         else:
             raise TypeError(
                 f"Cannot convert asset of type '{type(self.asset_cfg)}' to {AssetBaseCfg.__name__}"
             )
 
-    def as_rigid_object_cfg(self, disable_articulation: bool = False) -> RigidObjectCfg:
-        if isinstance(self.asset_cfg, ArticulationCfg):
-            asset_cfg = RigidObjectCfg(
-                prim_path=self.asset_cfg.prim_path,
-                spawn=self.asset_cfg.spawn,
-                init_state=self.asset_cfg.init_state,  # type: ignore
-            )
-
-            def remove_props(attr: Any):
-                for props in (
-                    "articulation_props",
-                    "fixed_tendons_props",
-                    "joint_drive_props",
-                ):
-                    if hasattr(attr, props):
-                        setattr(attr, props, None)
-                if disable_articulation:
-                    setattr(
-                        attr,
-                        "articulation_props",
-                        ArticulationRootPropertiesCfg(articulation_enabled=False),
-                    )
-
-            remove_props(asset_cfg.spawn)
-            if isinstance(asset_cfg.spawn, MultiAssetSpawnerCfg):
-                for subspawner in asset_cfg.spawn.assets_cfg:
-                    remove_props(subspawner)
-
-            new_annotation: Any | None = None
-            if isinstance(self.__annotations__["asset_cfg"], types.UnionType):
-                for typ in self.__annotations__["asset_cfg"].__args__:
-                    if issubclass(RigidObjectCfg, typ):
-                        break
-                else:
-                    new_annotation = functools.reduce(
-                        operator.or_,
-                        tuple(
-                            chain(
-                                (RigidObjectCfg,),
-                                self.__annotations__["asset_cfg"].__args__,
-                            ),
-                        ),
-                    )
-            elif not isinstance(self.__annotations__["asset_cfg"], RigidObjectCfg):
-                new_annotation = functools.reduce(
-                    operator.or_, (RigidObjectCfg, self.__annotations__["asset_cfg"])
-                )
-            if new_annotation is not None:
-                self.__annotations__["asset_cfg"] = new_annotation
-                self.model_fields["asset_cfg"].annotation = new_annotation
-                self.model_rebuild(force=True)
-
-            return asset_cfg
-        elif isinstance(self.asset_cfg, RigidObjectCfg):
-            return self.asset_cfg.copy()  # type: ignore
-        else:
-            raise TypeError(
-                f"Cannot convert asset of type '{type(self.asset_cfg)}' to {RigidObjectCfg.__name__}"
-            )
-
-    def as_articulation_cfg(self) -> ArticulationCfg:
-        if isinstance(self.asset_cfg, ArticulationCfg):
-            return self.asset_cfg.copy()  # type: ignore
-        else:
-            raise TypeError(
-                f"Cannot convert asset of type '{type(self.asset_cfg)}' to {ArticulationCfg.__name__}"
-            )
-
 
 class AssetRegistry:
-    registry: ClassVar[Dict[AssetType, List[Type[Asset]]]] = {}
-    base_types: ClassVar[Dict[AssetType, Type[Asset]]] = {}
-    meta_types: ClassVar[List[Type[Asset]]] = []
+    registry: ClassVar[dict[AssetType, list[type[Asset]]]] = {}
+    base_types: ClassVar[dict[AssetType, type[Asset]]] = {}
+    meta_types: ClassVar[list[type[Asset]]] = []
 
     @classmethod
     def keys(cls) -> Iterable[AssetType]:
         return cls.registry.keys()
 
     @classmethod
-    def items(cls) -> Iterable[Tuple[AssetType, Sequence[Type[Asset]]]]:
+    def items(cls) -> Iterable[tuple[AssetType, Sequence[type[Asset]]]]:
         return cls.registry.items()
 
     @classmethod
-    def values(cls) -> Iterable[Iterable[Type[Asset]]]:
+    def values(cls) -> Iterable[Iterable[type[Asset]]]:
         return cls.registry.values()
 
     @classmethod
-    def values_inner(cls) -> Iterable[Type[Asset]]:
+    def values_inner(cls) -> Iterable[type[Asset]]:
         return (asset for assets in cls.registry.values() for asset in assets)
-
-    @classmethod
-    def n_assets(cls) -> int:
-        return sum(len(assets) for assets in cls.registry.values())
 
     @classmethod
     def registered_modules(cls) -> Iterable[str]:
@@ -464,8 +435,13 @@ class AssetRegistry:
         return {module.split(".", maxsplit=1)[0] for module in cls.registered_modules()}
 
     @classmethod
-    def get_by_name(cls, name: str) -> Type[Asset] | None:
+    def get_by_name(cls, name: str) -> type[Asset] | None:
         for asset in cls.values_inner():
             if asset.name() == name:
                 return asset
         return None
+
+
+# Append-only and populated by `__init_subclass__`; declared as part of the
+# supported snapshot/restore seam in `srb.core.registry_seam`.
+register_asset_registry(AssetRegistry)

@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Type
+from typing import TYPE_CHECKING
 
 import torch
 
@@ -37,6 +37,6 @@ class DummyAction(ActionTerm):
 
 @configclass
 class DummyActionCfg(ActionTermCfg):
-    class_type: Type = DummyAction
+    class_type: type = DummyAction
     asset_name: str = "robot"
     dim: int = 1

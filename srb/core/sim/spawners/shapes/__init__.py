@@ -1,2 +1,2 @@
-from .extras.cfg import ArrowCfg, PinnedArrowCfg, PinnedSphereCfg  # noqa: F401
-from .multi_shape.cfg import MultiShapeSpawnerCfg  # noqa: F401
+from .extras.cfg import *  # noqa: F403
+from .multi_shape.cfg import *  # noqa: F403

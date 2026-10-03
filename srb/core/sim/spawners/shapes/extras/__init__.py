@@ -1,1 +1,7 @@
-from .cfg import ArrowCfg, PinnedArrowCfg, PinnedSphereCfg  # noqa: F401
+from .cfg import (  # noqa: F401
+    ArrowCfg,
+    PinCfg,
+    PinnedArrowCfg,
+    PinnedSphereCfg,
+    PlaneCfg,
+)

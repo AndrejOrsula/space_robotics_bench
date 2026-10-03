@@ -1,6 +1,18 @@
-from typing import Iterable, Tuple
+from typing import Iterable
 
 import carb.settings
+
+
+def ambient_light(intensity: float):
+    """Scene-wide ambient light term of the RTX renderer.
+
+    Isaac Lab 3 dropped ``RenderCfg`` (renderer settings now live on each
+    camera's ``IsaacRtxRendererCfg``), so the one global carb setting SRB
+    always applied is set here instead.
+    """
+
+    settings = carb.settings.get_settings()
+    settings.set("/rtx/sceneDb/ambientLightIntensity", float(intensity))
 
 
 def auto_exposure(
@@ -28,8 +40,8 @@ def auto_exposure(
 
 def chromatic_aberration(
     enable: bool,
-    strength: Tuple[float, float, float] = (-0.055, -0.075, 0.015),
-    mode: Tuple[int, int, int] | int = (0, 0, 0),
+    strength: tuple[float, float, float] = (-0.055, -0.075, 0.015),
+    mode: tuple[int, int, int] | int = (0, 0, 0),
     lanczos: bool = False,
 ):
     """
@@ -68,13 +80,13 @@ def depth_of_field(
 
 def fog(
     enable: bool,
-    color: Tuple[float, float, float] = (0.75, 0.75, 0.75),
+    color: tuple[float, float, float] = (0.75, 0.75, 0.75),
     intensity: float = 1.0,
     z_up: bool = True,
     start_height: float = 1.0,
     height_density: float = 1.0,
     height_falloff: float = 1.0,
-    distance_range: Tuple[float, float] = (0.0, 1024.0),
+    distance_range: tuple[float, float] = (0.0, 1024.0),
     fog_distance_density: float = 1.0,
 ):
     settings = carb.settings.get_settings()
@@ -93,7 +105,7 @@ def fog(
 def lens_flare(
     enable: bool,
     scale: float = 1.0,
-    cutoff_point: Tuple[float, float, float] | float = (2.0, 2.0, 2.0),
+    cutoff_point: tuple[float, float, float] | float = (2.0, 2.0, 2.0),
     cutoff_fuzziness: float = 0.5,
     alpha_exposure_scale: float = 1.0,
     energy_constraining_blend: bool = False,
@@ -108,7 +120,7 @@ def lens_flare(
     scratch_strength: float = 0.0,
     spectral_blur_samples: int = 0,
     spectral_blur_intensity: float = 10.0,
-    spectral_blur_wavelength_range: Tuple[float, float, float] = (380.0, 550.0, 770.0),
+    spectral_blur_wavelength_range: tuple[float, float, float] = (380.0, 550.0, 770.0),
 ):
     if not isinstance(cutoff_point, Iterable):
         cutoff_point = (cutoff_point, cutoff_point, cutoff_point)
@@ -191,6 +203,7 @@ def tv_noise(
         enable_scanlines
         or enable_scroll_bug
         or enable_vignetting
+        or enable_vignetting_flickering
         or enable_ghost_flickering
         or enable_wave_distortion
         or enable_vertical_lines

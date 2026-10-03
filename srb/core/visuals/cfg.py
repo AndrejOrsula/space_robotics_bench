@@ -1,30 +1,31 @@
-from typing import Callable, Tuple, Union
+from typing import Callable, Union
 
 from srb.core.visuals import rtx_post
 from srb.utils.cfg import configclass
 
 
 def set_visuals(cfg: "VisualsCfg"):
-    rtx_post.auto_exposure(**cfg.auto_exposure.to_dict())  # type: ignore
-    rtx_post.chromatic_aberration(**cfg.chromatic_aberration.to_dict())  # type: ignore
-    rtx_post.depth_of_field(**cfg.depth_of_field.to_dict())  # type: ignore
-    rtx_post.fog(**cfg.fog.to_dict())  # type: ignore
-    rtx_post.lens_flare(**cfg.lens_flare.to_dict())  # type: ignore
-    rtx_post.motion_blur(**cfg.motion_blur.to_dict())  # type: ignore
-    rtx_post.reshade(**cfg.reshade.to_dict())  # type: ignore
-    rtx_post.tv_noise(**cfg.tv_noise.to_dict())  # type: ignore
+    rtx_post.ambient_light(cfg.ambient_light_intensity)
+    rtx_post.auto_exposure(**cfg.auto_exposure.to_dict())  # type: ignore[misc]
+    rtx_post.chromatic_aberration(**cfg.chromatic_aberration.to_dict())  # type: ignore[misc]
+    rtx_post.depth_of_field(**cfg.depth_of_field.to_dict())  # type: ignore[misc]
+    rtx_post.fog(**cfg.fog.to_dict())  # type: ignore[misc]
+    rtx_post.lens_flare(**cfg.lens_flare.to_dict())  # type: ignore[misc]
+    rtx_post.motion_blur(**cfg.motion_blur.to_dict())  # type: ignore[misc]
+    rtx_post.reshade(**cfg.reshade.to_dict())  # type: ignore[misc]
+    rtx_post.tv_noise(**cfg.tv_noise.to_dict())  # type: ignore[misc]
 
 
 @configclass
 class FogCfg:
     enable: bool = False
-    color: Tuple[float, float, float] = (0.75, 0.75, 0.75)
+    color: tuple[float, float, float] = (0.75, 0.75, 0.75)
     intensity: float = 1.0
     z_up: bool = True
     start_height: float = 1.0
     height_density: float = 1.0
     height_falloff: float = 1.0
-    distance_range: Tuple[float, float] = (0.0, 1024.0)
+    distance_range: tuple[float, float] = (0.0, 1024.0)
     fog_distance_density: float = 1.0
 
 
@@ -42,8 +43,8 @@ class AutoExposureCfg:
 @configclass
 class ChromaticAberrationCfg:
     enable: bool = False
-    strength: Tuple[float, float, float] = (-0.055, -0.075, 0.015)
-    mode: Union[Tuple[int, int, int], int] = (0, 0, 0)  # 0 (Radial) | 1 (Barrel)
+    strength: tuple[float, float, float] = (-0.055, -0.075, 0.015)
+    mode: Union[tuple[int, int, int], int] = (0, 0, 0)  # 0 (Radial) | 1 (Barrel)
     lanczos: bool = False
 
 
@@ -68,7 +69,7 @@ class MotionBlurCfg:
 class LensFlareCfg:
     enable: bool = False
     scale: float = 1.0
-    cutoff_point: Union[Tuple[float, float, float], float] = (2.0, 2.0, 2.0)
+    cutoff_point: Union[tuple[float, float, float], float] = (2.0, 2.0, 2.0)
     cutoff_fuzziness: float = 0.5
     alpha_exposure_scale: float = 1.0
     energy_constraining_blend: bool = False
@@ -83,7 +84,7 @@ class LensFlareCfg:
     scratch_strength: float = 0.0
     spectral_blur_samples: int = 0
     spectral_blur_intensity: float = 10.0
-    spectral_blur_wavelength_range: Tuple[float, float, float] = (380.0, 550.0, 770.0)
+    spectral_blur_wavelength_range: tuple[float, float, float] = (380.0, 550.0, 770.0)
 
 
 @configclass
@@ -117,6 +118,10 @@ class ReshadeCfg:
 @configclass
 class VisualsCfg:
     func: Callable = set_visuals
+
+    ambient_light_intensity: float = 0.0
+    """``/rtx/sceneDb/ambientLightIntensity``; zero keeps space scenes lit only by
+    their authored lights."""
 
     fog: FogCfg = FogCfg()
     auto_exposure: AutoExposureCfg = AutoExposureCfg()

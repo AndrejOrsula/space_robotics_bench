@@ -1,13 +1,48 @@
+# Use isaaclab's prim utilities instead of isaacsim.core.utils.prims — the old
+# isaacsim.core.utils.prims.create_prim internally uses isaacsim.core.prims.XFormPrim
+# which relies on SimulationManager._get_backend_utils(), incompatible with
+# isaaclab_physx's PhysxManager replacement.
+import types as _types
 from typing import TYPE_CHECKING
 
-import isaacsim.core.utils.prims as prim_utils
 from isaaclab.sim import bind_physics_material, bind_visual_material, clone
+from isaaclab.sim.spawners.materials import spawn_physics_material
+from isaaclab.sim.spawners.shapes.shapes import spawn_geom_from_prim_type
 from pxr import Usd
 
 from srb.core.sim import schemas
+from srb.core.sim.prim_utils import (
+    create_prim,
+    get_prim_at_path,
+    is_prim_path_valid,
+)
 
 if TYPE_CHECKING:
     from . import cfg
+
+# Provide a prim_utils-compatible namespace so existing call sites work unchanged.
+prim_utils = _types.SimpleNamespace(
+    create_prim=create_prim,
+    get_prim_at_path=get_prim_at_path,
+    is_prim_path_valid=is_prim_path_valid,
+)
+del _types
+
+
+@clone
+def spawn_plane(
+    prim_path: str,
+    cfg: "cfg.PlaneCfg",
+    translation: tuple[float, float, float] | None = None,
+    orientation: tuple[float, float, float, float] | None = None,
+    **kwargs,
+) -> Usd.Prim:
+    scale = (cfg.size[0], cfg.size[1], 1.0)
+    attributes = {}  # {"size": size}
+    spawn_geom_from_prim_type(
+        prim_path, cfg, "Plane", attributes, translation, orientation, scale
+    )
+    return get_prim_at_path(prim_path)
 
 
 @clone
@@ -29,6 +64,8 @@ def spawn_arrow(
 
     container = prim_utils.create_prim(mesh_prim_path, "Xform")
 
+    # Component offsets are local to the root; ``position=`` would be world-space
+    # and detach the geometry from translated or rotated roots.
     arrow_body_attributes = {
         "radius": cfg.tail_radius,
         "height": cfg.tail_length,
@@ -38,7 +75,7 @@ def spawn_arrow(
     arrow_body = prim_utils.create_prim(
         str(container.GetPath().AppendChild("arrow_body")),
         "Cylinder",
-        position=arrow_body_translation,
+        translation=arrow_body_translation,
         attributes=arrow_body_attributes,
     )
 
@@ -51,7 +88,7 @@ def spawn_arrow(
     arrow_head = prim_utils.create_prim(
         str(container.GetPath().AppendChild("arrow_head")),
         "Cone",
-        position=arrow_head_translation,
+        translation=arrow_head_translation,
         attributes=arrow_head_attributes,
     )
 
@@ -76,7 +113,7 @@ def spawn_arrow(
             material_path = f"{geom_prim_path}/{cfg.physics_material_path}"
         else:
             material_path = cfg.physics_material_path
-        cfg.physics_material.func(material_path, cfg.physics_material)
+        spawn_physics_material(material_path, cfg.physics_material)
         bind_physics_material(mesh_prim_path, material_path)
 
     return prim
@@ -106,7 +143,7 @@ def spawn_pinned_arrow(
     pin = prim_utils.create_prim(
         str(container.GetPath().AppendChild("pin_body")),
         "Cylinder",
-        position=pin_translation,
+        translation=pin_translation,
         attributes=pin_attributes,
     )
 
@@ -119,7 +156,7 @@ def spawn_pinned_arrow(
     arrow_body = prim_utils.create_prim(
         str(container.GetPath().AppendChild("arrow_body")),
         "Cylinder",
-        position=arrow_body_translation,
+        translation=arrow_body_translation,
         attributes=arrow_body_attributes,
     )
 
@@ -136,7 +173,7 @@ def spawn_pinned_arrow(
     arrow_head = prim_utils.create_prim(
         str(container.GetPath().AppendChild("arrow_head")),
         "Cone",
-        position=arrow_head_translation,
+        translation=arrow_head_translation,
         attributes=arrow_head_attributes,
     )
 
@@ -162,7 +199,7 @@ def spawn_pinned_arrow(
             material_path = f"{geom_prim_path}/{cfg.physics_material_path}"
         else:
             material_path = cfg.physics_material_path
-        cfg.physics_material.func(material_path, cfg.physics_material)
+        spawn_physics_material(material_path, cfg.physics_material)
         bind_physics_material(mesh_prim_path, material_path)
 
     return prim
@@ -192,7 +229,7 @@ def spawn_pinned_sphere(
     pin = prim_utils.create_prim(
         str(container.GetPath().AppendChild("pin_body")),
         "Cylinder",
-        position=pin_translation,
+        translation=pin_translation,
         attributes=pin_attributes,
     )
     sphere_attributes = {"radius": cfg.sphere_radius}
@@ -200,7 +237,7 @@ def spawn_pinned_sphere(
     sphere = prim_utils.create_prim(
         str(container.GetPath().AppendChild("pin_head")),
         "Sphere",
-        position=sphere_translation,
+        translation=sphere_translation,
         attributes=sphere_attributes,
     )
 
@@ -221,7 +258,7 @@ def spawn_pinned_sphere(
             material_path = f"{geom_prim_path}/{cfg.physics_material_path}"
         else:
             material_path = cfg.physics_material_path
-        cfg.physics_material.func(material_path, cfg.physics_material)
+        spawn_physics_material(material_path, cfg.physics_material)
         bind_physics_material(mesh_prim_path, material_path)
 
     return prim

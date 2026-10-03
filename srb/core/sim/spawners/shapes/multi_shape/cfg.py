@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from typing import Literal, Sequence, Tuple
+from typing import Literal, Sequence
 
 from srb.core.sim import ShapeCfg
 from srb.utils.cfg import configclass
@@ -14,7 +14,7 @@ class MultiShapeSpawnerCfg(ShapeCfg):
     shapes: Sequence[Literal["cuboid", "sphere", "cylinder", "capsule", "cone"]] = ()
     """Shapes to spawn (keep empty to consider all shapes)"""
 
-    scale: Tuple[float, float, float] = (1.0, 1.0, 1.0)
+    scale: tuple[float, float, float] = (1.0, 1.0, 1.0)
     """Scale of cuboid (affects other shapes if radius and height remain unset)"""
 
     radius: float | None = None

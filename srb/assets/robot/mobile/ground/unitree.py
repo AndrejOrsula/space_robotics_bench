@@ -1,10 +1,18 @@
+from typing import ClassVar
+
 from srb.core.action import (
     ActionGroup,
-    JointPositionActionCfg,
-    JointPositionActionGroup,
+    JointPositionBoundedActionGroup,
 )
 from srb.core.actuator import ActuatorNetMLPCfg, DCMotorCfg
 from srb.core.asset import ArticulationCfg, Frame, LeggedRobot, Transform
+from srb.core.sensor import (
+    CameraCfg,
+    ContactSensorCfg,
+    ImuCfg,
+    PinholeCameraCfg,
+    SensorBaseCfg,
+)
 from srb.core.sim import (
     ArticulationRootPropertiesCfg,
     CollisionPropertiesCfg,
@@ -64,10 +72,31 @@ class UnitreeA1(LeggedRobot):
         },
     )
 
+    sensor_cfgs: dict[str, SensorBaseCfg] = {
+        "imu_robot": ImuCfg(
+            prim_path="{ENV_REGEX_NS}/unitree_a1/trunk",
+        ),
+        "contacts_feet": ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/unitree_a1/.*foot",
+        ),
+        "cam_front": CameraCfg(
+            prim_path="{ENV_REGEX_NS}/unitree_a1/trunk/camera_front",
+            # The A1 USD has no camera prim; use the front trunk mesh vertex
+            # (0.2786, 0.0078, 0.0270) m from the local USD layer. Aim +x, with
+            # image up +z (ROS optical frame).
+            offset=CameraCfg.OffsetCfg(
+                pos=(0.2786, 0.0, 0.027),
+                rot=rpy_to_quat(-90.0, 0.0, -90.0),
+                convention="ros",
+            ),
+            spawn=PinholeCameraCfg(),
+        ),
+    }
+
     ## Actions
-    actions: ActionGroup = JointPositionActionGroup(
-        JointPositionActionCfg(asset_name="robot", joint_names=[".*"], scale=0.5)
-    )
+    action_modes: ClassVar[dict[str, ActionGroup]] = {
+        "joint_pos": JointPositionBoundedActionGroup(),
+    }
 
     ## Frames
     frame_base: Frame = Frame(prim_relpath="trunk")
@@ -83,13 +112,6 @@ class UnitreeA1(LeggedRobot):
         offset=Transform(
             pos=(0.15, 0.0, 0.06),
             rot=rpy_to_quat(0.0, 0.0, 0.0),
-        ),
-    )
-    frame_front_camera: Frame = Frame(
-        prim_relpath="trunk/camera_front",
-        offset=Transform(
-            pos=(-0.7675, 0.0, 1.9793),
-            rot=rpy_to_quat(0.0, 15.0, -90.0),
         ),
     )
 
@@ -148,10 +170,31 @@ class UnitreeGo1(LeggedRobot):
         },
     )
 
+    sensor_cfgs: dict[str, SensorBaseCfg] = {
+        "imu_robot": ImuCfg(
+            prim_path="{ENV_REGEX_NS}/unitree_go1/trunk",
+        ),
+        "contacts_feet": ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/unitree_go1/.*foot",
+        ),
+        "cam_front": CameraCfg(
+            prim_path="{ENV_REGEX_NS}/unitree_go1/trunk/camera_front",
+            # Use the front trunk mesh vertex (0.2993, 0.0, 0.0278) m. The
+            # `camera_face` frame is inside the lens housing. Aim +x, with image
+            # up +z (ROS optical frame).
+            offset=CameraCfg.OffsetCfg(
+                pos=(0.2993, 0.0, 0.0278),
+                rot=rpy_to_quat(-90.0, 0.0, -90.0),
+                convention="ros",
+            ),
+            spawn=PinholeCameraCfg(),
+        ),
+    }
+
     ## Actions
-    actions: ActionGroup = JointPositionActionGroup(
-        JointPositionActionCfg(asset_name="robot", joint_names=[".*"], scale=0.5)
-    )
+    action_modes: ClassVar[dict[str, ActionGroup]] = {
+        "joint_pos": JointPositionBoundedActionGroup(),
+    }
 
     ## Frames
     frame_base: Frame = Frame(prim_relpath="trunk")
@@ -167,13 +210,6 @@ class UnitreeGo1(LeggedRobot):
         offset=Transform(
             pos=(0.15, 0.0, 0.06),
             rot=rpy_to_quat(0.0, 0.0, 0.0),
-        ),
-    )
-    frame_front_camera: Frame = Frame(
-        prim_relpath="trunk/camera_front",
-        offset=Transform(
-            pos=(-0.7675, 0.0, 1.9793),
-            rot=rpy_to_quat(0.0, 15.0, -90.0),
         ),
     )
 
@@ -229,10 +265,31 @@ class UnitreeGo2(LeggedRobot):
         },
     )
 
+    sensor_cfgs: dict[str, SensorBaseCfg] = {
+        "imu_robot": ImuCfg(
+            prim_path="{ENV_REGEX_NS}/unitree_go2/base",
+        ),
+        "contacts_feet": ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/unitree_go2/.*foot",
+        ),
+        "cam_front": CameraCfg(
+            prim_path="{ENV_REGEX_NS}/unitree_go2/base/camera_front",
+            # Place the camera at the front base mesh vertex (0.332, 0.0,
+            # 0.058) m; the Head_upper collision front is at x=0.330 m. Aim
+            # +x, with image up +z (ROS optical frame).
+            offset=CameraCfg.OffsetCfg(
+                pos=(0.332, 0.0, 0.058),
+                rot=rpy_to_quat(-90.0, 0.0, -90.0),
+                convention="ros",
+            ),
+            spawn=PinholeCameraCfg(),
+        ),
+    }
+
     ## Actions
-    actions: ActionGroup = JointPositionActionGroup(
-        JointPositionActionCfg(asset_name="robot", joint_names=[".*"], scale=0.5)
-    )
+    action_modes: ClassVar[dict[str, ActionGroup]] = {
+        "joint_pos": JointPositionBoundedActionGroup(),
+    }
 
     ## Frames
     frame_base: Frame = Frame(prim_relpath="base")
@@ -250,34 +307,48 @@ class UnitreeGo2(LeggedRobot):
             rot=rpy_to_quat(0.0, 0.0, 0.0),
         ),
     )
-    frame_front_camera: Frame = Frame(
-        prim_relpath="base/camera_front",
-        offset=Transform(
-            pos=(-0.7675, 0.0, 1.9793),
-            rot=rpy_to_quat(0.0, 15.0, -90.0),
-        ),
-    )
 
     ## Links
     regex_feet_links: str = ".*foot"
 
 
 class RandomUnitreeQuadruped(LeggedRobot):
-    asset_cfg: ArticulationCfg = UnitreeGo2().asset_cfg.copy()  # type: ignore
+    asset_cfg: ArticulationCfg = UnitreeGo2().asset_cfg.copy()  # type: ignore[misc]
     asset_cfg.prim_path = "{ENV_REGEX_NS}/anymal"
     asset_cfg.spawn = MultiAssetSpawnerCfg(
         random_choice=False,
         assets_cfg=(
-            UnitreeA1().asset_cfg.spawn,  # type: ignore
-            UnitreeGo1().asset_cfg.spawn,  # type: ignore
+            UnitreeA1().asset_cfg.spawn,  # type: ignore[union-attr]
+            UnitreeGo1().asset_cfg.spawn,  # type: ignore[union-attr]
         ),
         activate_contact_sensors=True,
     )
 
+    sensor_cfgs: dict[str, SensorBaseCfg] = {
+        "imu_robot": ImuCfg(
+            prim_path="{ENV_REGEX_NS}/anymal/trunk",
+        ),
+        "contacts_feet": ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/anymal/.*foot",
+        ),
+        "cam_front": CameraCfg(
+            prim_path="{ENV_REGEX_NS}/anymal/trunk/camera_front",
+            # Use one offset for both models, at the farther front (Go1 0.2993
+            # m, A1 0.2786 m), keeping the camera outside both meshes. Aim +x,
+            # with image up +z (ROS optical frame).
+            offset=CameraCfg.OffsetCfg(
+                pos=(0.2993, 0.0, 0.0278),
+                rot=rpy_to_quat(-90.0, 0.0, -90.0),
+                convention="ros",
+            ),
+            spawn=PinholeCameraCfg(),
+        ),
+    }
+
     ## Actions
-    actions: ActionGroup = JointPositionActionGroup(
-        JointPositionActionCfg(asset_name="robot", joint_names=[".*"], scale=0.5)
-    )
+    action_modes: ClassVar[dict[str, ActionGroup]] = {
+        "joint_pos": JointPositionBoundedActionGroup(),
+    }
 
     ## Frames
     frame_base: Frame = Frame(prim_relpath="trunk")
@@ -293,13 +364,6 @@ class RandomUnitreeQuadruped(LeggedRobot):
         offset=Transform(
             pos=(0.15, 0.0, 0.06),
             rot=rpy_to_quat(0.0, 0.0, 0.0),
-        ),
-    )
-    frame_front_camera: Frame = Frame(
-        prim_relpath="trunk/camera_front",
-        offset=Transform(
-            pos=(-0.7675, 0.0, 1.9793),
-            rot=rpy_to_quat(0.0, 15.0, -90.0),
         ),
     )
 

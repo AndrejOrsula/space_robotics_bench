@@ -1,10 +1,18 @@
+from typing import ClassVar
+
 from srb.core.action import (
     ActionGroup,
-    JointPositionActionCfg,
-    JointPositionActionGroup,
+    JointPositionBoundedActionGroup,
 )
 from srb.core.actuator import ImplicitActuatorCfg
-from srb.core.asset import ArticulationCfg, Frame, Humanoid, Transform
+from srb.core.asset import ArticulationCfg, Frame, Humanoid
+from srb.core.sensor import (
+    CameraCfg,
+    ContactSensorCfg,
+    ImuCfg,
+    PinholeCameraCfg,
+    SensorBaseCfg,
+)
 from srb.core.sim import (
     ArticulationRootPropertiesCfg,
     CollisionPropertiesCfg,
@@ -20,7 +28,7 @@ class Humanoid21(Humanoid):
     asset_cfg: ArticulationCfg = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/humanoid",
         spawn=UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Humanoid/humanoid_instanceable.usd",
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/Humanoid/humanoid_instanceable.usd",
             activate_contact_sensors=True,
             collision_props=CollisionPropertiesCfg(
                 contact_offset=0.005, rest_offset=0.0
@@ -69,20 +77,30 @@ class Humanoid21(Humanoid):
         },
     )
 
+    sensor_cfgs: dict[str, SensorBaseCfg] = {
+        "imu_robot": ImuCfg(
+            prim_path="{ENV_REGEX_NS}/humanoid/pelvis",
+        ),
+        "contacts_feet": ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/humanoid/(left|right)_foot",
+        ),
+        "cam_front": CameraCfg(
+            prim_path="{ENV_REGEX_NS}/humanoid/pelvis/camera_front",
+            offset=CameraCfg.OffsetCfg(
+                pos=(-0.7675, 0.0, 1.9793),
+                rot=rpy_to_quat(0.0, 15.0, -90.0),
+            ),
+            spawn=PinholeCameraCfg(),
+        ),
+    }
+
     ## Actions
-    actions: ActionGroup = JointPositionActionGroup(
-        JointPositionActionCfg(asset_name="robot", joint_names=[".*"], scale=0.5)
-    )
+    action_modes: ClassVar[dict[str, ActionGroup]] = {
+        "joint_pos": JointPositionBoundedActionGroup(),
+    }
 
     ## Frames
     frame_base: Frame = Frame(prim_relpath="pelvis")
-    frame_front_camera: Frame = Frame(
-        prim_relpath="pelvis/camera_front",
-        offset=Transform(
-            pos=(-0.7675, 0.0, 1.9793),
-            rot=rpy_to_quat(0.0, 15.0, -90.0),
-        ),
-    )
 
     ## Links
     regex_feet_links: str = "(left|right)_foot"
@@ -122,20 +140,30 @@ class Humanoid28(Humanoid):
         },
     )
 
+    sensor_cfgs: dict[str, SensorBaseCfg] = {
+        "imu_robot": ImuCfg(
+            prim_path="{ENV_REGEX_NS}/humanoid_28/pelvis",
+        ),
+        "contacts_feet": ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/humanoid_28/(left|right)_foot",
+        ),
+        "cam_front": CameraCfg(
+            prim_path="{ENV_REGEX_NS}/humanoid_28/pelvis/camera_front",
+            offset=CameraCfg.OffsetCfg(
+                pos=(-0.7675, 0.0, 1.9793),
+                rot=rpy_to_quat(0.0, 15.0, -90.0),
+            ),
+            spawn=PinholeCameraCfg(),
+        ),
+    }
+
     ## Actions
-    actions: ActionGroup = JointPositionActionGroup(
-        JointPositionActionCfg(asset_name="robot", joint_names=[".*"], scale=0.5)
-    )
+    action_modes: ClassVar[dict[str, ActionGroup]] = {
+        "joint_pos": JointPositionBoundedActionGroup(),
+    }
 
     ## Frames
     frame_base: Frame = Frame(prim_relpath="pelvis")
-    frame_front_camera: Frame = Frame(
-        prim_relpath="pelvis/camera_front",
-        offset=Transform(
-            pos=(-0.7675, 0.0, 1.9793),
-            rot=rpy_to_quat(0.0, 15.0, -90.0),
-        ),
-    )
 
     ## Links
     regex_feet_links: str = "(left|right)_foot"

@@ -24,11 +24,12 @@ class GenericAerialManipulator(AerialManipulator, arbitrary_types_allowed=True):
 
     ## Other fields are updated via `mobile_base`
     asset_cfg: RigidObjectCfg | ArticulationCfg | _MISSING_TYPE = MISSING_MOBILE_BASE
-    actions: ActionGroup | _MISSING_TYPE = MISSING_MOBILE_BASE
+    action_modes: dict[str, ActionGroup] | _MISSING_TYPE = MISSING_MOBILE_BASE
+    action_mode: str | None = None
     frame_base: Frame | _MISSING_TYPE = MISSING_MOBILE_BASE
     frame_payload_mount: Frame | _MISSING_TYPE = MISSING_MOBILE_BASE
     frame_manipulator_mount: Frame | _MISSING_TYPE = MISSING_MOBILE_BASE
-    frame_onboard_camera: Frame | _MISSING_TYPE = MISSING_MOBILE_BASE
+    sensor_cfgs: dict = {}
 
 
 class GenericGroundManipulator(GroundManipulator, arbitrary_types_allowed=True):
@@ -38,11 +39,12 @@ class GenericGroundManipulator(GroundManipulator, arbitrary_types_allowed=True):
 
     ## Other fields are updated via `mobile_base`
     asset_cfg: RigidObjectCfg | ArticulationCfg | _MISSING_TYPE = MISSING_MOBILE_BASE
-    actions: ActionGroup | _MISSING_TYPE = MISSING_MOBILE_BASE
+    action_modes: dict[str, ActionGroup] | _MISSING_TYPE = MISSING_MOBILE_BASE
+    action_mode: str | None = None
     frame_base: Frame | _MISSING_TYPE = MISSING_MOBILE_BASE
     frame_payload_mount: Frame | _MISSING_TYPE = MISSING_MOBILE_BASE
     frame_manipulator_mount: Frame | _MISSING_TYPE = MISSING_MOBILE_BASE
-    frame_front_camera: Frame | _MISSING_TYPE = MISSING_MOBILE_BASE
+    sensor_cfgs: dict = {}
 
 
 class GenericOrbitalManipulator(OrbitalManipulator, arbitrary_types_allowed=True):
@@ -52,8 +54,9 @@ class GenericOrbitalManipulator(OrbitalManipulator, arbitrary_types_allowed=True
 
     ## Other fields are updated via `mobile_base`
     asset_cfg: RigidObjectCfg | ArticulationCfg | _MISSING_TYPE = MISSING_MOBILE_BASE
-    actions: ActionGroup | _MISSING_TYPE = MISSING_MOBILE_BASE
+    action_modes: dict[str, ActionGroup] | _MISSING_TYPE = MISSING_MOBILE_BASE
+    action_mode: str | None = None
     frame_base: Frame | _MISSING_TYPE = MISSING_MOBILE_BASE
     frame_payload_mount: Frame | _MISSING_TYPE = MISSING_MOBILE_BASE
     frame_manipulator_mount: Frame | _MISSING_TYPE = MISSING_MOBILE_BASE
-    frame_onboard_camera: Frame | _MISSING_TYPE = MISSING_MOBILE_BASE
+    sensor_cfgs: dict = {}

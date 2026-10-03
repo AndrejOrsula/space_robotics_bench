@@ -1,3 +1,5 @@
+from typing import ClassVar
+
 from srb.assets.object.tool import FrankaHand
 from srb.core.action import (  # noqa: F401
     ActionGroup,
@@ -14,6 +16,12 @@ from srb.core.action import (  # noqa: F401
 )
 from srb.core.actuator import ImplicitActuatorCfg
 from srb.core.asset import ArticulationCfg, Frame, SerialManipulator, Tool, Transform
+from srb.core.sensor import (
+    CameraCfg,
+    ContactSensorCfg,
+    PinholeCameraCfg,
+    SensorBaseCfg,
+)
 from srb.core.sim import (
     ArticulationRootPropertiesCfg,
     CollisionPropertiesCfg,
@@ -21,7 +29,7 @@ from srb.core.sim import (
     RigidBodyPropertiesCfg,
     UsdFileCfg,
 )
-from srb.utils.math import deg_to_rad, rpy_to_quat
+from srb.utils.math import radians, rpy_to_quat
 from srb.utils.path import SRB_ASSETS_DIR_SRB_ROBOT
 
 
@@ -60,25 +68,25 @@ class Franka(SerialManipulator):
                 "panda_joint1": 0.0,
                 "panda_joint2": 0.0,
                 "panda_joint3": 0.0,
-                "panda_joint4": deg_to_rad(-90.0),
+                "panda_joint4": radians(-90.0),
                 "panda_joint5": 0.0,
-                "panda_joint6": deg_to_rad(90.0),
-                "panda_joint7": deg_to_rad(45.0),
+                "panda_joint6": radians(90.0),
+                "panda_joint7": radians(45.0),
             },
         ),
         ### ANCHOR_END: example_p2 (docs)
         actuators={
             "panda_shoulder": ImplicitActuatorCfg(
                 joint_names_expr=["panda_joint[1-4]"],
-                effort_limit=87.0,
-                velocity_limit=2.175,
+                effort_limit_sim=87.0,
+                velocity_limit_sim=2.175,
                 stiffness=4000.0,
                 damping=800.0,
             ),
             "panda_forearm": ImplicitActuatorCfg(
                 joint_names_expr=["panda_joint[5-7]"],
-                effort_limit=12.0,
-                velocity_limit=2.61,
+                effort_limit_sim=12.0,
+                velocity_limit_sim=2.61,
                 stiffness=4000.0,
                 damping=800.0,
             ),
@@ -88,86 +96,87 @@ class Franka(SerialManipulator):
     ## End effector - The default hand is separate to allow for easy replacement
     end_effector: Tool | None = FrankaHand()
 
-    ## Actions - Inverse Kinematics action group that drives all joints
-    actions: ActionGroup = InverseKinematicsActionGroup(
-        DifferentialInverseKinematicsActionCfg(
-            asset_name="robot",
-            joint_names=["panda_joint[1-7]"],
-            base_name="panda_link0",
-            body_name="panda_link7",
-            controller=DifferentialIKControllerCfg(
-                command_type="pose",
-                use_relative_mode=True,
-                ik_method="dls",
+    ## Action modes — coded-in alternatives selectable via
+    ## `env.robot.action_mode=<key>`. The first entry is the default.
+    action_modes: ClassVar[dict[str, ActionGroup]] = {
+        "diff_ik": InverseKinematicsActionGroup(
+            DifferentialInverseKinematicsActionCfg(
+                asset_name="robot",
+                joint_names=["panda_joint[1-7]"],
+                base_name="panda_link0",
+                body_name="panda_link7",
+                controller=DifferentialIKControllerCfg(
+                    command_type="pose",
+                    use_relative_mode=True,
+                    ik_method="dls",
+                ),
+                scale=0.1,
+                body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(),
             ),
-            scale=0.1,
-            body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(),
         ),
-    )
+        "osc_fixed": OperationalSpaceControlActionGroup(
+            OperationalSpaceControllerActionCfg(
+                asset_name="robot",
+                joint_names=["panda_joint[1-7]"],
+                body_name="panda_link7",
+                controller_cfg=OperationalSpaceControllerCfg(
+                    target_types=["pose_rel"],
+                    impedance_mode="fixed",
+                    motion_stiffness_task=100.0,
+                    motion_damping_ratio_task=1.0,
+                    nullspace_control="position",
+                    inertial_dynamics_decoupling=True,
+                ),
+                nullspace_joint_pos_target="center",
+                position_scale=0.1,
+                orientation_scale=0.1,
+                body_offset=OperationalSpaceControllerActionCfg.OffsetCfg(),
+            )
+        ),
+        "osc_var_stiffness": OperationalSpaceControlActionGroup(
+            OperationalSpaceControllerActionCfg(
+                asset_name="robot",
+                joint_names=["panda_joint[1-7]"],
+                body_name="panda_link7",
+                controller_cfg=OperationalSpaceControllerCfg(
+                    target_types=["pose_rel"],
+                    impedance_mode="variable_kp",
+                    motion_stiffness_limits_task=(10.0, 250.0),
+                    motion_damping_ratio_task=1.0,
+                    nullspace_control="position",
+                    inertial_dynamics_decoupling=True,
+                ),
+                nullspace_joint_pos_target="center",
+                position_scale=0.1,
+                orientation_scale=0.1,
+                stiffness_scale=120.0,
+                body_offset=OperationalSpaceControllerActionCfg.OffsetCfg(),
+            )
+        ),
+        "osc_var_full": OperationalSpaceControlActionGroup(
+            OperationalSpaceControllerActionCfg(
+                asset_name="robot",
+                joint_names=["panda_joint[1-7]"],
+                body_name="panda_link7",
+                controller_cfg=OperationalSpaceControllerCfg(
+                    target_types=["pose_rel"],
+                    impedance_mode="variable",
+                    motion_stiffness_limits_task=(10.0, 250.0),
+                    motion_damping_ratio_limits_task=(0.5, 2.5),
+                    nullspace_control="position",
+                    inertial_dynamics_decoupling=True,
+                ),
+                nullspace_joint_pos_target="center",
+                position_scale=0.1,
+                orientation_scale=0.1,
+                stiffness_scale=120.0,
+                damping_ratio_scale=1.0,
+                body_offset=OperationalSpaceControllerActionCfg.OffsetCfg(),
+            )
+        ),
+        "joint_pos_rel": JointPositionRelativeActionGroup(),
+    }
     ### ANCHOR_END: example_p3 (docs)
-    # actions: ActionGroup = OperationalSpaceControlActionGroup(
-    #     OperationalSpaceControllerActionCfg(
-    #         asset_name="robot",
-    #         joint_names=["panda_joint[1-7]"],
-    #         body_name="panda_link7",
-    #         controller_cfg=OperationalSpaceControllerCfg(
-    #             target_types=["pose_rel"],
-    #             impedance_mode="fixed",
-    #             motion_stiffness_task=100.0,
-    #             motion_damping_ratio_task=1.0,
-    #             # motion_stiffness_task=250.0,
-    #             # motion_damping_ratio_task=1.5,
-    #             nullspace_control="position",
-    #             inertial_dynamics_decoupling=True,
-    #         ),
-    #         nullspace_joint_pos_target="center",
-    #         position_scale=0.1,
-    #         orientation_scale=0.1,
-    #         body_offset=OperationalSpaceControllerActionCfg.OffsetCfg(),
-    #     )
-    # )
-    # actions: ActionGroup = OperationalSpaceControlActionGroup(
-    #     OperationalSpaceControllerActionCfg(
-    #         asset_name="robot",
-    #         joint_names=["panda_joint[1-7]"],
-    #         body_name="panda_link7",
-    #         controller_cfg=OperationalSpaceControllerCfg(
-    #             target_types=["pose_rel"],
-    #             impedance_mode="variable_kp",
-    #             motion_stiffness_limits_task=(10.0, 250.0),
-    #             motion_damping_ratio_task=1.0,
-    #             # motion_damping_ratio_task=1.5,
-    #             nullspace_control="position",
-    #             inertial_dynamics_decoupling=True,
-    #         ),
-    #         nullspace_joint_pos_target="center",
-    #         position_scale=0.1,
-    #         orientation_scale=0.1,
-    #         stiffness_scale=120.0,
-    #         body_offset=OperationalSpaceControllerActionCfg.OffsetCfg(),
-    #     )
-    # )
-    # actions: ActionGroup = OperationalSpaceControlActionGroup(
-    #     OperationalSpaceControllerActionCfg(
-    #         asset_name="robot",
-    #         joint_names=["panda_joint[1-7]"],
-    #         body_name="panda_link7",
-    #         controller_cfg=OperationalSpaceControllerCfg(
-    #             target_types=["pose_rel"],
-    #             impedance_mode="variable",
-    #             motion_stiffness_limits_task=(10.0, 250.0),
-    #             motion_damping_ratio_limits_task=(0.5, 2.5),
-    #             nullspace_control="position",
-    #             inertial_dynamics_decoupling=True,
-    #         ),
-    #         nullspace_joint_pos_target="center",
-    #         position_scale=0.1,
-    #         orientation_scale=0.1,
-    #         stiffness_scale=120.0,
-    #         damping_ratio_scale=1.0,
-    #         body_offset=OperationalSpaceControllerActionCfg.OffsetCfg(),
-    #     )
-    # )
 
     ### ANCHOR: example_p4 (docs)
     ## Frames - Relevant frames for attaching the robot and mounting tool/sensors
@@ -179,18 +188,29 @@ class Franka(SerialManipulator):
             rot=rpy_to_quat(0.0, 0.0, -45.0),
         ),
     )
-    frame_base_camera: Frame = Frame(
-        prim_relpath="panda_link0/camera_base",
-        offset=Transform(
-            pos=(0.16, 0.0, 0.1),
-            rot=rpy_to_quat(0.0, 55.0, 0.0),
-        ),
-    )
-    frame_wrist_camera: Frame = Frame(
-        prim_relpath="panda_link7/camera_wrist",
-        offset=Transform(
-            pos=(0.075, -0.075, 0.1),
-            rot=rpy_to_quat(0.0, -80.0, 135.0),
-        ),
-    )
     ### ANCHOR_END: example_p4 (docs)
+
+    ## Sensors
+    sensor_cfgs: dict[str, SensorBaseCfg] = {
+        "contacts_robot": ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/franka/.*",
+        ),
+        "cam_base": CameraCfg(
+            prim_path="{ENV_REGEX_NS}/franka/panda_link0/camera_base",
+            offset=CameraCfg.OffsetCfg(
+                convention="world",
+                pos=(0.16, 0.0, 0.1),
+                rot=rpy_to_quat(0.0, 55.0, 0.0),
+            ),
+            spawn=PinholeCameraCfg(),
+        ),
+        "cam_wrist": CameraCfg(
+            prim_path="{ENV_REGEX_NS}/franka/panda_link7/camera_wrist",
+            offset=CameraCfg.OffsetCfg(
+                convention="world",
+                pos=(0.075, -0.075, 0.1),
+                rot=rpy_to_quat(0.0, -80.0, 135.0),
+            ),
+            spawn=PinholeCameraCfg(),
+        ),
+    }

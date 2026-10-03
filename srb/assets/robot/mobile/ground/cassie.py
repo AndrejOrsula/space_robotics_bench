@@ -1,10 +1,18 @@
+from typing import ClassVar
+
 from srb.core.action import (
     ActionGroup,
-    JointPositionActionCfg,
-    JointPositionActionGroup,
+    JointPositionBoundedActionGroup,
 )
 from srb.core.actuator import ImplicitActuatorCfg
 from srb.core.asset import ArticulationCfg, Frame, LeggedRobot, Transform
+from srb.core.sensor import (
+    CameraCfg,
+    ContactSensorCfg,
+    ImuCfg,
+    PinholeCameraCfg,
+    SensorBaseCfg,
+)
 from srb.core.sim import (
     ArticulationRootPropertiesCfg,
     CollisionPropertiesCfg,
@@ -62,8 +70,8 @@ class Cassie(LeggedRobot):
         actuators={
             "legs": ImplicitActuatorCfg(
                 joint_names_expr=["hip_.*", "thigh_.*", "ankle_.*"],
-                effort_limit=200.0,
-                velocity_limit=10.0,
+                effort_limit_sim=200.0,
+                velocity_limit_sim=10.0,
                 stiffness={
                     "hip_abduction.*": 100.0,
                     "hip_rotation.*": 100.0,
@@ -81,8 +89,8 @@ class Cassie(LeggedRobot):
             ),
             "toes": ImplicitActuatorCfg(
                 joint_names_expr=["toe_.*"],
-                effort_limit=20.0,
-                velocity_limit=10.0,
+                effort_limit_sim=20.0,
+                velocity_limit_sim=10.0,
                 stiffness={
                     "toe_joint.*": 20.0,
                 },
@@ -93,10 +101,33 @@ class Cassie(LeggedRobot):
         },
     )
 
+    sensor_cfgs: dict[str, SensorBaseCfg] = {
+        "imu_robot": ImuCfg(
+            prim_path="{ENV_REGEX_NS}/cassie/pelvis",
+        ),
+        "contacts_feet": ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/cassie/(left|right)_toe",
+        ),
+        "cam_front": CameraCfg(
+            prim_path="{ENV_REGEX_NS}/cassie/pelvis/camera_front",
+            # : was a copy of the Mars Rover mast camera
+            # (2 m above the pelvis, looking sideways). Front-most `pelvis`
+            # visual-mesh vertex on the centreline, (0.165, 0.0, 0.0358) m in
+            # the pelvis frame of assets/srb_assets/robot/legged/cassie.usdz.
+            # Optical axis along the link's +x, image up = +z (ROS optical frame).
+            offset=CameraCfg.OffsetCfg(
+                pos=(0.165, 0.0, 0.0358),
+                rot=rpy_to_quat(-90.0, 0.0, -90.0),
+                convention="ros",
+            ),
+            spawn=PinholeCameraCfg(),
+        ),
+    }
+
     ## Actions
-    actions: ActionGroup = JointPositionActionGroup(
-        JointPositionActionCfg(asset_name="robot", joint_names=[".*"], scale=0.5)
-    )
+    action_modes: ClassVar[dict[str, ActionGroup]] = {
+        "joint_pos": JointPositionBoundedActionGroup(),
+    }
 
     ## Frames
     frame_base: Frame = Frame(prim_relpath="pelvis")
@@ -112,13 +143,6 @@ class Cassie(LeggedRobot):
         offset=Transform(
             pos=(0.1, 0.0, 0.125),
             rot=rpy_to_quat(0.0, 0.0, 0.0),
-        ),
-    )
-    frame_front_camera: Frame = Frame(
-        prim_relpath="pelvis/camera_front",
-        offset=Transform(
-            pos=(-0.7675, 0.0, 1.9793),
-            rot=rpy_to_quat(0.0, 15.0, -90.0),
         ),
     )
 

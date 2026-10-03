@@ -1,3 +1,5 @@
+from typing import ClassVar
+
 from srb.core.action import (
     ActionGroup,
     MulticopterBodyAccelerationActionCfg,
@@ -5,9 +7,16 @@ from srb.core.action import (
 )
 from srb.core.actuator import ImplicitActuatorCfg
 from srb.core.asset import ArticulationCfg, Frame, Multicopter, Transform
+from srb.core.sensor import (
+    CameraCfg,
+    ImuCfg,
+    PinholeCameraCfg,
+    SensorBaseCfg,
+)
 from srb.core.sim import (
     ArticulationRootPropertiesCfg,
     CollisionPropertiesCfg,
+    MeshCollisionPropertiesCfg,
     RigidBodyPropertiesCfg,
     UsdFileCfg,
 )
@@ -20,9 +29,12 @@ class Crazyflie(Multicopter):
     asset_cfg: ArticulationCfg = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/crazyflie",
         spawn=UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Crazyflie/cf2x.usd",
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Bitcraze/Crazyflie/cf2x.usd",
             collision_props=CollisionPropertiesCfg(
                 contact_offset=0.005, rest_offset=0.0
+            ),
+            mesh_collision_props=MeshCollisionPropertiesCfg(
+                mesh_approximation="convexHull",
             ),
             rigid_props=RigidBodyPropertiesCfg(
                 disable_gravity=True,
@@ -57,21 +69,23 @@ class Crazyflie(Multicopter):
     )
 
     ## Actions
-    actions: ActionGroup = MulticopterBodyAccelerationActionGroup(
-        MulticopterBodyAccelerationActionCfg(
-            asset_name="robot",
-            frame_base="body",
-            regex_rotor_joints="m[1-4]_joint",
-            nominal_rpm={
-                "m1_joint": 200.0,
-                "m2_joint": -200.0,
-                "m3_joint": 200.0,
-                "m4_joint": -200.0,
-            },
-            tilt_magnitude=0.125,
-            scale=0.5,
-        )
-    )
+    action_modes: ClassVar[dict[str, ActionGroup]] = {
+        "body_acc": MulticopterBodyAccelerationActionGroup(
+            MulticopterBodyAccelerationActionCfg(
+                asset_name="robot",
+                frame_base="body",
+                regex_rotor_joints="m[1-4]_joint",
+                nominal_rpm={
+                    "m1_joint": 200.0,
+                    "m2_joint": -200.0,
+                    "m3_joint": 200.0,
+                    "m4_joint": -200.0,
+                },
+                tilt_magnitude=0.125,
+                scale=0.5,
+            )
+        ),
+    }
 
     ## Frames
     frame_base: Frame = Frame(prim_relpath="body")
@@ -89,10 +103,17 @@ class Crazyflie(Multicopter):
             rot=rpy_to_quat(0.0, 180.0, 0.0),
         ),
     )
-    frame_onboard_camera: Frame = Frame(
-        prim_relpath="body/camera_onboard",
-        offset=Transform(
-            pos=(0.045, 0.0, 0.1275),
-            rot=rpy_to_quat(0.0, 90.0, 0.0),
+    sensor_cfgs: dict[str, SensorBaseCfg] = {
+        "imu_robot": ImuCfg(
+            prim_path="{ENV_REGEX_NS}/crazyflie/body",
         ),
-    )
+        "cam_onboard": CameraCfg(
+            prim_path="{ENV_REGEX_NS}/crazyflie/body/camera_onboard",
+            offset=CameraCfg.OffsetCfg(
+                convention="world",
+                pos=(0.045, 0.0, 0.1275),
+                rot=rpy_to_quat(0.0, 90.0, 0.0),
+            ),
+            spawn=PinholeCameraCfg(),
+        ),
+    }

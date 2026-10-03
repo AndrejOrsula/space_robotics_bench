@@ -1,10 +1,15 @@
-from srb.core.action import (
-    ActionGroup,
-    JointPositionActionCfg,
-    JointPositionActionGroup,
-)
+from typing import ClassVar
+
+from srb.core.action import ActionGroup, JointPositionOffsetActionGroup
 from srb.core.actuator import DelayedPDActuatorCfg, RemotizedPDActuatorCfg
 from srb.core.asset import ArticulationCfg, Frame, LeggedRobot, Transform
+from srb.core.sensor import (
+    CameraCfg,
+    ContactSensorCfg,
+    ImuCfg,
+    PinholeCameraCfg,
+    SensorBaseCfg,
+)
 from srb.core.sim import (
     ArticulationRootPropertiesCfg,
     CollisionPropertiesCfg,
@@ -173,10 +178,28 @@ class Spot(LeggedRobot):
         },
     )
 
+    sensor_cfgs: dict[str, SensorBaseCfg] = {
+        "imu_robot": ImuCfg(
+            prim_path="{ENV_REGEX_NS}/spot/body",
+        ),
+        "contacts_feet": ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/spot/.*foot",
+        ),
+        "cam_front": CameraCfg(
+            prim_path="{ENV_REGEX_NS}/spot/body/camera_front",
+            offset=CameraCfg.OffsetCfg(
+                convention="world",
+                pos=(0.42, 0.0, 0.0),
+                rot=rpy_to_quat(0.0, 30.0, 0.0),
+            ),
+            spawn=PinholeCameraCfg(),
+        ),
+    }
+
     ## Actions
-    actions: ActionGroup = JointPositionActionGroup(
-        JointPositionActionCfg(asset_name="robot", joint_names=[".*"], scale=0.5)
-    )
+    action_modes: ClassVar[dict[str, ActionGroup]] = {
+        "joint_pos": JointPositionOffsetActionGroup(),
+    }
 
     ## Frames
     frame_base: Frame = Frame(prim_relpath="body")
@@ -192,13 +215,6 @@ class Spot(LeggedRobot):
         offset=Transform(
             pos=(0.3, 0.0, 0.08),
             rot=rpy_to_quat(0.0, 0.0, 0.0),
-        ),
-    )
-    frame_front_camera: Frame = Frame(
-        prim_relpath="body/camera_front",
-        offset=Transform(
-            pos=(0.42, 0.0, 0.0),
-            rot=rpy_to_quat(0.0, 30.0, 0.0),
         ),
     )
 

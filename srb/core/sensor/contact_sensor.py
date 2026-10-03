@@ -1,127 +1,163 @@
-# Note: This file patches the ContactSensor class to support `filter_prim_paths_expr` at any level of the hierarchy
+# Re-export Isaac Lab's ContactSensor with compatibility fixes for its concrete
+# PhysX backends. The resolver must select rigid bodies, not same-named nested
+# collision meshes. Filtered views also need explicit per-environment paths:
+# wildcard sensor/filter patterns can drop bodies or misalign force rows when
+# names collide across environments. Filters resolve to rigid-body descendants
+# (or remain unchanged without any), matching PhysX's contact paths.
+# Patch the concrete backend because the sensor factory is not in its MRO.
 
-import isaaclab.sim as sim_utils
-import omni.physics.tensors.impl.api as physx
-import torch
+import functools
+import importlib
+from contextlib import suppress
+
 from isaaclab.sensors import ContactSensor, ContactSensorCfg  # noqa: F401
-from pxr import UsdPhysics
 
 from srb.core.sensor import SensorBase
+from srb.core.sensor._contact_view_patterns import (
+    expand_contact_view_patterns,
+    physx_glob_to_prim_regex,
+)
 
-from pxr import PhysxSchema  # isort: skip
+
+def _resolve_prim_paths(glob: str) -> list[str]:
+    from isaaclab.sim.utils import find_matching_prim_paths
+
+    return find_matching_prim_paths(physx_glob_to_prim_regex(glob))
 
 
-def __initialize_impl(self):
-    SensorBase._initialize_impl(self)
-    # create simulation view
-    self._physics_sim_view = physx.create_simulation_view(self._backend)
-    self._physics_sim_view.set_subspace_roots("/")
-    # check that only rigid bodies are selected
-    leaf_pattern = self.cfg.prim_path.rsplit("/", 1)[-1]
-    template_prim_path = self._parent_prims[0].GetPath().pathString
-    body_names = []
-    for prim in sim_utils.find_matching_prims(template_prim_path + "/" + leaf_pattern):
-        # check if prim has contact reporter API
-        if prim.HasAPI(PhysxSchema.PhysxContactReportAPI):
-            prim_path = prim.GetPath().pathString
-            body_names.append(prim_path.rsplit("/", 1)[-1])
-    # check that there is at least one body with contact reporter API
-    if not body_names:
-        raise RuntimeError(
-            f"Sensor at path '{self.cfg.prim_path}' could not find any bodies with contact reporter API."
-            "\nHINT: Make sure to enable 'activate_contact_sensors' in the corresponding asset spawn configuration."
-        )
+def _resolve_rigid_body_paths(glob: str) -> list[str]:
+    """Resolve a filter glob to the rigid bodies PhysX reports contacts on."""
+    from isaaclab.sim.utils import find_matching_prims
+    from pxr import Usd
 
-    # construct regex expression for the body names
-    body_names_regex = r"(" + "|".join(body_names) + r")"
-    body_names_regex = f"{self.cfg.prim_path.rsplit('/', 1)[0]}/{body_names_regex}"
-    # convert regex expressions to glob expressions for PhysX
-    body_names_glob = body_names_regex.replace(".*", "*")
-
-    ### PATCH BEGINS HERE ###
-    # filter_prim_paths_glob = [
-    #     expr.replace(".*", "*") for expr in self.cfg.filter_prim_paths_expr
-    # ]
-    filter_prim_paths_glob = []
-    for expr in self.cfg.filter_prim_paths_expr:
-        queue = sim_utils.find_matching_prims(
-            expr.replace(".*", "*").replace("/World/envs/env_*", "/World/envs/env_0")
-        )
-        while queue:
-            child_prim = queue.pop(0)
-            if child_prim.HasAPI(
-                UsdPhysics.CollisionAPI  # type: ignore
-            ) or child_prim.HasAPI(PhysxSchema.PhysxCollisionAPI):
-                filter_prim_paths_glob.append(child_prim.GetPath().pathString)
-            else:
-                queue.extend(child_prim.GetChildren())
-    if not filter_prim_paths_glob:
-        filter_prim_paths_glob = [
-            expr.replace(".*", "*") for expr in self.cfg.filter_prim_paths_expr
+    paths: list[str] = []
+    for prim in find_matching_prims(physx_glob_to_prim_regex(glob)):
+        if "PhysicsRigidBodyAPI" in prim.GetAppliedSchemas():
+            paths.append(prim.GetPath().pathString)
+            continue
+        bodies = [
+            descendant.GetPath().pathString
+            for descendant in Usd.PrimRange(prim)
+            if "PhysicsRigidBodyAPI" in descendant.GetAppliedSchemas()
         ]
-    ### PATCH ENDS HERE ###
+        paths.extend(bodies or [prim.GetPath().pathString])
+    return list(dict.fromkeys(paths))
 
-    # create a rigid prim view for the sensor
-    self._body_physx_view = self._physics_sim_view.create_rigid_body_view(
-        body_names_glob
-    )
-    self._contact_physx_view = self._physics_sim_view.create_rigid_contact_view(
-        body_names_glob, filter_patterns=filter_prim_paths_glob
-    )
-    # resolve the true count of bodies
-    self._num_bodies = self.body_physx_view.count // self._num_envs
-    # check that contact reporter succeeded
-    if self._num_bodies != len(body_names):
-        raise RuntimeError(
-            "Failed to initialize contact reporter for specified bodies."
-            f"\n\tInput prim path    : {self.cfg.prim_path}"
-            f"\n\tResolved prim paths: {body_names_regex}"
-        )
 
-    # prepare data buffers
-    self._data.net_forces_w = torch.zeros(
-        self._num_envs, self._num_bodies, 3, device=self._device
-    )
-    # optional buffers
-    # -- history of net forces
-    if self.cfg.history_length > 0:
-        self._data.net_forces_w_history = torch.zeros(
-            self._num_envs,
-            self.cfg.history_length,
-            self._num_bodies,
-            3,
-            device=self._device,
-        )
-    else:
-        self._data.net_forces_w_history = self._data.net_forces_w.unsqueeze(1)
-    # -- pose of sensor origins
-    if self.cfg.track_pose:
-        self._data.pos_w = torch.zeros(
-            self._num_envs, self._num_bodies, 3, device=self._device
-        )
-        self._data.quat_w = torch.zeros(
-            self._num_envs, self._num_bodies, 4, device=self._device
-        )
-    # -- air/contact time between contacts
-    if self.cfg.track_air_time:
-        self._data.last_air_time = torch.zeros(
-            self._num_envs, self._num_bodies, device=self._device
-        )
-        self._data.current_air_time = torch.zeros(
-            self._num_envs, self._num_bodies, device=self._device
-        )
-        self._data.last_contact_time = torch.zeros(
-            self._num_envs, self._num_bodies, device=self._device
-        )
-        self._data.current_contact_time = torch.zeros(
-            self._num_envs, self._num_bodies, device=self._device
-        )
-    # force matrix: (num_envs, num_bodies, num_filter_shapes, 3)
-    if len(self.cfg.filter_prim_paths_expr) != 0:
-        num_filters = self.contact_physx_view.filter_count
-        self._data.force_matrix_w = torch.zeros(
-            self._num_envs, self._num_bodies, num_filters, 3, device=self._device
+class _ContactPhysicsViewProxy:
+    """Fix batched filtered-contact arguments for one backend simulation view."""
+
+    def __init__(self, inner):
+        self._inner = inner
+
+    def __getattr__(self, name):
+        return getattr(self._inner, name)
+
+    def create_rigid_contact_view(
+        self,
+        pattern,
+        filter_patterns=None,
+        max_contact_data_count=0,
+    ):
+        filters = [] if filter_patterns is None else filter_patterns
+        if filters:
+            expanded = expand_contact_view_patterns(
+                pattern,
+                filters,
+                _resolve_prim_paths,
+                _resolve_rigid_body_paths,
+            )
+            if expanded is not None:
+                pattern, filters = expanded
+
+        return self._inner.create_rigid_contact_view(
+            pattern,
+            filter_patterns=filters,
+            max_contact_data_count=max_contact_data_count,
         )
 
 
-ContactSensor._initialize_impl = __initialize_impl
+class _ContactSimulationManagerProxy:
+    """Limit the contact-view argument fix to the contact-sensor backend."""
+
+    _srb_expands_filtered_contact_patterns = True
+
+    def __init__(self, inner):
+        self._inner = inner
+
+    def __getattr__(self, name):
+        return getattr(self._inner, name)
+
+    def get_physics_sim_view(self):
+        return _ContactPhysicsViewProxy(self._inner.get_physics_sim_view())
+
+
+def _patch_contact_backend() -> None:
+    """Patch concrete backends, not the unused contact-sensor factory class."""
+
+    def _wrap(original):
+        @functools.wraps(original)
+        def _rigid_body_resolver(source_expr, predicate, *args, **kwargs):
+            def _matches_rigid_body(prim):
+                schemas = prim.GetAppliedSchemas()
+                return "PhysicsRigidBodyAPI" in schemas and (
+                    predicate is None or predicate(prim)
+                )
+
+            return original(source_expr, _matches_rigid_body, *args, **kwargs)
+
+        _rigid_body_resolver._srb_rigid_body_only = True
+        return _rigid_body_resolver
+
+    for module_name in (
+        "isaaclab_physx.sensors.contact_sensor.contact_sensor",
+        "isaaclab_ovphysx.sensors.contact_sensor.contact_sensor",
+    ):
+        try:
+            module = importlib.import_module(module_name)
+        except ImportError:
+            continue
+        original = getattr(module, "resolve_matching_prims_from_source", None)
+        if original is None or getattr(original, "_srb_rigid_body_only", False):
+            pass
+        else:
+            module.resolve_matching_prims_from_source = _wrap(original)
+
+        # Isaac Lab 3 owns the manager in the PhysX backend. Keep the proxy
+        # scoped to whichever public manager name the concrete backend uses;
+        # do not import the removed Isaac Sim core manager here.
+        manager_name = "PhysxManager"
+        manager = getattr(module, manager_name, None)
+        if manager is None:
+            manager_name = "SimulationManager"
+            manager = getattr(module, manager_name, None)
+        if manager is not None and not getattr(
+            manager,
+            "_srb_expands_filtered_contact_patterns",
+            False,
+        ):
+            setattr(module, manager_name, _ContactSimulationManagerProxy(manager))
+
+
+_patch_contact_backend()
+
+
+def __safe_clear_callbacks(self):
+    """``SensorBase._clear_callbacks`` that tolerates sensors whose ``__init__``
+    never ran: ``__del__`` of such a ``ContactSensor`` otherwise raises
+    ``AttributeError`` on the unset callback handles."""
+    for name in (
+        "_initialize_handle",
+        "_invalidate_initialize_handle",
+        "_prim_deletion_handle",
+    ):
+        handle = getattr(self, name, None)
+        if handle is not None:
+            with suppress(Exception):
+                handle.deregister()
+        setattr(self, name, None)
+    with suppress(Exception):
+        self._clear_debug_vis_handle()
+
+
+SensorBase._clear_callbacks = __safe_clear_callbacks

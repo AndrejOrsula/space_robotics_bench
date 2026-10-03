@@ -1,0 +1,182 @@
+--- a/v2ecore/emulator.py
++++ b/v2ecore/emulator.py
+@@ -616,6 +616,178 @@
+                 cv2.cvtColor((img * 255).astype(np.uint8),
+                              cv2.COLOR_GRAY2BGR))
+
++    def iter_events(
++        self,
++        new_frame,
++        t_frame,
++        *,
++        max_events_per_chunk=4096,
++        max_workspace_events=1048576,
++    ):
++        """Yield signal events in bounded chunks without frame accumulation.
++
++        This is the SRB backport seam. It intentionally accepts the subset of
++        EventEmulator features used by the SRB adapter; output writers, model
++        visualisation, photoreceptor noise, CSDVS, SCIDVS, and shot noise stay
++        rejected until their ordering/state contracts are implemented.
++        """
++        if not isinstance(max_events_per_chunk, int) or max_events_per_chunk <= 0:
++            raise ValueError("max_events_per_chunk must be a positive integer")
++        if not isinstance(max_workspace_events, int) or max_workspace_events <= 0:
++            raise ValueError("max_workspace_events must be a positive integer")
++        if max_events_per_chunk > max_workspace_events:
++            raise ValueError(
++                "max_events_per_chunk cannot exceed max_workspace_events"
++            )
++        if self.shot_noise_rate_hz > 0 or self.photoreceptor_noise:
++            raise RuntimeError(
++                "iter_events requires shot noise and photoreceptor noise to be disabled"
++            )
++        if self.csdvs_enabled or self.scidvs:
++            raise RuntimeError("iter_events does not support CSDVS or SCIDVS")
++        if (
++            self.frame_h5_dataset is not None
++            or self.dvs_h5 is not None
++            or self.dvs_aedat2 is not None
++            or self.dvs_aedat4 is not None
++            or self.dvs_text is not None
++            or self.show_dvs_model_state is not None
++            or self.record_single_pixel_states is not None
++        ):
++            raise RuntimeError("iter_events does not support v2e output or diagnostics")
++
++        if t_frame < self.t_previous:
++            raise ValueError(
++                "this frame time={} must be later than previous frame time={}"
++                .format(t_frame, self.t_previous)
++            )
++        self.frame_counter += 1
++
++        delta_time = t_frame - self.t_previous
++        if self.log_input and new_frame.dtype != np.float32:
++            logger.warning("log_frame is True but input frame is not np.float32")
++
++        self.new_frame = torch.tensor(new_frame, dtype=torch.float64, device=self.device)
++        self.log_new_frame = (
++            lin_log(self.new_frame) if not self.log_input else self.new_frame
++        )
++
++        inten01 = None
++        if self.cutoff_hz > 0:
++            inten01 = rescale_intensity_frame(self.new_frame.clone().detach())
++
++        if self.base_log_frame is None:
++            self.lp_log_frame = self.log_new_frame
++            self.photoreceptor_noise_arr = torch.zeros_like(self.lp_log_frame)
++        self.lp_log_frame = low_pass_filter(
++            log_new_frame=self.log_new_frame,
++            lp_log_frame=self.lp_log_frame,
++            inten01=inten01,
++            delta_time=delta_time,
++            cutoff_hz=self.cutoff_hz,
++        )
++
++        if self.base_log_frame is None:
++            self._init(new_frame)
++            self.base_log_frame = self.lp_log_frame
++            return
++
++        if self.leak_rate_hz > 0:
++            self.base_log_frame = subtract_leak_current(
++                base_log_frame=self.base_log_frame,
++                leak_rate_hz=self.leak_rate_hz,
++                delta_time=delta_time,
++                pos_thres=self.pos_thres,
++                leak_jitter_fraction=self.leak_jitter_fraction,
++                noise_rate_array=self.noise_rate_array,
++            )
++
++        self.diff_frame = self.lp_log_frame - self.base_log_frame
++        pos_evts_frame, neg_evts_frame = compute_event_map(
++            self.diff_frame, self.pos_thres, self.neg_thres
++        )
++        max_num_events_any_pixel = max(
++            pos_evts_frame.max(), neg_evts_frame.max()
++        ).cpu().numpy().item()
++        if max_num_events_any_pixel > 100:
++            logger.warning(
++                "Too many events generated for this frame: "
++                f"num_iter={max_num_events_any_pixel}>100 events"
++            )
++
++        max_iteration_events = int(
++            (pos_evts_frame > 0).sum().cpu().numpy().item()
++            + (neg_evts_frame > 0).sum().cpu().numpy().item()
++        )
++        if max_num_events_any_pixel > max_workspace_events:
++            raise RuntimeError(
++                "iter_events timestamp workspace exceeds "
++                f"max_workspace_events={max_workspace_events}: "
++                f"{max_num_events_any_pixel} steps required"
++            )
++        if max_iteration_events > max_workspace_events:
++            raise RuntimeError(
++                "iter_events event workspace exceeds "
++                f"max_workspace_events={max_workspace_events}: "
++                f"{max_iteration_events} rows required"
++            )
++
++        min_ts_steps = max_num_events_any_pixel if max_num_events_any_pixel > 0 else 1
++        ts_step = delta_time / min_ts_steps
++        ts = torch.linspace(
++            start=self.t_previous + ts_step,
++            end=t_frame,
++            steps=min_ts_steps,
++            dtype=torch.float32,
++            device=self.device,
++        )
++        final_pos_evts_frame = torch.zeros(
++            pos_evts_frame.shape, dtype=torch.int32, device=self.device
++        )
++        final_neg_evts_frame = torch.zeros(
++            neg_evts_frame.shape, dtype=torch.int32, device=self.device
++        )
++
++        if max_num_events_any_pixel == 0 and self.no_events_warning_count < 100:
++            logger.warning(
++                f"no signal events generated for frame #{self.frame_counter:,} "
++                f"at t={t_frame:.4f}s"
++            )
++            self.no_events_warning_count += 1
++
++        for i in range(max_num_events_any_pixel):
++            pos_cord = pos_evts_frame >= i + 1
++            neg_cord = neg_evts_frame >= i + 1
++            if self.refractory_period_s > ts_step:
++                pos_time_since_last_spike = pos_cord * ts[i] - self.timestamp_mem
++                neg_time_since_last_spike = neg_cord * ts[i] - self.timestamp_mem
++                pos_cord = pos_time_since_last_spike > self.refractory_period_s
++                neg_cord = neg_time_since_last_spike > self.refractory_period_s
++                self.timestamp_mem = torch.where(
++                    pos_cord, ts[i], self.timestamp_mem
++                )
++                self.timestamp_mem = torch.where(
++                    neg_cord, ts[i], self.timestamp_mem
++                )
++
++            final_pos_evts_frame += pos_cord
++            final_neg_evts_frame += neg_cord
++            pos_event_xy = pos_cord.nonzero(as_tuple=True)
++            neg_event_xy = neg_cord.nonzero(as_tuple=True)
++            events_curr_iter = self.get_event_list_from_coords(
++                pos_event_xy, neg_event_xy, ts[i]
++            )
++            if events_curr_iter is None:
++                continue
++            idx = torch.randperm(events_curr_iter.shape[0])
++            events_curr_iter = events_curr_iter[idx].view(events_curr_iter.size())
++            for start in range(0, events_curr_iter.shape[0], max_events_per_chunk):
++                yield events_curr_iter[start : start + max_events_per_chunk]
++
++        self.base_log_frame += final_pos_evts_frame * self.pos_thres
++        self.base_log_frame -= final_neg_evts_frame * self.neg_thres
++        self.t_previous = t_frame
++
+     def generate_events(self, new_frame, t_frame):
+         """Compute events in new frame.
+
+         Parameters

@@ -1,0 +1,7 @@
+schema_version = 1
+base_sha = "cac638444557a224ba6ee5c29260916f152c00bd"
+base_source_sha256 = "305dc78517d9d82ed1b6a2199546632a41a6645843a72c837c106bcca0510375"
+patched_source_sha256 = "5b06038f5095efb3589f095a153b6aadfeba95b7c5fe37a21c7ead4be541c20f"
+patch_sha256 = "1f64eb3a2f07f1015e70a6c7f731cef4a182cdf884edc34851b79ec1e92f0f1f"
+patch_path = "srb/core/sensor/event_camera/backends/patches/0001-event-emulator-iter-events.patch"
+streaming_profile = "signal-only-noise-disabled"

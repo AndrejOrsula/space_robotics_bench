@@ -1,0 +1,102 @@
+# Curated-site catalog for SRB real-terrain pipeline.
+#
+# Each site lists the canonical DEM source (and optionally an orthorectified
+# image overlay). A site still being curated uses "f" * 64 as its sha256 and
+# refuses to bake until the real hash is backfilled.
+#
+# Add new sites in lower_snake_case alphabetical order within each body.
+
+version: 2
+
+sites:
+
+  # --- Moon ----------------------------------------------------------------
+
+  apollo15:
+    body: moon
+    name: "Apollo 15 / Hadley Rille"
+    coords: { lat: 26.1322, lon: 3.6339 }
+    sources:
+      dem:
+        provider: lroc_pds
+        url: "https://pds.lroc.im-ldi.com/data/LRO-L-LROC-5-RDR-V1.0/LROLRC_2001/DATA/SDP/NAC_DTM/APOLLO15_2/NAC_DTM_APOLLO15_2.TIF"
+        sha256: "a754a6ae2b72c8b23d58903bfcd2556cc2d37729a43014681da60d7656e87601"
+        crs: "IAU_Moon_2015"
+        gsd_m: 5.0
+        license: "Public Domain (USGS / LROC)"
+        attribution: "NASA/GSFC/Arizona State University"
+    patches:
+      default: { center_xy_m: [-4808595.0, 788132.5], size_m: 350.0, lod: high }
+      flyby:   { center_xy_m: [-4808595.0, 788132.5], size_m: 4000.0, lod: medium }
+    sky: null  # no catalog entry yet
+    lighting: null  # no catalog entry yet
+    rocks: null  # no catalog entry yet
+    augment_preset: null  # no catalog entry yet
+    epoch: "1971-07-30T22:16:29"  # Apollo 15 lunar landing (UTC)
+
+  apollo17:
+    body: moon
+    name: "Apollo 17 / Taurus-Littrow"
+    coords: { lat: 20.1908, lon: 30.7717 }
+    sources:
+      dem:
+        provider: lroc_pds
+        url: "https://pds.lroc.im-ldi.com/data/LRO-L-LROC-5-RDR-V1.0/LROLRC_2001/DATA/SDP/NAC_DTM/APOLLO17_4/NAC_DTM_APOLLO17_4.TIF"
+        sha256: "207c0d869430dde4520888835e878295d679a44eed992925e234a0cdac1a7593"
+        crs: "IAU_Moon_2015"
+        gsd_m: 2.0
+        license: "Public Domain (NASA / LROC PDS)"
+        attribution: "NASA/GSFC/Arizona State University"
+    patches:
+      default: { center_xy_m: [-4263542.0, 614935.0], size_m: 350.0, lod: high }
+      flyby:   { center_xy_m: [-4263542.0, 614935.0], size_m: 4000.0, lod: medium }
+    sky: null  # no catalog entry yet
+    lighting: null  # companion lighting is not validated in Isaac yet
+    rocks: null  # no catalog entry yet
+    augment_preset: lunar_default
+    epoch: "1972-12-11T19:54:57"  # Apollo 17 lunar landing (UTC)
+
+  # --- Mars ----------------------------------------------------------------
+
+  jezero:
+    body: mars
+    name: "Jezero Crater (Perseverance)"
+    coords: { lat: 18.4, lon: 77.7 }
+    sources:
+      dem:
+        provider: usgs_astro
+        url: "https://planetarymaps.usgs.gov/mosaic/mars2020_trn/CTX/ScienceInvestigationMaps_JPL/M20_JezeroCrater_CTXDEM_20m.tif"
+        sha256: "ba7f706ea1b5d63a562f28a7dcf7a7f3c79bce7f048e6974b57e8a33c30d1ba2"
+        crs: "IAU_Mars_2015"
+        gsd_m: 20.0
+        license: "Public Domain (USGS / NASA PDS)"
+        attribution: "NASA/JPL/USGS"
+    patches:
+      default: { center_xy_m: [4373560.0, 1092750.0], size_m: 500.0, lod: high }
+    sky: null  # no catalog entry yet
+    lighting: null  # companion lighting is not validated in Isaac yet
+    rocks: null  # no catalog entry yet
+    augment_preset: mars_default
+    epoch: "2021-02-18T20:55:00"  # Perseverance landing (UTC)
+
+  jezero_v2:
+    body: mars
+    name: "Jezero Crater (Perseverance, HiRISE v2)"
+    coords: { lat: 18.44, lon: 77.44 }
+    sources:
+      dem_stack:
+        - layer_id: usgs_astro_hirise_jezero_dtm_1m
+          role: base
+      color_stack:
+        - layer_id: usgs_astro_hirise_jezero_ortho_1m
+          role: base
+    patches:
+      default:
+        center_latlon: [18.44, 77.44]
+        size_m: 2000.0
+        lod: medium
+    sky: null  # no catalog entry yet
+    lighting: null  # companion lighting is not validated in Isaac yet
+    rocks: null  # no catalog entry yet
+    augment_preset: mars_default
+    epoch: "2021-02-18T20:55:00"  # Perseverance landing (UTC)

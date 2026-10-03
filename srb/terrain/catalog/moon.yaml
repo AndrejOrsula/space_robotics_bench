@@ -1,0 +1,595 @@
+# Curated Moon source layers, pinned from downloaded products. Null CRSs use each raster header. Polar caps conservatively bound square rasters; regional products use raster-corner polygons.
+body: moon
+layers:
+
+# --- LOLA polar DEM bases (pgda, kind=dem) -----------------------------------
+
+- layer_id: pgda_ldem_83s_10mpp
+  body: moon
+  kind: dem
+  product_family: PGDA LOLA South Pole DEM Mosaic (Barker et al. 2023)
+  provider: pgda
+  urls:
+    - https://pgda.gsfc.nasa.gov/data/LOLA_20mpp/LDEM_83S_10MPP_ADJ.TIF
+  sha256:
+    LDEM_83S_10MPP_ADJ.TIF: 6c548d47896e238616149cfe336a1174eb9c070e34e8b605425fc40f768bde51
+  native_gsd_m: 10.0
+  crs: null
+  radiometry: null
+  footprint: cap:83S
+  vertical_datum: sphere_r1737400m
+  alignment:
+    source: assumed_zero
+  license: Public Domain (NASA)
+  attribution: "Barker, M.K., Mazarico, E., et al. (2023), A New View of the Lunar South Pole from LOLA, The Planetary Science Journal, doi:10.3847/PSJ/acf3e1 -- NASA GSFC PGDA product 90"
+  size_bytes: 5116709568
+  access: cog_remote
+  priority_class: 4
+  allow_large_download: true
+
+- layer_id: pgda_ldem_80s_20mpp
+  body: moon
+  kind: dem
+  product_family: PGDA LOLA South Pole DEM Mosaic (Barker et al. 2023)
+  provider: pgda
+  urls:
+    - https://pgda.gsfc.nasa.gov/data/LOLA_20mpp/LDEM_80S_20MPP_ADJ.TIF
+  sha256:
+    LDEM_80S_20MPP_ADJ.TIF: 09b7ca80f9e6a146f970225d18af72fc02787669b3ef51b888e347d2b6845649
+  native_gsd_m: 20.0
+  crs: null
+  radiometry: null
+  footprint: cap:80S
+  vertical_datum: sphere_r1737400m
+  alignment:
+    source: assumed_zero
+  license: Public Domain (NASA)
+  attribution: "Barker, M.K., Mazarico, E., et al. (2023), A New View of the Lunar South Pole from LOLA, The Planetary Science Journal, doi:10.3847/PSJ/acf3e1 -- NASA GSFC PGDA product 90"
+  size_bytes: 2696082051
+  access: cog_remote
+  priority_class: 5
+  allow_large_download: true
+
+# --- NAC DTMs, south pole sites (lroc_pds, kind=dem) -------------------------
+
+- layer_id: lroc_nac_dtm_shackrdge02
+  body: moon
+  kind: dem
+  product_family: LROC NAC DTM
+  provider: lroc_pds
+  urls:
+    - https://pds.lroc.im-ldi.com/data/LRO-L-LROC-5-RDR-V1.0/LROLRC_2001/DATA/SDP/NAC_DTM/SHACKRDGE02/NAC_DTM_SHACKRDGE02.TIF
+  sha256:
+    NAC_DTM_SHACKRDGE02.TIF: 89d19c6ba6b0c987b503cedc3324606d9fd61d522f83db9788d3314c45f80c8a
+  native_gsd_m: 3.5
+  crs: null
+  radiometry: null
+  footprint: "POLYGON((-13718.25 -13228.25, -7579.25 -13228.25, -7579.25 -8209.25, -13718.25 -8209.25, -13718.25 -13228.25))"
+  vertical_datum: sphere_r1737400m
+  alignment:
+    reference: LOLA
+    dx_m: -2.88
+    dy_m: -6.47
+    dz_m: 0.73
+    source: published
+  license: Public Domain (NASA/ASU)
+  attribution: "Henriksen, M.R. et al. (2016), Extracting accurate and precise topography from LROC narrow angle camera stereo observations, Icarus, doi:10.1016/j.icarus.2016.05.012 -- LROC NAC DTM Shackleton-de Gerlache Connecting Ridge"
+  size_bytes: 10073090
+  access: download
+  priority_class: 2
+  allow_large_download: false
+
+- layer_id: lroc_nac_dtm_nobile03
+  body: moon
+  kind: dem
+  product_family: LROC NAC DTM
+  provider: lroc_pds
+  urls:
+    - https://pds.lroc.im-ldi.com/data/LRO-L-LROC-5-RDR-V1.0/LROLRC_2001/DATA/SDP/NAC_DTM/NOBILE03/NAC_DTM_NOBILE03.TIF
+  sha256:
+    NAC_DTM_NOBILE03.TIF: 952f4b898e03fc10e7cdda5ee8e95c8f7c20ba669b7cd5d3e20589d489081f02
+  native_gsd_m: 4.0
+  crs: null
+  radiometry: null
+  footprint: "POLYGON((75558.0 136826.0, 80246.0 136826.0, 80246.0 142718.0, 75558.0 142718.0, 75558.0 136826.0))"
+  vertical_datum: sphere_r1737400m
+  alignment:
+    reference: LOLA
+    source: published
+  license: Public Domain (NASA/ASU)
+  attribution: "Henriksen, M.R. et al. (2016), Extracting accurate and precise topography from LROC narrow angle camera stereo observations, Icarus, doi:10.1016/j.icarus.2016.05.012 -- LROC NAC DTM, terrain near Nobile crater rim and Mons Mouton"
+  size_bytes: 6917882
+  access: download
+  priority_class: 2
+  allow_large_download: false
+
+- layer_id: lroc_nac_dtm_malapert02
+  body: moon
+  kind: dem
+  product_family: LROC NAC DTM
+  provider: lroc_pds
+  urls:
+    - https://pds.lroc.im-ldi.com/data/LRO-L-LROC-5-RDR-V1.0/LROLRC_2001/DATA/SDP/NAC_DTM/MALAPERT02/NAC_DTM_MALAPERT02.TIF
+  sha256:
+    NAC_DTM_MALAPERT02.TIF: c3108ee256687d0d986a06289637ac5247eca37bfe0190e9ab2ccda9e6ad64ca
+  native_gsd_m: 4.0
+  crs: null
+  radiometry: null
+  footprint: "POLYGON((-4622.0 121202.0, 650.0 121202.0, 650.0 155950.0, -4622.0 155950.0, -4622.0 121202.0))"
+  vertical_datum: sphere_r1737400m
+  alignment:
+    reference: LOLA
+    source: published
+  license: Public Domain (NASA/ASU)
+  attribution: "Henriksen, M.R. et al. (2016), Extracting accurate and precise topography from LROC narrow angle camera stereo observations, Icarus, doi:10.1016/j.icarus.2016.05.012 -- LROC NAC DTM, Malapert Massif (2)"
+  size_bytes: 45868034
+  access: download
+  priority_class: 2
+  allow_large_download: false
+
+- layer_id: lroc_nac_dtm_malapert03
+  body: moon
+  kind: dem
+  product_family: LROC NAC DTM
+  provider: lroc_pds
+  urls:
+    - https://pds.lroc.im-ldi.com/data/LRO-L-LROC-5-RDR-V1.0/LROLRC_2001/DATA/SDP/NAC_DTM/MALAPERT03/NAC_DTM_MALAPERT03.TIF
+  sha256:
+    NAC_DTM_MALAPERT03.TIF: aaf80be79e757933bb8398dcbe30a57111fc231ad92adf8328965695c28236aa
+  native_gsd_m: 4.0
+  crs: null
+  radiometry: null
+  footprint: "POLYGON((-4430.0 100658.0, 482.0 100658.0, 482.0 122478.0, -4430.0 122478.0, -4430.0 100658.0))"
+  vertical_datum: sphere_r1737400m
+  alignment:
+    reference: LOLA
+    source: published
+  license: Public Domain (NASA/ASU)
+  attribution: "Henriksen, M.R. et al. (2016), Extracting accurate and precise topography from LROC narrow angle camera stereo observations, Icarus, doi:10.1016/j.icarus.2016.05.012 -- LROC NAC DTM, Malapert Massif (3)"
+  size_bytes: 26839274
+  access: download
+  priority_class: 2
+  allow_large_download: false
+
+# --- Haworth 1 m SfS DEM (usgs_astro, kind=dem) ------------------------------
+
+- layer_id: usgs_astro_haworth_sfs_dem_1m
+  body: moon
+  kind: dem
+  product_family: USGS Astrogeology Lunar Photoclinometry (SfS) DEM
+  provider: usgs_astro
+  urls:
+    - https://planetarymaps.usgs.gov/mosaic/Lunar_Photoclinometry/Haworth-SfS/Lunar_LROnac_Haworth_sfs-dem_1m_v3.tif
+  sha256:
+    Lunar_LROnac_Haworth_sfs-dem_1m_v3.tif: 023372083f1675ec12bc206e14b2c3af3bf636bdcd33120d592fe00ede23cc56
+  native_gsd_m: 1.0
+  crs: null
+  radiometry: null
+  footprint: "POLYGON((-40120.0 83260.0, -28460.0 83260.0, -28460.0 95320.0, -40120.0 95320.0, -40120.0 83260.0))"
+  vertical_datum: sphere_r1737400m
+  alignment:
+    reference: "LOLA 5 m/pixel polar DEM (Barker et al. 2021)"
+    source: published
+  license: Public Domain (USGS/NASA)
+  attribution: "O'Connor, M., Beyer, R.A. (2021), Lunar LRO NAC Haworth Photoclinometry DEM 1m v3, USGS Astrogeology Science Center"
+  size_bytes: 562551423
+  access: download
+  priority_class: 1
+  allow_large_download: false
+
+# --- SfS A3CLR regions (zenodo, PGDA product 104; DEM + orthomosaic) ---------
+#
+# One Zenodo record (doi 10.5281/zenodo.17954508) ships 13 per-region `.zip`
+# archives, each a full Goddard-Lunar-Data (GLD) product suite on a common 5
+# m/px grid. Two members per region are pinned here: GLD01 (`*_GLDELEV_*.tif`,
+# the SfS elevation) and GLD08 (`*_GLDOMOS_*.tif`, the maximally-lit LROC NAC
+# orthomosaic). `access: zip_member` -- the v2 loader supports exactly ONE
+# extracted member per layer (`api.py::_v2_layer_loader`), so DEM and
+# orthomosaic are two layers over the SAME archive; the content-addressed raw
+# cache keys on the archive sha256, so the 2-4 GB download happens once and
+# both layers reuse it. `allow_large_download: true` + SRB_TERRAIN_LARGE_OK
+# is therefore REQUIRED to fetch either one.
+#
+# `radiometry: illumination_averaged` on the orthomosaics, NOT the
+# `single_illumination` the documented catalog semantics guessed for "SfS
+# A3CLR orthos": the archive's own per-region README describes GLD08 as a
+# "maximally-lit orthomosaic ... For each pixel, the brightest valid input
+# pixel is selected. This yields a mosaic with apparent illumination from
+# multiple azimuths while emphasizing all illuminated terrain" -- i.e. a
+# multi-temporal composite with no single sun geometry, exactly like
+# `lroc_nac_roi_haworth_lo1_20m`'s "optimized illuminated terrain coverage"
+# mosaic, which this catalog already classes `illumination_averaged`. The
+# class is metadata-only here: both classes route to the same sunlit stack
+# (`resolve._is_sunlit_radiometry`), and `fusion.color.deshade_hillshade_divide`
+# warn-and-skips either way for lack of `sun_azimuth_deg`/`sun_elevation_deg`
+# (`fusion.engine._deshade_color_stack` gates on the sun geometry, never on
+# radiometry). `illumination_averaged` is chosen because it is what the
+# product *is*.
+#
+# Only the two regions that actually contain a site this repo bakes are
+# pinned. A3CLR22-#6 (Connecting Ridge) contains the study's Connecting Ridge
+# center and provides that site's colour; A3CLR22-#2
+# (Haworth) contains the study's Haworth center. The other eleven regions --
+# including #3 "Faustini Rim A", whose footprint lies ~0.3 deg poleward of the
+# study's Faustini site (the ShadowCam DTM patch INSIDE the crater) and does
+# not contain it -- are deliberately not pinned.
+
+- layer_id: zenodo_sfs_a3clr06_connridge_dem_5m
+  body: moon
+  kind: dem
+  product_family: PGDA SfS Artemis III Candidate Landing Region DEM (Bertone et al. 2026)
+  provider: zenodo
+  urls:
+    - https://zenodo.org/records/17954508/files/A3CLR22_6_Connecting_Ridge.zip
+  sha256:
+    A3CLR22_6_Connecting_Ridge.zip: 3f84ac0500d1bc598acabc84700cbbf6fa9fa605dea1b1424a20d65a4d9c2248
+    A3CLR22_6_Connecting_Ridge/A306_GLDELEV_005.tif: c914e52bf1e46c08b9c409d6ebd6a3605ad33756373571138b8d473dadaeddd0
+  native_gsd_m: 5.0
+  crs: null
+  radiometry: null
+  footprint: "POLYGON((-19000.0 -20000.0, -3000.0 -20000.0, -3000.0 -4000.0, -19000.0 -4000.0, -19000.0 -20000.0))"
+  vertical_datum: sphere_r1737400m
+  alignment:
+    reference: "LOLA south-polar DEM (the SfS solution is tied to it; the GLD04 SfS-minus-LOLA difference map ships in the same archive)"
+    source: published
+  license: Creative Commons Attribution 4.0 International (Zenodo metadata.license.id "cc-by-4.0")
+  attribution: "Bertone, S. (creator), Beyer, R.A. (reviewer) (2026), Archived Dataset for 'Enhanced Topography Models for selected Lunar South Pole regions with Shape-from-Shading', Zenodo, doi:10.5281/zenodo.17954508 -- NASA GSFC PGDA product 104, region A3CLR22-#6 (Connecting Ridge), GLD01 elevation"
+  size_bytes: 2206485514
+  access: zip_member
+  priority_class: 1
+  allow_large_download: true
+
+- layer_id: zenodo_sfs_a3clr06_connridge_omos_5m
+  body: moon
+  kind: color
+  product_family: PGDA SfS Artemis III Candidate Landing Region Orthomosaic (Bertone et al. 2026)
+  provider: zenodo
+  urls:
+    - https://zenodo.org/records/17954508/files/A3CLR22_6_Connecting_Ridge.zip
+  sha256:
+    A3CLR22_6_Connecting_Ridge.zip: 3f84ac0500d1bc598acabc84700cbbf6fa9fa605dea1b1424a20d65a4d9c2248
+    A3CLR22_6_Connecting_Ridge/A306_GLDOMOS_005.tif: 555c823429ec88bc2d1e9498a87ce1b83f86f1cd150393d98362a5e2ae961e01
+  native_gsd_m: 5.0
+  crs: null
+  radiometry: illumination_averaged
+  footprint: "POLYGON((-19003.915001630783 -19996.468504190445, -2988.915001630783 -19996.468504190445, -2988.915001630783 -3996.468504190445, -19003.915001630783 -3996.468504190445, -19003.915001630783 -19996.468504190445))"
+  vertical_datum: sphere_r1737400m
+  alignment:
+    reference: "LOLA south-polar DEM (orthorectified against the region's own GLD01 SfS DEM, which is tied to LOLA)"
+    source: published
+  license: Creative Commons Attribution 4.0 International (Zenodo metadata.license.id "cc-by-4.0")
+  attribution: "Bertone, S. (creator), Beyer, R.A. (reviewer) (2026), Archived Dataset for 'Enhanced Topography Models for selected Lunar South Pole regions with Shape-from-Shading', Zenodo, doi:10.5281/zenodo.17954508 -- NASA GSFC PGDA product 104, region A3CLR22-#6 (Connecting Ridge), GLD08 maximally-lit LROC NAC orthomosaic"
+  size_bytes: 2206485514
+  access: zip_member
+  priority_class: 2
+  allow_large_download: true
+
+- layer_id: zenodo_sfs_a3clr02_haworth_dem_5m
+  body: moon
+  kind: dem
+  product_family: PGDA SfS Artemis III Candidate Landing Region DEM (Bertone et al. 2026)
+  provider: zenodo
+  urls:
+    - https://zenodo.org/records/17954508/files/A3CLR22_2_Haworth.zip
+  sha256:
+    A3CLR22_2_Haworth.zip: 64988f09bb6f4a2d526a69406832c2c04baaa6aa7579c7353742c5918958c008
+    A3CLR22_2_Haworth/A302_GLDELEV_005.tif: 7126ae857336f2781b7e72caa07a7162e63b8e3ab50ebcd9ee30390b3d6f4d94
+  native_gsd_m: 5.0
+  crs: null
+  radiometry: null
+  footprint: "POLYGON((-52900.0 75600.0, -23100.0 75600.0, -23100.0 105400.0, -52900.0 105400.0, -52900.0 75600.0))"
+  vertical_datum: sphere_r1737400m
+  alignment:
+    reference: "LOLA south-polar DEM (the SfS solution is tied to it; the GLD04 SfS-minus-LOLA difference map ships in the same archive)"
+    source: published
+  license: Creative Commons Attribution 4.0 International (Zenodo metadata.license.id "cc-by-4.0")
+  attribution: "Bertone, S. (creator), Beyer, R.A. (reviewer) (2026), Archived Dataset for 'Enhanced Topography Models for selected Lunar South Pole regions with Shape-from-Shading', Zenodo, doi:10.5281/zenodo.17954508 -- NASA GSFC PGDA product 104, region A3CLR22-#2 (Haworth), GLD01 elevation"
+  size_bytes: 4353812518
+  access: zip_member
+  priority_class: 1
+  allow_large_download: true
+
+- layer_id: zenodo_sfs_a3clr02_haworth_omos_5m
+  body: moon
+  kind: color
+  product_family: PGDA SfS Artemis III Candidate Landing Region Orthomosaic (Bertone et al. 2026)
+  provider: zenodo
+  urls:
+    - https://zenodo.org/records/17954508/files/A3CLR22_2_Haworth.zip
+  sha256:
+    A3CLR22_2_Haworth.zip: 64988f09bb6f4a2d526a69406832c2c04baaa6aa7579c7353742c5918958c008
+    A3CLR22_2_Haworth/A302_GLDOMOS_005.tif: 326269e684630c38a154917459fb3bc94e431abf3fd33539e7d3e842bc1e060f
+  native_gsd_m: 5.0
+  crs: null
+  radiometry: illumination_averaged
+  footprint: "POLYGON((-52903.60508441925 75594.55484867094, -23108.60508441925 75594.55484867094, -23108.60508441925 105409.55484867094, -52903.60508441925 105409.55484867094, -52903.60508441925 75594.55484867094))"
+  vertical_datum: sphere_r1737400m
+  alignment:
+    reference: "LOLA south-polar DEM (orthorectified against the region's own GLD01 SfS DEM, which is tied to LOLA)"
+    source: published
+  license: Creative Commons Attribution 4.0 International (Zenodo metadata.license.id "cc-by-4.0")
+  attribution: "Bertone, S. (creator), Beyer, R.A. (reviewer) (2026), Archived Dataset for 'Enhanced Topography Models for selected Lunar South Pole regions with Shape-from-Shading', Zenodo, doi:10.5281/zenodo.17954508 -- NASA GSFC PGDA product 104, region A3CLR22-#2 (Haworth), GLD08 maximally-lit LROC NAC orthomosaic"
+  size_bytes: 4353812518
+  access: zip_member
+  priority_class: 2
+  allow_large_download: true
+
+# --- ShadowCam DTM site + controlled mosaic (lroc_pds) -----------------------
+
+- layer_id: lroc_shadowcam_dtm_faustini_6m
+  body: moon
+  kind: dem
+  product_family: ShadowCam DTM
+  provider: lroc_pds
+  urls:
+    - https://pds.shadowcam.im-ldi.com/derived/dtm/faustini1_p871s0839/shadowcam_dtm_faustini1_p871s0839_dtm_6m_cog.tif
+  sha256:
+    shadowcam_dtm_faustini1_p871s0839_dtm_6m_cog.tif: 38247ed6269b6c575c0250cb3c6e9965070e989341d009fa6a477abe3c6b478f
+  native_gsd_m: 6.0
+  crs: null
+  radiometry: null
+  footprint: "POLYGON((72345.0 6909.0, 94005.0 6909.0, 94005.0 12609.0, 72345.0 12609.0, 72345.0 6909.0))"
+  vertical_datum: sphere_r1737400m
+  alignment:
+    reference: "LDEM_80S_ADJ.XYZI (Barker et al. 2023)"
+    dx_m: -0.11
+    dy_m: 1.58
+    dz_m: -0.21
+    source: published
+  license: Public Domain (NASA/KARI/ASU)
+  attribution: "Arizona State University / Intuitive Machines, ShadowCam PDS archive (KPLO) -- DTM, Faustini crater"
+  size_bytes: 4350139
+  access: cog_remote
+  priority_class: 2
+  allow_large_download: false
+
+- layer_id: lroc_shadowcam_cmosaic_faustini01_20m
+  body: moon
+  kind: color
+  product_family: ShadowCam Controlled Mosaic
+  provider: lroc_pds
+  urls:
+    - https://pds.shadowcam.im-ldi.com/derived/cmosaic/faustini01/shadowcam_cmosaic_faustini01_p871s0904_summer_10am_20m_cog.tif
+  sha256:
+    shadowcam_cmosaic_faustini01_p871s0904_summer_10am_20m_cog.tif: 3e78f9d6fe2a2aa7247f00953d807ccc0de49d4dd54d6c4da74e46e01da02bef
+  native_gsd_m: 20.0
+  crs: null
+  radiometry: secondary_illumination
+  footprint: "POLYGON((62251.0 -25250.0, 112211.0 -25250.0, 112211.0 23930.0, 62251.0 23930.0, 62251.0 -25250.0))"
+  vertical_datum: sphere_r1737400m
+  alignment:
+    reference: "LDEM_75S_30MPP_ADJ (Barker et al. 2023)"
+    dx_m: -29.0
+    dy_m: 4.0
+    dz_m: 0.0
+    source: published
+  license: Public Domain (NASA/KARI/ASU)
+  attribution: "Grieser, S.A., Collins, W.M., Henriksen, M.R., Mahanti, P., Robinson, M.S. (2025), ShadowCam Controlled Mosaics: A Valuable Data Product for High-Resolution Lunar Mapping, LPSC 56, abstract #2523 -- controlled mosaic, Faustini crater"
+  size_bytes: 14493921
+  access: cog_remote
+  priority_class: 1
+  allow_large_download: false
+
+# --- Hemmi-style optimized-illumination NAC ROI mosaic (lroc_pds, kind=color) -
+
+- layer_id: lroc_nac_roi_haworth_lo1_20m
+  body: moon
+  kind: color
+  product_family: LROC NAC ROI Controlled Mosaic (Artemis III candidate site)
+  provider: lroc_pds
+  urls:
+    - https://pds.lroc.im-ldi.com/data/LRO-L-LROC-5-RDR-V1.0/LROLRC_2001/DATA/BDR/NAC_ROI/HAWORTH_LO1/NAC_ROI_HAWORTH_LO1_P867S3363_20M.IMG
+  sha256:
+    NAC_ROI_HAWORTH_LO1_P867S3363_20M.IMG: 1cd9559090c4f41079f748fafcf177300c8548201ff324b8730ede9d78da0caf
+  native_gsd_m: 20.0
+  crs: null
+  radiometry: illumination_averaged
+  footprint: "POLYGON((-67620.0 64760.0, -16920.0 64760.0, -16920.0 115200.0, -67620.0 115200.0, -67620.0 64760.0))"
+  vertical_datum: sphere_r1737400m
+  alignment:
+    reference: "LOLA shaded relief, 5 m/pixel polar product"
+    source: published
+  license: Public Domain (NASA/ASU)
+  attribution: "Henriksen, M.R., Burnette, S.R., Brown, H.M., Wagner, R.V., Robinson, M.S., Collins, W.M., Grieser, S.A., Boyd, A.K. (2023), Optimized Illuminated Terrain Coverage of the Candidate Artemis III Landing Sites with LROC NAC Controlled Mosaics, European Lunar Symposium -- Haworth, low-Sun composite mosaic #1"
+  size_bytes: 12791610
+  access: download
+  priority_class: 2
+  allow_large_download: false
+
+# --- WAC_EMP polar, empirically normalized (lroc_pds, kind=color) -----------
+
+- layer_id: lroc_wac_emp_643nm_south_100m
+  body: moon
+  kind: color
+  product_family: LROC WAC Empirically Normalized Mosaic
+  provider: lroc_pds
+  urls:
+    - https://pds.lroc.im-ldi.com/data/LRO-L-LROC-5-RDR-V1.0/LROLRC_2001/DATA/MDR/WAC_EMP/WAC_EMP_643NM_P900S0000_304P.IMG
+  sha256:
+    WAC_EMP_643NM_P900S0000_304P.IMG: 10eb8b686e361a2835eb0b26d255d68a2917569fcd5922fcfc3bc6ba0c3afea4
+  native_gsd_m: 99.75
+  crs: null
+  radiometry: normalized_albedo
+  footprint: cap:60S
+  vertical_datum: sphere_r1737400m
+  alignment:
+    reference: "LOLA/GRAIL ephemeris (Mazarico et al. 2012)"
+    source: published
+  license: Public Domain (NASA/ASU)
+  attribution: "Boyd, A.K., Robinson, M.S., Sato, H. (2012), Lunar Reconnaissance Orbiter Wide Angle Camera Photometry: An Empirical Solution, LPSC 43, abstract #2795"
+  size_bytes: 1394200920
+  access: download
+  priority_class: 3
+  allow_large_download: true
+
+# --- LOLA Derived Albedo Map, 1064 nm (imbrium, kind=color) ------------------
+
+- layer_id: imbrium_ldam_50s_1000m
+  body: moon
+  kind: color
+  product_family: LOLA Derived Albedo Map (1064 nm active radiometry)
+  provider: imbrium
+  urls:
+    - https://imbrium.mit.edu/DATA/LOLA_GDR/POLAR/FLOAT_IMG/LDAM_50S_1000M_FLOAT.LBL
+  sha256:
+    LDAM_50S_1000M_FLOAT.LBL: 81236cdd34d55d538e84aeaebfe3981f62c13c8c01bc763ee46be3beb0e64905
+  native_gsd_m: 1000.0
+  crs: null
+  radiometry: normalized_albedo
+  footprint: cap:50S
+  vertical_datum: sphere_r1737400m
+  alignment:
+    reference: LOLA GDR south-polar map grid
+    source: published
+  license: Public Domain (NASA)
+  attribution: "Lemelin, M., et al. (2016), Icarus 273, 315-328, doi:10.1016/j.icarus.2016.02.006 -- LRO LOLA 1064 nm normal-albedo map, south-polar 1000 m nominal product"
+  size_bytes: 25647694
+  access: download
+  primary_size_bytes: 3598
+  sidecars:
+    - url: https://imbrium.mit.edu/DATA/LOLA_GDR/POLAR/FLOAT_IMG/LDAM_50S_1000M_FLOAT.IMG
+      filename: LDAM_50S_1000M_FLOAT.IMG
+      sha256: cd35ca62d322d48b2b809041e9baa086242842c25a50f8bff70936929910079a
+      size_bytes: 25644096
+  priority_class: 4
+  allow_large_download: false
+
+# --- LPSR product 69 (pgda, kind=mask; illumination-fraction aux raster) ----
+
+- layer_id: pgda_lpsr_85s_60m
+  body: moon
+  kind: mask
+  product_family: PGDA MoonIllumination LPSR
+  provider: pgda
+  urls:
+    - https://pgda.gsfc.nasa.gov/data/MoonIllumination/LPSR_85S_060M_201608.TIF
+  sha256:
+    LPSR_85S_060M_201608.TIF: e9544c081dd4e36f079e92bc3a376d0913857a61a4a53c209175c081762de43c
+  native_gsd_m: 60.0
+  crs: null
+  radiometry: null
+  footprint: cap:85S
+  vertical_datum: null
+  alignment:
+    source: assumed_zero
+  license: Public Domain (NASA)
+  attribution: "Mazarico et al., NASA GSFC Planetary Geodesy Data Archive, product 69"
+  size_bytes: 656183
+  access: download
+  priority_class: 90
+  allow_large_download: false
+  # The RAW int16 LPSR raster (this is the .TIF the URL above serves, not
+  # the canonical uint8 {0,1,255} rewrite) is tri-valued: DN == 20000 means
+  # "permanently shadowed", DN == -32768 means nodata, and everything else
+  # (in practice -20000) means "not permanently shadowed". Same rule, same
+  # constants as `srb/core/ephemeris/importers.py::_read_pgda_lpsr`'s int16
+  # branch -- keep the two in sync. Without this declaration the raw DNs
+  # reach `fusion.color.psr_mask`, whose "finite and nonzero" predicate is
+  # true for 99.99998% of them, and the entire lunar south pole is classed
+  # permanently shadowed.
+  mask_encoding:
+    masked_values: [20000]
+    nodata_values: [-32768]
+
+# --- NAC_POLE_SOUTH_CM_065 / CM_135, band-1 tile P892S2250 (lroc_pds, ---------
+# --- kind=color) -------------------------------------------------------------
+#
+# A two-tile validation reference for sunlit regions: one tile per
+# subsolar-longitude bin, both the SAME
+# band-1 quadrant tile: the mosaics are stored as polar-stereographic tiles
+# in four latitude bands, and band 1 (88.5-90 deg S) is four quadrant tiles
+# of which `P892S2250` is the one spanning lon 180-270 deg E -- the one that
+# contains Connecting Ridge (89.5017 S, 224.8123 E). Naming is the product's
+# own (`P` = polar stereographic, `892` = centre latitude 89.2 S in tenths of
+# a degree, `2250` = centre longitude 225.0 E in tenths), per the product
+# README served next to the tiles.
+#
+# `access: download`, NOT `cog_remote`: these are PDS3 `.IMG` rasters with an
+# ATTACHED label (GDAL opens them with driver `PDS`, verified on the
+# downloaded bytes) and the host serves no COG, so there is no windowed
+# remote read available. They are 8.28 GB each, hence
+# `allow_large_download: true` -- which on the v2 catalog path is only HALF
+# the gate: `SRB_TERRAIN_LARGE_OK` must also be set, or the layer degrades to
+# a warning and is skipped (`api._make_layer_loader`), leaving every existing
+# bake unchanged.
+#
+# `reference_only: true` is what keeps pinning these from silently
+# re-texturing Connecting Ridge, and `priority_class: 90` is a matching
+# DEPRIORITISATION rather than a quality judgement. `priority_class` ALONE
+# is not enough and is the wrong tool: it only orders a layer already
+# admitted, so these tiles would still enter Connecting Ridge's `color_layers`
+# and be fetched and radiometrically processed (`radiometric gain clamped
+# on 62.4% / 49.2% of its support`) only to contribute nothing.
+# `reference_only` removes them from footprint-driven resolution outright;
+# the validation study still reaches them by declaring their `layer_id`s.
+# The reason they must not be bake input: each tile is a
+# single-subsolar-longitude snapshot with
+# deep, real shadow baked into the pixels, and it carries no single
+# `sun_azimuth_deg`/`sun_elevation_deg` this catalog could honestly declare
+# (each mosaic composites 435+ NAC frames spanning a 10-degree subsolar
+# longitude bin, so `fusion.color.deshade_hillshade_divide` has no one
+# geometry to divide out and correctly warn-skips). Promoting a
+# non-deshadeable shadowed mosaic over the illumination-averaged
+# `zenodo_sfs_a3clr06_connridge_omos_5m` base would double-shadow the bake.
+# These are pinned to be READ as reference imagery, and they sort last.
+#
+# Every value below was measured from the downloaded bytes with rasterio
+# 1.4.4 / GDAL 3.10.3, not
+# transcribed from a product page: sha256 over the whole file, `size_bytes`
+# from `stat`, extent/gsd/dtype from the dataset header. Each tile is
+# 45488 x 45488 float32 at 1.0 m/px, nodata -3.4028226550889045e+38 (the
+# label's `CORE_NULL`, 16#FF7FFFFB#), bounds x/y [-45488, 0] m, in a CRS
+# that `transform_bounds` maps onto `IAU_2015:30135` to within 3.3e-9 m --
+# i.e. the canonical south-polar frame this repo bakes in. Valid (non-nodata)
+# coverage is only ~61% of each tile (the mosaics deliberately omit frames),
+# but the Connecting Ridge 3000 m window is 100% valid in both.
+
+- layer_id: lroc_nac_pole_south_cm065_p892s2250_1m
+  body: moon
+  kind: color
+  product_family: LROC NAC Polar Controlled Mosaic, subsolar-longitude bin (NAC_POLE_SOUTH_CM)
+  provider: lroc_pds
+  urls:
+    - https://pds.lroc.im-ldi.com/data/LRO-L-LROC-5-RDR-V1.0/LROLRC_2001/DATA/BDR/NAC_POLE/NAC_POLE_SOUTH_CM_065/NAC_POLE_SOUTH_CM_065_P892S2250.IMG
+  sha256:
+    NAC_POLE_SOUTH_CM_065_P892S2250.IMG: 6cdc60b11e7ae9eca40ec05d81bee83331c5dfc78d58e847aa530b2b8065a3e7
+  native_gsd_m: 1.0
+  crs: null
+  radiometry: single_illumination
+  footprint: "POLYGON((-45488.0 -45488.0, 0.0 -45488.0, 0.0 0.0, -45488.0 0.0, -45488.0 -45488.0))"
+  vertical_datum: sphere_r1737400m
+  alignment:
+    reference: "LOLA-tied ISIS jigsaw control network (1.68M points, 90.0-85.0 deg S)"
+    source: published
+  license: Public Domain (NASA/ASU)
+  attribution: "Archinal, B., Weller, L., Richie, J., Lee, E., Bennett, K., Speyerer, E., Tyburczy, T. (2023), Controlled High-Resolution LROC NAC Polar Mosaics, Lunar and Planetary Science Conference 54, abstract #2333 -- south-pole mosaic binned on 60-70 deg subsolar longitude, band-1 tile centred 89.2 S / 225.0 E"
+  size_bytes: 8276814528
+  access: download
+  priority_class: 90
+  allow_large_download: true
+  reference_only: true
+
+- layer_id: lroc_nac_pole_south_cm135_p892s2250_1m
+  body: moon
+  kind: color
+  product_family: LROC NAC Polar Controlled Mosaic, subsolar-longitude bin (NAC_POLE_SOUTH_CM)
+  provider: lroc_pds
+  urls:
+    - https://pds.lroc.im-ldi.com/data/LRO-L-LROC-5-RDR-V1.0/LROLRC_2001/DATA/BDR/NAC_POLE/NAC_POLE_SOUTH_CM_135/NAC_POLE_SOUTH_CM_135_P892S2250.IMG
+  sha256:
+    NAC_POLE_SOUTH_CM_135_P892S2250.IMG: e55ae4e2b7096b90739b0cb45d6fa7e6963c1f5f38499eabfb82f66ee1d02117
+  native_gsd_m: 1.0
+  crs: null
+  radiometry: single_illumination
+  footprint: "POLYGON((-45488.0 -45488.0, 0.0 -45488.0, 0.0 0.0, -45488.0 0.0, -45488.0 -45488.0))"
+  vertical_datum: sphere_r1737400m
+  alignment:
+    reference: "LOLA-tied ISIS jigsaw control network (1.68M points, 90.0-85.0 deg S)"
+    source: published
+  license: Public Domain (NASA/ASU)
+  attribution: "Archinal, B., Weller, L., Richie, J., Lee, E., Bennett, K., Speyerer, E., Tyburczy, T. (2023), Controlled High-Resolution LROC NAC Polar Mosaics, Lunar and Planetary Science Conference 54, abstract #2333 -- south-pole mosaic binned on 130-140 deg subsolar longitude, band-1 tile centred 89.2 S / 225.0 E"
+  size_bytes: 8276814528
+  access: download
+  priority_class: 90
+  allow_large_download: true
+  reference_only: true

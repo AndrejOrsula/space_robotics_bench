@@ -1,0 +1,53 @@
+# Curated Earth source layers, pinned from downloaded products. Declared CRSs are validated against raster headers; entries cover polar and local-projection requests.
+body: earth
+layers:
+
+# --- Copernicus GLO-30 DEM, Antarctic Dry Valleys (copernicus_s3, polar) ----
+
+- layer_id: copernicus_glo30_dryvalleys_s78e161
+  body: earth
+  kind: dem
+  product_family: Copernicus DEM GLO-30 (COP-DEM_GLO-30-DGED)
+  provider: copernicus_s3
+  urls:
+    - https://copernicus-dem-30m.s3.amazonaws.com/Copernicus_DSM_COG_10_S78_00_E161_00_DEM/Copernicus_DSM_COG_10_S78_00_E161_00_DEM.tif
+  sha256:
+    Copernicus_DSM_COG_10_S78_00_E161_00_DEM.tif: 96a33a2972095101c6a39e426540621c18c1003dfa49430e956f85ad02fb77db
+  native_gsd_m: 30.0
+  crs: "EPSG:4326"
+  radiometry: null
+  footprint: "bbox:160.999583,-77.999861,161.999583,-76.999861"
+  vertical_datum: EGM2008
+  alignment:
+    source: assumed_zero
+  license: "GLO-30 Public and GLO-90 are available on a free basis for the general public under the terms and conditions of the Licence found here: https://spacedata.copernicus.eu/en/web/guest/collections/copernicus-digital-elevation-model/#Licencing (quoted from the 'License' section of the copernicus-dem-30m S3 bucket readme.html)"
+  attribution: "Copernicus DEM GLO-30 (COP-DEM_GLO-30-DGED), tile Copernicus_DSM_COG_10_S78_00_E161_00_DEM -- source TanDEM-X radar data (c) DLR / Airbus Defence and Space GmbH; distributed via the AWS Registry of Open Data, s3://copernicus-dem-30m"
+  size_bytes: 13580271
+  access: cog_remote
+  priority_class: 1
+  allow_large_download: false
+
+# --- USGS 3DEP 1m DEM, New Mexico SouthEast project (usgs_3dep, non-polar) --
+
+- layer_id: usgs_3dep_nm_southeast_x45y364_1m
+  body: earth
+  kind: dem
+  product_family: USGS 3DEP 1 meter DEM
+  provider: usgs_3dep
+  urls:
+    - https://prd-tnm.s3.amazonaws.com/StagedProducts/Elevation/1m/Projects/NM_SouthEast_2018_D19/TIFF/USGS_1M_13_x45y364_NM_SouthEast_2018_D19.tif
+  sha256:
+    USGS_1M_13_x45y364_NM_SouthEast_2018_D19.tif: 491b3855f2e8480410c464a30bab5b6f29c865bdbb65bdae5c80585885c3b283
+  native_gsd_m: 1.0
+  crs: "EPSG:26913"
+  radiometry: null
+  footprint: "bbox:-105.534682,32.806787,-105.427200,32.897510"
+  vertical_datum: null
+  alignment:
+    source: assumed_zero
+  license: Public Domain (USGS)
+  attribution: "U.S. Geological Survey (USGS), 3D Elevation Program (3DEP) 1 meter DEM, project NM_SouthEast_2018_D19, tile USGS_1M_13_x45y364_NM_SouthEast_2018_D19 -- https://www.usgs.gov/3d-elevation-program"
+  size_bytes: 254440374
+  access: cog_remote
+  priority_class: 1
+  allow_large_download: false

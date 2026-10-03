@@ -1,0 +1,55 @@
+# Curated Mars HiRISE DTM and ortho layers, pinned from downloaded products. Null CRSs use each raster header.
+# URLs use the allowlisted dot-style host for the same objects advertised by STAC. Sun angles remain unset because source metadata is ambiguous.
+body: mars
+layers:
+
+# --- HiRISE stereo-pair DTM + ortho, Jezero crater (usgs_astro, ARD COG) ----
+
+- layer_id: usgs_astro_hirise_jezero_dtm_1m
+  body: mars
+  kind: dem
+  product_family: MRO HiRISE Socet Set DTM (USGS Astrogeology ARD)
+  provider: usgs_astro
+  urls:
+    - https://astrogeo-ard.s3.us-west-2.amazonaws.com/mars/mro/hirise/controlled/dtm/ESP_045994_1985_ESP_046060_1985/DTEEC_045994_1985_046060_1985_U01.tif
+  sha256:
+    DTEEC_045994_1985_046060_1985_U01.tif: b710df2893d0c668e58ec6e4c3fffa4e1b8b1759b71fdb4c582dfe56ef479822
+  native_gsd_m: 1.0165533020257713
+  crs: null
+  radiometry: null
+  footprint: "bbox:77.383353,18.305314,77.501070,18.548413"
+  vertical_datum: sphere_r3396190m
+  alignment:
+    source: assumed_zero
+  license: CC0-1.0
+  attribution: "USGS Astrogeology Science Center Analysis Ready Data (ARD); MRO HiRISE stereo-pair DTM, University of Arizona (producer) et al. -- item DTEEC_045994_1985_046060_1985_U01 (ESP_045994_1985 / ESP_046060_1985), collection mro_hirise_socet_dtms; USGS rationale: candidate landing site for the 2020 mission in Jezero Crater"
+  size_bytes: 157098530
+  access: cog_remote
+  priority_class: 1
+  allow_large_download: false
+
+- layer_id: usgs_astro_hirise_jezero_ortho_1m
+  body: mars
+  kind: color
+  product_family: MRO HiRISE Socet Set orthoimage (USGS Astrogeology ARD)
+  provider: usgs_astro
+  urls:
+    - https://astrogeo-ard.s3.us-west-2.amazonaws.com/mars/mro/hirise/controlled/dtm/ESP_045994_1985_ESP_046060_1985/ESP_046060_1985_RED_C_01_ORTHO.tif
+  sha256:
+    ESP_046060_1985_RED_C_01_ORTHO.tif: 4ceef4f3a1ceda63987ed66ccb0b387cfe0461d0bff5af8cc047b348502a1c58
+  native_gsd_m: 1.0165533020257322
+  crs: null
+  radiometry: single_illumination
+  footprint: "bbox:77.383380,18.305288,77.501096,18.548388"
+  vertical_datum: null
+  alignment:
+    reference: "DTEEC_045994_1985_046060_1985_U01 (this item's own DTM -- ortho's PDS3 label SOURCE_PRODUCT_ID names it directly)"
+    source: published
+  license: CC0-1.0
+  attribution: "USGS Astrogeology Science Center Analysis Ready Data (ARD); MRO HiRISE RED-filter orthoimage ESP_046060_1985_RED_C_01_ORTHO, University of Arizona (producer) et al. -- item DTEEC_045994_1985_046060_1985_U01, collection mro_hirise_socet_dtms; USGS rationale: candidate landing site for the 2020 mission in Jezero Crater"
+  size_bytes: 75246582
+  access: cog_remote
+  priority_class: 1
+  allow_large_download: false
+  sun_azimuth_deg: null
+  sun_elevation_deg: null

@@ -1,0 +1,51 @@
+version: 1
+presets:
+  lunar_default:
+    body: moon
+    sun_elevation_deg: 30.0
+    sun_azimuth_deg: 90.0
+    sun_intensity_lux: 130000.0
+    sun_color_temperature_k: 5800.0
+    sun_angular_diameter_deg: 0.53
+    earthshine_intensity_lux: 200.0
+    earthshine_color_temperature_k: 7500.0
+    license: "Public Domain"
+    attribution: "SRB synthesized; based on lunar surface albedo + solar constant"
+  apollo17_noon:
+    body: moon
+    sun_elevation_deg: 42.0
+    sun_azimuth_deg: 130.0
+    sun_intensity_lux: 120000.0
+    sun_color_temperature_k: 6500.0
+    sun_angular_diameter_deg: 0.53
+    earthshine_intensity_lux: 250.0
+    earthshine_color_temperature_k: 7500.0
+    license: "Public Domain"
+    attribution: "Apollo 17 mission timestamp; ephemeris derived"
+  mars_default:
+    body: mars
+    sun_elevation_deg: 35.0
+    sun_azimuth_deg: 110.0
+    sun_intensity_lux: 60000.0
+    sun_color_temperature_k: 4500.0
+    sun_angular_diameter_deg: 0.35
+    license: "Public Domain"
+    attribution: "Mars synthesized; reduced solar flux + dust scattering"
+  jezero_late_morning:
+    body: mars
+    sun_elevation_deg: 50.0
+    sun_azimuth_deg: 95.0
+    sun_intensity_lux: 65000.0
+    sun_color_temperature_k: 4500.0
+    sun_angular_diameter_deg: 0.35
+    license: "Public Domain"
+    attribution: "Jezero crater late-morning sun"
+  earth_default:
+    body: earth
+    sun_elevation_deg: 45.0
+    sun_azimuth_deg: 180.0
+    sun_intensity_lux: 100000.0
+    sun_color_temperature_k: 5500.0
+    sun_angular_diameter_deg: 0.53
+    license: "Public Domain"
+    attribution: "Earth synthesized; midday daylight illumination"

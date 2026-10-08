@@ -1,0 +1,6 @@
+# Curated-site rock sets (`rocks:` in `srb/terrain/manifest.yaml`).
+#
+# None ship yet. Each rock needs a licensed source URL and its real sha256.
+
+version: 1
+sets: {}

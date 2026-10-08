@@ -1,0 +1,5 @@
+# Curated skydomes referenced by `sky:` in the terrain manifest.
+# Add only entries with a licensed source URL and verified SHA-256.
+
+version: 1
+skydomes: {}

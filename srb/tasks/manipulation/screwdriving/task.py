@@ -1,12 +1,10 @@
 from dataclasses import MISSING
-from typing import Sequence, Tuple
 
 import torch
 
 from srb import assets
-from srb._typing import StepReturn
+from srb._typing import ObservationGroup, StepReturn
 from srb.core.asset import (
-    Articulation,
     AssetBase,
     AssetBaseCfg,
     AssetVariant,
@@ -14,17 +12,36 @@ from srb.core.asset import (
     Object,
     RigidObject,
     RigidObjectCfg,
+    Terrain,
 )
 from srb.core.domain import Domain
 from srb.core.env import (
     ManipulationEnv,
     ManipulationEnvCfg,
     ManipulationEventCfg,
+    ManipulationRewardCfg,
     ManipulationSceneCfg,
 )
-from srb.core.manager import EventTermCfg, SceneEntityCfg
-from srb.core.mdp import push_by_setting_velocity  # noqa: F401
-from srb.core.mdp import reset_root_state_uniform
+from srb.core.env.manipulation._step_state import (
+    manipulator_observation_tail,
+    manipulator_step_state,
+)
+from srb.core.env.srb_env import SrbEnv
+from srb.core.manager import SceneEntityCfg
+from srb.core.mdp import (
+    push_by_setting_velocity,  # noqa: F401
+    reset_root_state_uniform,
+)
+from srb.core.randomization import RandomizationCategory, SrbEventTermCfg
+from srb.core.reward import (
+    GaussianTrackingRewardTerm,
+    HyperbolicRewardTerm,
+    LinearRewardTerm,
+    ScaledRewardTerm,
+    SoftThresholdRewardTerm,
+    ThresholdRewardTerm,
+)
+from srb.core.scene_introspection import get_scene_entity, get_scene_rigid_object
 from srb.core.sensor import ContactSensor, ContactSensorCfg
 from srb.utils.cfg import configclass
 from srb.utils.math import (
@@ -32,38 +49,95 @@ from srb.utils.math import (
     matrix_from_quat,
     rotmat_to_rot6d,
     rpy_to_quat,
-    scale_transform,
     subtract_frame_transforms,
 )
 
-##############
-### Config ###
-##############
+
+class RewardCfg(ManipulationRewardCfg):
+    """Multi-scale bolt alignment, engagement, and threading rewards."""
+
+    ## Uses standard ManipulationRewardCfg magnitudes
+
+    ## Task-specific rewards
+    reward_top_down_orientation: GaussianTrackingRewardTerm = (
+        GaussianTrackingRewardTerm(weight=8.0, target=1.0, scale=0.04)
+    )
+    """Top-down orientation with about 2 degrees of tolerance."""
+
+    penalty_object_top_down_orientation: LinearRewardTerm = LinearRewardTerm(
+        weight=-64.0, limit=64.0
+    )
+    """Penalizes bolt tilt during approach."""
+
+    reward_distance_ee_to_bolt_driver_slot: HyperbolicRewardTerm = HyperbolicRewardTerm(
+        weight=12.0, scale=0.4
+    )
+    """Coarse approach guidance with a 0.4 m scale."""
+
+    reward_distance_ee_to_bolt_driver_slot_close: HyperbolicRewardTerm = (
+        HyperbolicRewardTerm(weight=32.0, scale=0.02)
+    )
+    """Close-range approach guidance with a 0.02 m scale."""
+
+    reward_distance_ee_to_bolt_driver_slot_precision: HyperbolicRewardTerm = (
+        HyperbolicRewardTerm(weight=512.0, scale=0.005)
+    )
+    """Precision slot alignment with a 0.005 m scale."""
+
+    reward_contact: SoftThresholdRewardTerm = SoftThresholdRewardTerm(
+        weight=4.0, threshold=5.0, operator=">", sharpness=1.0
+    )
+    """Smooth contact reward around the 5 N threshold."""
+
+    reward_screwing: ScaledRewardTerm = ScaledRewardTerm(weight=128.0, limit=128.0)
+    """Signed angular-velocity reward, normalized by pi."""
+
+    penalty_distance_obj_to_target_too_far: ThresholdRewardTerm = ThresholdRewardTerm(
+        weight=-256.0, threshold=0.075, operator=">"
+    )
+    """Penalizes horizontal drift beyond 7.5 cm."""
+
+    reward_distance_obj_to_target: LinearRewardTerm = LinearRewardTerm(
+        weight=2048.0, limit=2048.0
+    )
+    """Rewards bolt depth when near the nut and upright."""
+
+    ## Shaping parameters (not RewardTerms — plain floats)
+    object_orientation_tanh_std: float = 0.05
+    # Intentionally tight to reward sub-millimetre threading precision.
+    distance_obj_to_target_tanh_std: float = 0.00075
+    # Require the bolt to remain upright for thread progress to count.
+    object_upright_min_alignment: float = 0.95
 
 
 @configclass
 class SceneCfg(ManipulationSceneCfg):
-    bolt: RigidObjectCfg = MISSING  # type: ignore
-    nut: AssetBaseCfg = MISSING  # type: ignore
-
-    decor: AssetBaseCfg = assets.Ingenuity().as_asset_base_cfg(
-        disable_articulation=True,
-        disable_rigid_body=True,
-    )
+    bolt: RigidObjectCfg = MISSING  # type: ignore[assignment]
+    nut: AssetBaseCfg = MISSING  # type: ignore[assignment]
+    decor: AssetBaseCfg = assets.Ingenuity().as_asset_base_cfg(disable_collision=True)
     decor.prim_path = "{ENV_REGEX_NS}/decor"
     decor.init_state = AssetBaseCfg.InitialStateCfg(
         pos=(0.65, 0.0, 0.0),
         rot=rpy_to_quat(0.0, 0.0, 45.0),
     )
-    decor.spawn.collision_props.collision_enabled = False  # type: ignore
-    decor.spawn.mesh_collision_props.mesh_approximation = None  # type: ignore
+
+
+def _set_nut_spawn_target_pose(
+    nut_cfg: AssetBaseCfg,
+    target_pos: tuple[float, float, float],
+    target_rot: tuple[float, float, float, float],
+) -> None:
+    """Set the nut spawn pose; quaternion components use xyzw order."""
+    nut_cfg.init_state.pos = target_pos
+    nut_cfg.init_state.rot = target_rot
 
 
 @configclass
 class EventCfg(ManipulationEventCfg):
-    randomize_object_state: EventTermCfg = EventTermCfg(
+    randomize_object_state: SrbEventTermCfg = SrbEventTermCfg(
         func=reset_root_state_uniform,
         mode="reset",
+        category=RandomizationCategory.TASK,
         params={
             "asset_cfg": SceneEntityCfg("bolt"),
             "pose_range": {},
@@ -74,10 +148,13 @@ class EventCfg(ManipulationEventCfg):
 
 @configclass
 class TaskCfg(ManipulationEnvCfg):
+    """Drive a bolt into a threaded nut with an electric screwdriver."""
+
     ## Scenario
     domain: Domain = Domain.MARS
 
     ## Assets
+    scenery: Terrain | AssetVariant | None = AssetVariant.PROCEDURAL
     robot: Manipulator | AssetVariant = assets.Franka(
         end_effector=assets.ElectricScrewdriverM5()
     )
@@ -89,14 +166,17 @@ class TaskCfg(ManipulationEnvCfg):
     ## Events
     events: EventCfg = EventCfg()
 
+    ## Reward
+    reward: RewardCfg = RewardCfg()
+
     ## Time
     env_rate: float = 1.0 / 500.0
     episode_length_s: float = 15.0
     is_finite_horizon: bool = True
 
     ## Target
-    tf_pos_target: Tuple[float, float, float] = (0.65, 0.0, 0.493)
-    tf_quat_target: Tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
+    tf_pos_target: tuple[float, float, float] = (0.65, 0.0, 0.493)
+    tf_quat_target: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
 
     def __post_init__(self):
         super().__post_init__()
@@ -107,18 +187,26 @@ class TaskCfg(ManipulationEnvCfg):
             thread_offset = -0.000375
             thread_pitch = 0.00125
         else:
-            raise ValueError("Unsupported bolt type")
+            raise ValueError(
+                f"screwdriving supports assets.BoltM8, got {self.bolt!r}; "
+                "set bolt to assets.BoltM8()"
+            )
         # Scene: Nut
         self.scene.nut = nut.asset_cfg
         self.scene.nut.prim_path = "/World/nut" if self.stack else "{ENV_REGEX_NS}/nut"
-        self.scene.nut.init_state.pos = self.tf_pos_target
+        _set_nut_spawn_target_pose(
+            self.scene.nut, self.tf_pos_target, self.tf_quat_target
+        )
+        # InteractiveScene replicates this env-scoped asset; variants multiply
+        # the clone plan. Start the bolt three pitches above engagement.
         # Scene: Bolt
         self.scene.bolt = self.bolt.asset_cfg
         self.scene.bolt.prim_path = "{ENV_REGEX_NS}/bolt"
+        target_x, target_y, target_z = self.tf_pos_target
         self.scene.bolt.init_state.pos = (
-            0.65,
-            0.0,
-            0.493 + thread_offset + 3.0 * thread_pitch,
+            target_x,
+            target_y,
+            target_z + thread_offset + 3.0 * thread_pitch,
         )
         # Scene: Decor
         self.scene.decor.prim_path = (
@@ -132,24 +220,45 @@ class TaskCfg(ManipulationEnvCfg):
             ]
 
 
-############
-### Task ###
-############
+def bolt_thread_progress_metrics(
+    tf_pos_obj: torch.Tensor,
+    tf_pos_target: torch.Tensor,
+    obj_top_align: torch.Tensor,
+    *,
+    too_far_threshold: float,
+    tanh_std: float,
+    upright_min_alignment: float,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Measure world-horizontal drift and upright-gated insertion progress.
+
+    World axes prevent a toppled bolt from appearing inserted in its own frame.
+    Returns ``(horizontal_distance, shaped_progress)``; progress is in ``[0, 1]``
+    and is zero when too far away or not upright.
+    """
+    tf_pos_obj_to_target_w = tf_pos_target - tf_pos_obj
+    horizontal_distance = torch.norm(tf_pos_obj_to_target_w[:, :2], dim=-1)
+    engaged = (horizontal_distance <= too_far_threshold) & (
+        obj_top_align >= upright_min_alignment
+    )
+    shaped_progress = engaged.float() * (
+        1.0 - torch.tanh(torch.clip(-tf_pos_obj_to_target_w[:, 2], 0.0) / tanh_std)
+    )
+    return horizontal_distance, shaped_progress
 
 
-class Task(ManipulationEnv):
+class _TaskMixin:
+    """Drive a bolt into a threaded nut with pose and rotation tracking."""
+
     cfg: TaskCfg
 
     def __init__(self, cfg: TaskCfg, **kwargs):
         super().__init__(cfg, **kwargs)
 
-        ## Get scene assets
-        self._obj: RigidObject = self.scene["bolt"]
-        self._target: AssetBase = self.scene["nut"]
+        self._obj: RigidObject = get_scene_rigid_object(self.scene, "bolt")
+        self._target: AssetBase = get_scene_entity(self.scene, "nut")
 
-        ## Initialize buffers
         self._offset_pos_bolt_driver_slot = torch.tensor(
-            self.cfg.bolt.frame_driver_slot.offset.pos,  # type: ignore
+            self.cfg.bolt.frame_driver_slot.offset.pos,  # type: ignore[attr-defined]
             dtype=torch.float32,
             device=self.device,
         ).repeat(self.num_envs, 1)
@@ -160,392 +269,172 @@ class Task(ManipulationEnv):
             self.cfg.tf_quat_target, dtype=torch.float32, device=self.device
         ).repeat(self.num_envs, 1)
 
-    def _reset_idx(self, env_ids: Sequence[int]):
-        super()._reset_idx(env_ids)
-
     def extract_step_return(self) -> StepReturn:
-        return _compute_step_return(
-            ## Time
-            episode_length=self.episode_length_buf,
-            max_episode_length=self.max_episode_length,
-            truncate_episodes=self.cfg.truncate_episodes,
-            ## Actions
-            act_current=self.action_manager.action,
-            act_previous=self.action_manager.prev_action,
-            ## States
-            # Joints
-            joint_pos_robot=self._robot.data.joint_pos,
-            joint_pos_limits_robot=(
-                self._robot.data.soft_joint_pos_limits
-                if torch.all(torch.isfinite(self._robot.data.soft_joint_pos_limits))
-                else None
-            ),
-            joint_pos_end_effector=self._end_effector.data.joint_pos
-            if isinstance(self._end_effector, Articulation)
-            else None,
-            joint_pos_limits_end_effector=(
-                self._end_effector.data.soft_joint_pos_limits
-                if isinstance(self._end_effector, Articulation)
-                and torch.all(
-                    torch.isfinite(self._end_effector.data.soft_joint_pos_limits)
-                )
-                else None
-            ),
-            joint_acc_robot=self._robot.data.joint_acc,
-            joint_applied_torque_robot=self._robot.data.applied_torque,
-            # Kinematics
-            fk_pos_end_effector=self._tf_end_effector.data.target_pos_source[:, 0, :],
-            fk_quat_end_effector=self._tf_end_effector.data.target_quat_source[:, 0, :],
-            # Transforms (world frame)
-            tf_pos_end_effector=self._tf_end_effector.data.target_pos_w[:, 0, :],
-            tf_quat_end_effector=self._tf_end_effector.data.target_quat_w[:, 0, :],
-            tf_pos_obj=self._obj.data.root_pos_w,
-            tf_quat_obj=self._obj.data.root_quat_w,
-            tf_pos_target=self._tf_pos_target,
-            tf_quat_target=self._tf_quat_target,
-            # Object velocity
-            vel_ang_obj=self._obj.data.root_ang_vel_w,
-            # Contacts
-            contact_forces_robot=self._contacts_robot.data.net_forces_w,  # type: ignore
-            contact_forces_end_effector=self._contacts_end_effector.data.net_forces_w
-            if isinstance(self._contacts_end_effector, ContactSensor)
-            else None,
-            contact_force_matrix_end_effector=self._contacts_end_effector.data.force_matrix_w
-            if isinstance(self._contacts_end_effector, ContactSensor)
-            else None,
-            ## Bolt descriptors
-            offset_pos_bolt_driver_slot=self._offset_pos_bolt_driver_slot,
+        rew = self.cfg.reward
+
+        state = manipulator_step_state(self)
+        num_envs, device, dtype = state.num_envs, state.device, state.dtype
+
+        tf_pos_obj = self._obj.data.root_pos_w
+        tf_quat_obj = self._obj.data.root_quat_w
+        vel_ang_obj = self._obj.data.root_ang_vel_w
+
+        tf_pos_bolt_slot, tf_quat_bolt_slot = combine_frame_transforms(
+            t01=tf_pos_obj,
+            q01=tf_quat_obj,
+            t12=self._offset_pos_bolt_driver_slot,
         )
-
-
-@torch.jit.script
-def _compute_step_return(
-    *,
-    ## Time
-    episode_length: torch.Tensor,
-    max_episode_length: int,
-    truncate_episodes: bool,
-    ## Actions
-    act_current: torch.Tensor,
-    act_previous: torch.Tensor,
-    ## States
-    # Joints
-    joint_pos_robot: torch.Tensor,
-    joint_pos_limits_robot: torch.Tensor | None,
-    joint_pos_end_effector: torch.Tensor | None,
-    joint_pos_limits_end_effector: torch.Tensor | None,
-    joint_acc_robot: torch.Tensor,
-    joint_applied_torque_robot: torch.Tensor,
-    # Kinematics
-    fk_pos_end_effector: torch.Tensor,
-    fk_quat_end_effector: torch.Tensor,
-    # Transforms (world frame)
-    tf_pos_end_effector: torch.Tensor,
-    tf_quat_end_effector: torch.Tensor,
-    tf_pos_obj: torch.Tensor,
-    tf_quat_obj: torch.Tensor,
-    tf_pos_target: torch.Tensor,
-    tf_quat_target: torch.Tensor,
-    # Object velocity
-    vel_ang_obj: torch.Tensor,
-    # Contacts
-    contact_forces_robot: torch.Tensor,
-    contact_forces_end_effector: torch.Tensor | None,
-    contact_force_matrix_end_effector: torch.Tensor | None,
-    ## Bolt descriptors
-    offset_pos_bolt_driver_slot: torch.Tensor,
-) -> StepReturn:
-    num_envs = episode_length.size(0)
-    dtype = episode_length.dtype
-    device = episode_length.device
-
-    ############
-    ## States ##
-    ############
-    ## Joints
-    # Robot joints
-    joint_pos_robot_normalized = (
-        scale_transform(
-            joint_pos_robot,
-            joint_pos_limits_robot[:, :, 0],
-            joint_pos_limits_robot[:, :, 1],
+        tf_pos_ee_to_bolt_slot, tf_quat_ee_to_bolt_slot = subtract_frame_transforms(
+            t01=state.tf_pos_ee,
+            q01=state.tf_quat_ee,
+            t02=tf_pos_bolt_slot,
+            q02=tf_quat_bolt_slot,
         )
-        if joint_pos_limits_robot is not None
-        else joint_pos_robot
-    )
-    # End-effector joints
-    joint_pos_end_effector_normalized = (
-        scale_transform(
-            joint_pos_end_effector,
-            joint_pos_limits_end_effector[:, :, 0],
-            joint_pos_limits_end_effector[:, :, 1],
+        tf_rotmat_ee_to_bolt_slot = matrix_from_quat(tf_quat_ee_to_bolt_slot)
+        tf_rot6d_ee_to_bolt_slot = rotmat_to_rot6d(tf_rotmat_ee_to_bolt_slot)
+        dist_ee_to_bolt_slot = torch.norm(tf_pos_ee_to_bolt_slot, dim=-1)
+
+        tf_pos_obj_to_target, tf_quat_obj_to_target = subtract_frame_transforms(
+            t01=tf_pos_obj,
+            q01=tf_quat_obj,
+            t02=self._tf_pos_target,
+            q02=self._tf_quat_target,
         )
-        if joint_pos_end_effector is not None
-        and joint_pos_limits_end_effector is not None
-        else (
-            joint_pos_end_effector
-            if joint_pos_end_effector is not None
-            else torch.empty((num_envs, 0), dtype=dtype, device=device)
-        )
-    )
+        tf_rotmat_obj_to_target = matrix_from_quat(tf_quat_obj_to_target)
+        tf_rot6d_obj_to_target = rotmat_to_rot6d(tf_rotmat_obj_to_target)
 
-    ## Kinematics
-    fk_rotmat_end_effector = matrix_from_quat(fk_quat_end_effector)
-    fk_rot6d_end_effector = rotmat_to_rot6d(fk_rotmat_end_effector)
+        contact_forces_robot = self._contacts_robot.data.net_forces_w  # type: ignore[union-attr]
+        contact_forces_mean_robot = contact_forces_robot.mean(dim=1)
 
-    ## Transforms (world frame)
-    # End-effector -> Bolt driver slot
-    tf_pos_bolt_driver_slot, tf_quat_bolt_driver_slot = combine_frame_transforms(
-        t01=tf_pos_obj,
-        q01=tf_quat_obj,
-        t12=offset_pos_bolt_driver_slot,
-    )
-    (
-        tf_pos_end_effector_to_bolt_driver_slot,
-        tf_quat_end_effector_to_bolt_driver_slot,
-    ) = subtract_frame_transforms(
-        t01=tf_pos_end_effector,
-        q01=tf_quat_end_effector,
-        t02=tf_pos_bolt_driver_slot,
-        q02=tf_quat_bolt_driver_slot,
-    )
-    tf_rotmat_end_effector_to_bolt_driver_slot = matrix_from_quat(
-        tf_quat_end_effector_to_bolt_driver_slot
-    )
-    tf_rot6d_end_effector_to_bolt_driver_slot = rotmat_to_rot6d(
-        tf_rotmat_end_effector_to_bolt_driver_slot
-    )
-    dist_end_effector_to_bolt_driver_slot = torch.norm(
-        tf_pos_end_effector_to_bolt_driver_slot, dim=-1
-    )
-    # Object -> Target
-    tf_pos_obj_to_target, tf_quat_obj_to_target = subtract_frame_transforms(
-        t01=tf_pos_obj,
-        q01=tf_quat_obj,
-        t02=tf_pos_target,
-        q02=tf_quat_target,
-    )
-    tf_rotmat_obj_to_target = matrix_from_quat(tf_quat_obj_to_target)
-    tf_rot6d_obj_to_target = rotmat_to_rot6d(tf_rotmat_obj_to_target)
-
-    ## Contacts
-    contact_forces_mean_robot = contact_forces_robot.mean(dim=1)
-    contact_forces_mean_end_effector = (
-        contact_forces_end_effector.mean(dim=1)
-        if contact_forces_end_effector is not None
-        else torch.empty((num_envs, 0), dtype=dtype, device=device)
-    )
-    contact_forces_end_effector = (
-        contact_forces_end_effector
-        if contact_forces_end_effector is not None
-        else torch.empty((num_envs, 0), dtype=dtype, device=device)
-    )
-
-    #############
-    ## Rewards ##
-    #############
-    # Penalty: Action rate
-    WEIGHT_ACTION_RATE = -0.5
-    penalty_action_rate = WEIGHT_ACTION_RATE * torch.mean(
-        torch.square(act_current - act_previous), dim=1
-    )
-
-    # Penalty: Joint torque
-    WEIGHT_JOINT_TORQUE = -0.00025
-    MAX_JOINT_TORQUE_PENALTY = -4.0
-    penalty_joint_torque = torch.clamp_min(
-        WEIGHT_JOINT_TORQUE
-        * torch.sum(torch.square(joint_applied_torque_robot), dim=1),
-        min=MAX_JOINT_TORQUE_PENALTY,
-    )
-
-    # Penalty: Joint acceleration
-    WEIGHT_JOINT_ACCELERATION = -0.005
-    MAX_JOINT_ACCELERATION_PENALTY = -4.0
-    penalty_joint_acceleration = torch.clamp_min(
-        WEIGHT_JOINT_ACCELERATION * torch.sum(torch.square(joint_acc_robot), dim=1),
-        min=MAX_JOINT_ACCELERATION_PENALTY,
-    )
-
-    # Penalty: Undesired robot contacts
-    WEIGHT_UNDESIRED_ROBOT_CONTACTS = -1.0
-    THRESHOLD_UNDESIRED_ROBOT_CONTACTS = 10.0
-    penalty_undesired_robot_contacts = WEIGHT_UNDESIRED_ROBOT_CONTACTS * (
-        torch.max(torch.norm(contact_forces_robot, dim=-1), dim=1)[0]
-        > THRESHOLD_UNDESIRED_ROBOT_CONTACTS
-    )
-
-    # Reward: End-effector top-down orientation
-    WEIGHT_TOP_DOWN_ORIENTATION = 8.0
-    TANH_STD_TOP_DOWN_ORIENTATION = 0.025
-    top_down_alignment = torch.sum(
-        fk_rotmat_end_effector[:, :, 2]
-        * torch.tensor((0.0, 0.0, -1.0), device=device)
-        .unsqueeze(0)
-        .expand(num_envs, 3),
-        dim=1,
-    )
-    reward_top_down_orientation = WEIGHT_TOP_DOWN_ORIENTATION * (
-        1.0 - torch.tanh((1.0 - top_down_alignment) / TANH_STD_TOP_DOWN_ORIENTATION)
-    )
-
-    # Reward: Object upright orientation
-    WEIGHT_OBJECT_TOP_DOWN_ORIENTATION = -64.0
-    TANH_STD_OBJECT_TOP_DOWN_ORIENTATION = 0.05
-    object_top_down_alignment = torch.sum(
-        matrix_from_quat(tf_quat_obj)[:, :, 2]
-        * torch.tensor((0.0, 0.0, 1.0), device=device).unsqueeze(0).expand(num_envs, 3),
-        dim=1,
-    )
-    penalty_object_top_down_orientation = WEIGHT_OBJECT_TOP_DOWN_ORIENTATION * (
-        torch.tanh(
-            (1.0 - object_top_down_alignment) / TANH_STD_OBJECT_TOP_DOWN_ORIENTATION
-        )
-    )
-
-    # Reward: Distance | End-effector <--> Object
-    WEIGHT_DISTANCE_END_EFFECTOR_TO_BOLT_DRIVER_SLOT = 12.0
-    TANH_STD_DISTANCE_END_EFFECTOR_TO_BOLT_DRIVER_SLOT = 0.4
-    reward_distance_end_effector_to_bolt_driver_slot = (
-        WEIGHT_DISTANCE_END_EFFECTOR_TO_BOLT_DRIVER_SLOT
-        * (
-            1.0
-            - torch.tanh(
-                dist_end_effector_to_bolt_driver_slot
-                / TANH_STD_DISTANCE_END_EFFECTOR_TO_BOLT_DRIVER_SLOT
+        has_ee_contacts = isinstance(self._contacts_end_effector, ContactSensor)
+        if has_ee_contacts:
+            contact_forces_ee = self._contacts_end_effector.data.net_forces_w
+            contact_forces_mean_ee = contact_forces_ee.mean(dim=1)
+            contact_force_matrix_ee = self._contacts_end_effector.data.force_matrix_w
+        else:
+            contact_forces_ee = torch.empty((num_envs, 0), dtype=dtype, device=device)
+            contact_forces_mean_ee = torch.empty(
+                (num_envs, 0), dtype=dtype, device=device
             )
-        )
-    )
+            contact_force_matrix_ee = None
 
-    # Reward: Distance | End-effector <--> Object
-    WEIGHT_DISTANCE_END_EFFECTOR_TO_BOLT_DRIVER_SLOT_CLOSE = 32.0
-    TANH_STD_DISTANCE_END_EFFECTOR_TO_BOLT_DRIVER_SLOT_CLOSE = 0.02
-    reward_distance_end_effector_to_bolt_driver_slot_close = (
-        WEIGHT_DISTANCE_END_EFFECTOR_TO_BOLT_DRIVER_SLOT_CLOSE
-        * (
-            1.0
-            - torch.tanh(
-                dist_end_effector_to_bolt_driver_slot
-                / TANH_STD_DISTANCE_END_EFFECTOR_TO_BOLT_DRIVER_SLOT_CLOSE
-            )
+        action_rate_metric = torch.mean(
+            torch.square(state.act_current - state.act_previous), dim=1
         )
-    )
-
-    # Reward: Distance | End-effector <--> Object
-    WEIGHT_DISTANCE_END_EFFECTOR_TO_BOLT_DRIVER_SLOT_PRECISION = 512.0
-    TANH_STD_DISTANCE_END_EFFECTOR_TO_BOLT_DRIVER_SLOT_PRECISION = 0.005
-    reward_distance_end_effector_to_bolt_driver_slot_precision = (
-        WEIGHT_DISTANCE_END_EFFECTOR_TO_BOLT_DRIVER_SLOT_PRECISION
-        * (
-            1.0
-            - torch.tanh(
-                dist_end_effector_to_bolt_driver_slot
-                / TANH_STD_DISTANCE_END_EFFECTOR_TO_BOLT_DRIVER_SLOT_PRECISION
-            )
+        joint_torque_metric = torch.sum(
+            torch.square(state.joint_applied_torque_robot), dim=1
         )
-    )
+        joint_acc_metric = torch.sum(torch.square(state.joint_acc_robot), dim=1)
+        undesired_contacts_metric = torch.max(
+            torch.norm(contact_forces_robot, dim=-1), dim=1
+        )[0]
 
-    # Reward: Contact object
-    WEIGHT_CONTACT = 4.0
-    THRESHOLD_CONTACT = 5.0
-    reward_contact = (
-        WEIGHT_CONTACT
-        * (
-            torch.mean(
-                torch.max(
-                    torch.norm(contact_force_matrix_end_effector, dim=-1), dim=-1
-                )[0],
+        down_vec = (
+            torch.tensor((0.0, 0.0, -1.0), device=device)
+            .unsqueeze(0)
+            .expand(num_envs, 3)
+        )
+        # World down; the FK frame follows the (possibly tilted) base.
+        ee_rotmat_w = matrix_from_quat(state.tf_quat_ee)
+        top_down_alignment = torch.sum(ee_rotmat_w[:, :, 2] * down_vec, dim=1)
+
+        up_vec = (
+            torch.tensor((0.0, 0.0, 1.0), device=device)
+            .unsqueeze(0)
+            .expand(num_envs, 3)
+        )
+        obj_top_align = torch.sum(
+            matrix_from_quat(tf_quat_obj)[:, :, 2] * up_vec, dim=1
+        )
+        obj_tilt_metric = torch.tanh(
+            (1.0 - obj_top_align) / rew.object_orientation_tanh_std
+        )
+
+        if contact_force_matrix_ee is not None:
+            contact_metric = torch.mean(
+                torch.max(torch.norm(contact_force_matrix_ee, dim=-1), dim=-1)[0],
                 dim=1,
             )
-            > THRESHOLD_CONTACT
+        else:
+            contact_metric = torch.zeros(num_envs, dtype=dtype, device=device)
+
+        screwing_metric = -vel_ang_obj[:, 2] / torch.pi
+
+        obj_horiz_dist, obj_target_shaped = bolt_thread_progress_metrics(
+            tf_pos_obj,
+            self._tf_pos_target,
+            obj_top_align,
+            too_far_threshold=rew.penalty_distance_obj_to_target_too_far.threshold,
+            tanh_std=rew.distance_obj_to_target_tanh_std,
+            upright_min_alignment=rew.object_upright_min_alignment,
         )
-        if contact_force_matrix_end_effector is not None
-        else torch.zeros(num_envs, dtype=dtype, device=device)
-    )
 
-    # Reward: Screwing based on angular velocity of the object
-    WEIGHT_SCREWING = 128.0
-    reward_screwing = WEIGHT_SCREWING * (-vel_ang_obj[:, 2] / torch.pi)
+        reward: dict[str, torch.Tensor] = {
+            "penalty_action_rate": rew.penalty_action_rate(action_rate_metric),
+            "penalty_joint_torque": rew.penalty_joint_torque(joint_torque_metric),
+            "penalty_joint_acceleration": rew.penalty_joint_acceleration(
+                joint_acc_metric
+            ),
+            "penalty_undesired_robot_contacts": rew.penalty_undesired_robot_contacts(
+                undesired_contacts_metric
+            ),
+            "reward_top_down_orientation": rew.reward_top_down_orientation(
+                top_down_alignment
+            ),
+            "penalty_object_top_down_orientation": rew.penalty_object_top_down_orientation(
+                obj_tilt_metric
+            ),
+            "reward_distance_ee_to_bolt_driver_slot": rew.reward_distance_ee_to_bolt_driver_slot(
+                dist_ee_to_bolt_slot
+            ),
+            "reward_distance_ee_to_bolt_driver_slot_close": rew.reward_distance_ee_to_bolt_driver_slot_close(
+                dist_ee_to_bolt_slot
+            ),
+            "reward_distance_ee_to_bolt_driver_slot_precision": rew.reward_distance_ee_to_bolt_driver_slot_precision(
+                dist_ee_to_bolt_slot
+            ),
+            "reward_contact": rew.reward_contact(contact_metric),
+            "reward_screwing": rew.reward_screwing(screwing_metric),
+            "penalty_distance_obj_to_target_too_far": rew.penalty_distance_obj_to_target_too_far(
+                obj_horiz_dist
+            ),
+            "reward_distance_obj_to_target": rew.reward_distance_obj_to_target(
+                obj_target_shaped
+            ),
+        }
 
-    # Penalty: Distance | Object <--> Target
-    WEIGHT_DISTANCE_OBJ_TO_TARGET_TOO_FAR = -256.0
-    THRESHOLD_DISTANCE_OBJ_TO_TARGET_TOO_FAR = 0.075
-    is_obj_too_far = (
-        torch.norm(tf_pos_obj_to_target[:, :2], dim=-1)
-        > THRESHOLD_DISTANCE_OBJ_TO_TARGET_TOO_FAR
-    )
-    penalty_distance_obj_to_target_too_far = (
-        WEIGHT_DISTANCE_OBJ_TO_TARGET_TOO_FAR * is_obj_too_far.float()
-    )
-
-    # Reward: Distance | Object <--> Target
-    WEIGHT_DISTANCE_OBJ_TO_TARGET = 2048.0
-    TANH_STD_DISTANCE_OBJ_TO_TARGET = 0.00075
-    reward_distance_obj_to_target = (
-        WEIGHT_DISTANCE_OBJ_TO_TARGET
-        * (~is_obj_too_far).float()
-        * (
-            1.0
-            - torch.tanh(
-                torch.clip(-tf_pos_obj_to_target[:, 2], 0.0)
-                / TANH_STD_DISTANCE_OBJ_TO_TARGET
-            )
+        termination = torch.zeros(num_envs, dtype=torch.bool, device=device)
+        truncation = (
+            self.episode_length_buf >= self.max_episode_length
+            if self.cfg.truncate_episodes
+            else torch.zeros(num_envs, dtype=torch.bool, device=device)
         )
-    )
 
-    ##################
-    ## Terminations ##
-    ##################
-    # No termination condition
-    termination = torch.zeros(num_envs, dtype=torch.bool, device=device)
-    # Truncation
-    truncation = (
-        episode_length >= max_episode_length
-        if truncate_episodes
-        else torch.zeros(num_envs, dtype=torch.bool, device=device)
-    )
+        return StepReturn(
+            {
+                ObservationGroup.STATE: {
+                    "vel_ang_obj": vel_ang_obj,
+                    "contact_forces_mean_robot": contact_forces_mean_robot,
+                    "contact_forces_mean_end_effector": contact_forces_mean_ee,
+                    "tf_pos_end_effector_to_bolt_driver_slot": tf_pos_ee_to_bolt_slot,
+                    "tf_rot6d_end_effector_to_bolt_driver_slot": tf_rot6d_ee_to_bolt_slot,
+                    "tf_pos_obj_to_target": tf_pos_obj_to_target,
+                    "tf_rot6d_obj_to_target": tf_rot6d_obj_to_target,
+                },
+                **manipulator_observation_tail(
+                    state, contact_forces_robot, contact_forces_ee
+                ),
+            },
+            reward,
+            termination,
+            truncation,
+        )
 
-    return StepReturn(
-        {
-            "state": {
-                "vel_ang_obj": vel_ang_obj,
-                "contact_forces_mean_robot": contact_forces_mean_robot,
-                "contact_forces_mean_end_effector": contact_forces_mean_end_effector,
-                "tf_pos_end_effector_to_bolt_driver_slot": tf_pos_end_effector_to_bolt_driver_slot,
-                "tf_rot6d_end_effector_to_bolt_driver_slot": tf_rot6d_end_effector_to_bolt_driver_slot,
-                "tf_pos_obj_to_target": tf_pos_obj_to_target,
-                "tf_rot6d_obj_to_target": tf_rot6d_obj_to_target,
-            },
-            "state_dyn": {
-                "contact_forces_robot": contact_forces_robot,
-                "contact_forces_end_effector": contact_forces_end_effector,
-            },
-            "proprio": {
-                "fk_pos_end_effector": fk_pos_end_effector,
-                "fk_rot6d_end_effector": fk_rot6d_end_effector,
-            },
-            "proprio_dyn": {
-                "joint_pos_robot_normalized": joint_pos_robot_normalized,
-                "joint_pos_end_effector_normalized": joint_pos_end_effector_normalized,
-                "joint_acc_robot": joint_acc_robot,
-                "joint_applied_torque_robot": joint_applied_torque_robot,
-            },
-        },
-        {
-            "penalty_action_rate": penalty_action_rate,
-            "penalty_joint_torque": penalty_joint_torque,
-            "penalty_joint_acceleration": penalty_joint_acceleration,
-            "penalty_undesired_robot_contacts": penalty_undesired_robot_contacts,
-            "reward_top_down_orientation": reward_top_down_orientation,
-            "penalty_object_top_down_orientation": penalty_object_top_down_orientation,
-            "reward_distance_end_effector_to_bolt_driver_slot": reward_distance_end_effector_to_bolt_driver_slot,
-            "reward_distance_end_effector_to_bolt_driver_slot_close": reward_distance_end_effector_to_bolt_driver_slot_close,
-            "reward_distance_end_effector_to_bolt_driver_slot_precision": reward_distance_end_effector_to_bolt_driver_slot_precision,
-            "reward_contact": reward_contact,
-            "reward_screwing": reward_screwing,
-            "penalty_distance_obj_to_target_too_far": penalty_distance_obj_to_target_too_far,
-            "reward_distance_obj_to_target": reward_distance_obj_to_target,
-        },
-        termination,
-        truncation,
-    )
+
+class Task(_TaskMixin, SrbEnv, ManipulationEnv):
+    cfg: TaskCfg
+    _srb_direct_runtime = True
+
+    def __init__(self, cfg: TaskCfg, **kwargs):
+        runtime_mode = kwargs.pop("runtime_mode", "isaac")
+        super().__init__(cfg, runtime_mode=runtime_mode, **kwargs)

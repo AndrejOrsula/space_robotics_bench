@@ -3,7 +3,7 @@ from typing import Sequence
 
 import torch
 
-from srb._typing import StepReturn
+from srb._typing import ObservationGroup, StepReturn
 from srb.core.asset import (
     Articulation,
     RigidObjectCfg,
@@ -11,9 +11,13 @@ from srb.core.asset import (
     RigidObjectCollectionCfg,
 )
 from srb.core.env import ManipulationEnv
-from srb.core.manager import EventTermCfg, SceneEntityCfg
+from srb.core.env.srb_env import SrbEnv
+from srb.core.manager import SceneEntityCfg
 from srb.core.marker import VisualizationMarkers
 from srb.core.mdp import reset_collection_root_state_uniform_poisson_disk_2d
+from srb.core.randomization import RandomizationCategory, SrbEventTermCfg
+from srb.core.reward import GaussianRewardTerm, LinearRewardTerm
+from srb.core.scene_introspection import get_scene_rigid_object_collection
 from srb.core.sensor import ContactSensor, ContactSensorCfg
 from srb.utils.cfg import configclass
 from srb.utils.math import (
@@ -25,25 +29,59 @@ from srb.utils.math import (
 
 from .asset import select_sample
 from .task import EventCfg, SceneCfg, TaskCfg
+from .task import RewardCfg as SampleCollectionRewardCfg
 
-##############
-### Config ###
-##############
+
+class MultiRewardCfg(SampleCollectionRewardCfg):
+    """Shape and sum object rewards across samples."""
+
+    # Replaced by multi-object terms.
+    reward_distance_ee_to_obj: GaussianRewardTerm = GaussianRewardTerm(
+        weight=0.0, scale=0.15
+    )
+    reward_distance_obj_to_target: GaussianRewardTerm = GaussianRewardTerm(
+        weight=0.0, scale=0.15
+    )
+    penalty_obj_fallen: LinearRewardTerm = LinearRewardTerm(weight=0.0, limit=16.0)
+
+    reward_distance_ee_to_objs: LinearRewardTerm = LinearRewardTerm(
+        weight=2.5, limit=10.0
+    )
+    """Summed end-effector proximity reward; tanh std 0.2 m."""
+
+    reward_grasp: LinearRewardTerm = LinearRewardTerm(weight=4.0, limit=16.0)
+    """Binary grasp reward at 5 N contact force."""
+
+    reward_lift: LinearRewardTerm = LinearRewardTerm(weight=8.0, limit=32.0)
+    """Summed lift reward tracking a 0.5 m height zone."""
+
+    reward_distance_objs_to_target: LinearRewardTerm = LinearRewardTerm(
+        weight=32.0, limit=128.0
+    )
+    """Summed object-to-target reward; tanh std 0.2 m."""
+
+    tanh_std_distance_ee_to_objs: float = 0.2
+    tanh_std_lift: float = 0.1
+    height_offset_lift: float = 0.5
+    height_span_lift: float = 0.25
+    tanh_std_distance_objs_to_target: float = 0.2
+    threshold_grasp: float = 5.0
 
 
 @configclass
 class MultiSceneCfg(SceneCfg):
     sample: None = None
     samples: RigidObjectCollectionCfg = RigidObjectCollectionCfg(
-        rigid_objects=MISSING,  # type: ignore
+        rigid_objects=MISSING,  # type: ignore[arg-type]
     )
 
 
 @configclass
 class MultiEventCfg(EventCfg):
-    randomize_object_state: EventTermCfg = EventTermCfg(
+    randomize_object_state: SrbEventTermCfg = SrbEventTermCfg(
         func=reset_collection_root_state_uniform_poisson_disk_2d,
         mode="reset",
+        category=RandomizationCategory.TASK,
         params={
             "asset_cfg": SceneEntityCfg("samples"),
             "pose_range": MISSING,
@@ -55,24 +93,25 @@ class MultiEventCfg(EventCfg):
 
 @configclass
 class MultiTaskCfg(TaskCfg):
-    ## Scene
     scene: MultiSceneCfg = MultiSceneCfg()
     num_samples: int = 3
 
-    ## Events
     events: MultiEventCfg = MultiEventCfg()
 
-    ## Time
-    episode_length_s: float = MISSING  # type: ignore
+    reward: MultiRewardCfg = MultiRewardCfg()
+
+    episode_length_s: float = MISSING  # type: ignore[assignment]
     _base_episode_length_s: float = 7.5
 
     def __post_init__(self):
         super().__post_init__()
+        if type(self.num_samples) is not int or self.num_samples < 1:
+            raise ValueError(
+                f"num_samples must be an integer >= 1, got {self.num_samples!r}"
+            )
 
-        # Time
         self.episode_length_s = self.num_samples * self._base_episode_length_s
 
-        # Scene: Samples
         self.scene.sample = None
         samples = [
             select_sample(
@@ -89,13 +128,11 @@ class MultiTaskCfg(TaskCfg):
             f"sample{i}": cfg.asset_cfg for i, cfg in enumerate(samples)
         }
 
-        # Sensor: End-effector contacts
         if isinstance(self.scene.contacts_end_effector, ContactSensorCfg):
             self.scene.contacts_end_effector.filter_prim_paths_expr = [
                 f"{{ENV_REGEX_NS}}/sample{i}" for i in range(self.num_samples)
             ]
 
-        # Events: Randomize object state
         self.events.randomize_object_state.params["pose_range"] = samples[
             0
         ].state_randomizer.params["pose_range"]
@@ -103,28 +140,22 @@ class MultiTaskCfg(TaskCfg):
             0
         ].state_randomizer.params["velocity_range"]
 
-        # Update seed & number of variants for procedural assets
         self._update_procedural_assets()
 
 
-############
-### Task ###
-############
-
-
-class MultiTask(ManipulationEnv):
+class _TaskMixin:
     cfg: MultiTaskCfg
 
     def __init__(self, cfg: MultiTaskCfg, **kwargs):
         super().__init__(cfg, **kwargs)
 
-        ## Get scene assets
-        self._objs: RigidObjectCollection = self.scene["samples"]
+        self._objs: RigidObjectCollection = get_scene_rigid_object_collection(
+            self.scene, "samples"
+        )
         self._target_marker: VisualizationMarkers = VisualizationMarkers(
             self.cfg.target_marker_cfg
         )
 
-        ## Initialize buffers
         self._tf_pos_objs_initial = torch.zeros(
             (self.num_envs, self.cfg.num_samples, 3),
             dtype=torch.float32,
@@ -137,7 +168,6 @@ class MultiTask(ManipulationEnv):
             self.cfg.tf_quat_target, dtype=torch.float32, device=self.device
         ).repeat(self.num_envs, self.cfg.num_samples, 1)
 
-        ## Visualize target
         self._target_marker.visualize(
             self._tf_pos_target[:, 0, :], self._tf_quat_target[:, 0, :]
         )
@@ -147,320 +177,230 @@ class MultiTask(ManipulationEnv):
         self._tf_pos_objs_initial[env_ids] = self._objs.data.object_com_pos_w[env_ids]
 
     def extract_step_return(self) -> StepReturn:
-        return _compute_step_return(
-            ## Time
-            episode_length=self.episode_length_buf,
-            max_episode_length=self.max_episode_length,
-            truncate_episodes=self.cfg.truncate_episodes,
-            ## Actions
-            act_current=self.action_manager.action,
-            act_previous=self.action_manager.prev_action,
-            ## States
-            # Joints
-            joint_pos_robot=self._robot.data.joint_pos,
-            joint_pos_limits_robot=(
-                self._robot.data.soft_joint_pos_limits
-                if torch.all(torch.isfinite(self._robot.data.soft_joint_pos_limits))
-                else None
-            ),
-            joint_pos_end_effector=self._end_effector.data.joint_pos
-            if isinstance(self._end_effector, Articulation)
-            else None,
-            joint_pos_limits_end_effector=(
-                self._end_effector.data.soft_joint_pos_limits
-                if isinstance(self._end_effector, Articulation)
-                and torch.all(
-                    torch.isfinite(self._end_effector.data.soft_joint_pos_limits)
-                )
-                else None
-            ),
-            joint_acc_robot=self._robot.data.joint_acc,
-            joint_applied_torque_robot=self._robot.data.applied_torque,
-            # Kinematics
-            fk_pos_end_effector=self._tf_end_effector.data.target_pos_source[:, 0, :],
-            fk_quat_end_effector=self._tf_end_effector.data.target_quat_source[:, 0, :],
-            # Transforms (world frame)
-            tf_pos_end_effector=self._tf_end_effector.data.target_pos_w[:, 0, :],
-            tf_quat_end_effector=self._tf_end_effector.data.target_quat_w[:, 0, :],
-            tf_pos_objs_initial=self._tf_pos_objs_initial,
-            tf_pos_objs=self._objs.data.object_com_pos_w,
-            tf_quat_objs=self._objs.data.object_com_quat_w,
-            tf_pos_target=self._tf_pos_target,
-            tf_quat_target=self._tf_quat_target,
-            # Contacts
-            contact_forces_robot=self._contacts_robot.data.net_forces_w,  # type: ignore
-            contact_forces_end_effector=self._contacts_end_effector.data.net_forces_w
-            if isinstance(self._contacts_end_effector, ContactSensor)
-            else None,
-            contact_force_matrix_end_effector=self._contacts_end_effector.data.force_matrix_w
-            if isinstance(self._contacts_end_effector, ContactSensor)
-            else None,
-        )
+        num_envs = self.num_envs
+        device = self.device
+        dtype = torch.float32
 
+        rew = self.cfg.reward
 
-@torch.jit.script
-def _compute_step_return(
-    *,
-    ## Time
-    episode_length: torch.Tensor,
-    max_episode_length: int,
-    truncate_episodes: bool,
-    ## Actions
-    act_current: torch.Tensor,
-    act_previous: torch.Tensor,
-    ## States
-    # Joints
-    joint_pos_robot: torch.Tensor,
-    joint_pos_limits_robot: torch.Tensor | None,
-    joint_pos_end_effector: torch.Tensor | None,
-    joint_pos_limits_end_effector: torch.Tensor | None,
-    joint_acc_robot: torch.Tensor,
-    joint_applied_torque_robot: torch.Tensor,
-    # Kinematics
-    fk_pos_end_effector: torch.Tensor,
-    fk_quat_end_effector: torch.Tensor,
-    # Transforms (world frame)
-    tf_pos_end_effector: torch.Tensor,
-    tf_quat_end_effector: torch.Tensor,
-    tf_pos_objs_initial: torch.Tensor,
-    tf_pos_objs: torch.Tensor,
-    tf_quat_objs: torch.Tensor,
-    tf_pos_target: torch.Tensor,
-    tf_quat_target: torch.Tensor,
-    # Contacts
-    contact_forces_robot: torch.Tensor,
-    contact_forces_end_effector: torch.Tensor | None,
-    contact_force_matrix_end_effector: torch.Tensor | None,
-) -> StepReturn:
-    num_envs = episode_length.size(0)
-    num_objs = tf_pos_objs.size(1)
-    dtype = episode_length.dtype
-    device = episode_length.device
+        act_current = self.action_manager.action
+        act_previous = self.action_manager.prev_action
 
-    ############
-    ## States ##
-    ############
-    ## Joints
-    # Robot joints
-    joint_pos_robot_normalized = (
-        scale_transform(
-            joint_pos_robot,
-            joint_pos_limits_robot[:, :, 0],
-            joint_pos_limits_robot[:, :, 1],
-        )
-        if joint_pos_limits_robot is not None
-        else joint_pos_robot
-    )
-    # End-effector joints
-    joint_pos_end_effector_normalized = (
-        scale_transform(
-            joint_pos_end_effector,
-            joint_pos_limits_end_effector[:, :, 0],
-            joint_pos_limits_end_effector[:, :, 1],
-        )
-        if joint_pos_end_effector is not None
-        and joint_pos_limits_end_effector is not None
-        else (
-            joint_pos_end_effector
-            if joint_pos_end_effector is not None
-            else torch.empty((num_envs, 0), dtype=dtype, device=device)
-        )
-    )
-
-    ## Kinematics
-    fk_rotmat_end_effector = matrix_from_quat(fk_quat_end_effector)
-    fk_rot6d_end_effector = rotmat_to_rot6d(fk_rotmat_end_effector)
-
-    ## Transforms (world frame)
-    # End-effector -> Object
-    tf_pos_end_effector_to_objs, tf_quat_end_effector_to_objs = (
-        subtract_frame_transforms(
-            t01=tf_pos_end_effector.unsqueeze(1).repeat(1, num_objs, 1),
-            q01=tf_quat_end_effector.unsqueeze(1).repeat(1, num_objs, 1),
-            t02=tf_pos_objs,
-            q02=tf_quat_objs,
-        )
-    )
-    tf_rotmat_end_effector_to_objs = matrix_from_quat(tf_quat_end_effector_to_objs)
-    tf_rot6d_end_effector_to_objs = rotmat_to_rot6d(tf_rotmat_end_effector_to_objs)
-    # Object -> Target
-    tf_pos_objs_to_target, tf_quat_objs_to_target = subtract_frame_transforms(
-        t01=tf_pos_objs,
-        q01=tf_quat_objs,
-        t02=tf_pos_target,
-        q02=tf_quat_target,
-    )
-    tf_rotmat_objs_to_target = matrix_from_quat(tf_quat_objs_to_target)
-    tf_rot6d_objs_to_target = rotmat_to_rot6d(tf_rotmat_objs_to_target)
-
-    ## Contacts
-    contact_forces_mean_robot = contact_forces_robot.mean(dim=1)
-    contact_forces_mean_end_effector = (
-        contact_forces_end_effector.mean(dim=1)
-        if contact_forces_end_effector is not None
-        else torch.empty((num_envs, 0), dtype=dtype, device=device)
-    )
-    contact_forces_end_effector = (
-        contact_forces_end_effector
-        if contact_forces_end_effector is not None
-        else torch.empty((num_envs, 0), dtype=dtype, device=device)
-    )
-
-    #############
-    ## Rewards ##
-    #############
-    # Penalty: Action rate
-    WEIGHT_ACTION_RATE = -0.5
-    penalty_action_rate = WEIGHT_ACTION_RATE * torch.mean(
-        torch.square(act_current - act_previous), dim=1
-    )
-
-    # Penalty: Joint torque
-    WEIGHT_JOINT_TORQUE = -0.000025
-    MAX_JOINT_TORQUE_PENALTY = -4.0
-    penalty_joint_torque = torch.clamp_min(
-        WEIGHT_JOINT_TORQUE
-        * torch.sum(torch.square(joint_applied_torque_robot), dim=1),
-        min=MAX_JOINT_TORQUE_PENALTY,
-    )
-
-    # Penalty: Joint acceleration
-    WEIGHT_JOINT_ACCELERATION = -0.0005
-    MAX_JOINT_ACCELERATION_PENALTY = -4.0
-    penalty_joint_acceleration = torch.clamp_min(
-        WEIGHT_JOINT_ACCELERATION * torch.sum(torch.square(joint_acc_robot), dim=1),
-        min=MAX_JOINT_ACCELERATION_PENALTY,
-    )
-
-    # Penalty: Undesired robot contacts
-    WEIGHT_UNDESIRED_ROBOT_CONTACTS = -1.0
-    THRESHOLD_UNDESIRED_ROBOT_CONTACTS = 10.0
-    penalty_undesired_robot_contacts = WEIGHT_UNDESIRED_ROBOT_CONTACTS * (
-        torch.max(torch.norm(contact_forces_robot, dim=-1), dim=1)[0]
-        > THRESHOLD_UNDESIRED_ROBOT_CONTACTS
-    )
-
-    # Reward: End-effector top-down orientation
-    WEIGHT_TOP_DOWN_ORIENTATION = 1.0
-    TANH_STD_TOP_DOWN_ORIENTATION = 0.15
-    top_down_alignment = torch.sum(
-        fk_rotmat_end_effector[:, :, 2]
-        * torch.tensor((0.0, 0.0, -1.0), device=device)
-        .unsqueeze(0)
-        .expand(num_envs, 3),
-        dim=1,
-    )
-    reward_top_down_orientation = WEIGHT_TOP_DOWN_ORIENTATION * (
-        1.0 - torch.tanh((1.0 - top_down_alignment) / TANH_STD_TOP_DOWN_ORIENTATION)
-    )
-
-    # Reward: Distance | End-effector <--> Object
-    WEIGHT_DISTANCE_END_EFFECTOR_TO_OBJ = 2.5
-    TANH_STD_DISTANCE_END_EFFECTOR_TO_OBJ = 0.2
-    reward_distance_end_effector_to_objs = WEIGHT_DISTANCE_END_EFFECTOR_TO_OBJ * (
-        1.0
-        - torch.tanh(
-            torch.norm(tf_pos_end_effector_to_objs, dim=-1)
-            / TANH_STD_DISTANCE_END_EFFECTOR_TO_OBJ
-        )
-    ).sum(dim=1)
-
-    # Reward: Grasp object
-    WEIGHT_GRASP = 4.0
-    THRESHOLD_GRASP = 5.0
-    reward_grasp = (
-        WEIGHT_GRASP
-        * (
-            torch.mean(
-                torch.max(
-                    torch.norm(contact_force_matrix_end_effector, dim=-1), dim=-1
-                )[0],
-                dim=1,
+        joint_pos_robot = self._robot.data.joint_pos
+        joint_pos_limits_robot = self._robot.data.soft_joint_pos_limits
+        joint_acc_robot = self._robot.data.joint_acc
+        joint_applied_torque_robot = self._robot.data.applied_torque
+        joint_pos_robot_normalized = (
+            scale_transform(
+                joint_pos_robot,
+                joint_pos_limits_robot[:, :, 0],
+                joint_pos_limits_robot[:, :, 1],
             )
-            > THRESHOLD_GRASP
+            if torch.all(torch.isfinite(joint_pos_limits_robot))
+            else joint_pos_robot
         )
-        if contact_force_matrix_end_effector is not None
-        else torch.zeros(num_envs, dtype=dtype, device=device)
-    )
-
-    # Reward: Lift object
-    WEIGHT_LIFT = 8.0
-    HEIGHT_OFFSET_LIFT = 0.5
-    HEIGHT_SPAN_LIFT = 0.25
-    TANH_STD_HEIGHT_LIFT = 0.1
-    reward_lift = WEIGHT_LIFT * (
-        1.0
-        - torch.tanh(
-            (
-                torch.abs(
-                    tf_pos_objs[:, :, 2]
-                    - tf_pos_objs_initial[:, :, 2]
-                    - HEIGHT_OFFSET_LIFT
+        if isinstance(self._end_effector, Articulation):
+            joint_pos_ee = self._end_effector.data.joint_pos
+            ee_limits = self._end_effector.data.soft_joint_pos_limits
+            joint_pos_end_effector_normalized = (
+                scale_transform(
+                    joint_pos_ee,
+                    ee_limits[:, :, 0],
+                    ee_limits[:, :, 1],
                 )
-                - HEIGHT_SPAN_LIFT
-            ).clamp(min=0.0)
-            / TANH_STD_HEIGHT_LIFT
+                if torch.all(torch.isfinite(ee_limits))
+                else joint_pos_ee
+            )
+        else:
+            joint_pos_end_effector_normalized = torch.empty(
+                (num_envs, 0), dtype=dtype, device=device
+            )
+
+        num_objs = self._objs.data.object_com_pos_w.size(1)
+
+        fk_pos_end_effector = self._tf_end_effector.data.target_pos_source[:, 0, :]
+        fk_quat_end_effector = self._tf_end_effector.data.target_quat_source[:, 0, :]
+        fk_rotmat_end_effector = matrix_from_quat(fk_quat_end_effector)
+        fk_rot6d_end_effector = rotmat_to_rot6d(fk_rotmat_end_effector)
+
+        tf_pos_end_effector = self._tf_end_effector.data.target_pos_w[:, 0, :]
+        tf_quat_end_effector = self._tf_end_effector.data.target_quat_w[:, 0, :]
+        tf_pos_objs = self._objs.data.object_com_pos_w
+        tf_quat_objs = self._objs.data.object_com_quat_w
+
+        tf_pos_end_effector_to_objs, tf_quat_end_effector_to_objs = (
+            subtract_frame_transforms(
+                t01=tf_pos_end_effector.unsqueeze(1).repeat(1, num_objs, 1),
+                q01=tf_quat_end_effector.unsqueeze(1).repeat(1, num_objs, 1),
+                t02=tf_pos_objs,
+                q02=tf_quat_objs,
+            )
         )
-    ).sum(dim=1)
-
-    # Reward: Distance | Object <--> Target
-    WEIGHT_DISTANCE_OBJ_TO_TARGET = 32.0
-    TANH_STD_DISTANCE_OBJ_TO_TARGET = 0.2
-    reward_distance_objs_to_target = WEIGHT_DISTANCE_OBJ_TO_TARGET * (
-        1.0
-        - torch.tanh(
-            torch.norm(tf_pos_objs_to_target, dim=-1) / TANH_STD_DISTANCE_OBJ_TO_TARGET
+        tf_rotmat_end_effector_to_objs = matrix_from_quat(tf_quat_end_effector_to_objs)
+        tf_rot6d_end_effector_to_objs = rotmat_to_rot6d(tf_rotmat_end_effector_to_objs)
+        tf_pos_objs_to_target, tf_quat_objs_to_target = subtract_frame_transforms(
+            t01=tf_pos_objs,
+            q01=tf_quat_objs,
+            t02=self._tf_pos_target,
+            q02=self._tf_quat_target,
         )
-    ).sum(dim=1)
+        tf_rotmat_objs_to_target = matrix_from_quat(tf_quat_objs_to_target)
+        tf_rot6d_objs_to_target = rotmat_to_rot6d(tf_rotmat_objs_to_target)
 
-    ##################
-    ## Terminations ##
-    ##################
-    # No termination condition
-    termination = torch.zeros(num_envs, dtype=torch.bool, device=device)
-    # Truncation
-    truncation = (
-        episode_length >= max_episode_length
-        if truncate_episodes
-        else torch.zeros(num_envs, dtype=torch.bool, device=device)
-    )
+        contact_forces_robot = self._contacts_robot.data.net_forces_w  # type: ignore[union-attr]
+        contact_forces_mean_robot = contact_forces_robot.mean(dim=1)
 
-    return StepReturn(
-        {
-            "state": {
-                "contact_forces_mean_robot": contact_forces_mean_robot,
-                "contact_forces_mean_end_effector": contact_forces_mean_end_effector,
-                "tf_pos_end_effector_to_objs": tf_pos_end_effector_to_objs,
-                "tf_rot6d_end_effector_to_objs": tf_rot6d_end_effector_to_objs,
-                "tf_pos_objs_to_target": tf_pos_objs_to_target,
-                "tf_rot6d_objs_to_target": tf_rot6d_objs_to_target,
+        has_ee_contacts = isinstance(self._contacts_end_effector, ContactSensor)
+        if has_ee_contacts:
+            contact_forces_end_effector = self._contacts_end_effector.data.net_forces_w
+            contact_forces_mean_end_effector = contact_forces_end_effector.mean(dim=1)
+            contact_force_matrix_end_effector = (
+                self._contacts_end_effector.data.force_matrix_w
+            )
+        else:
+            contact_forces_end_effector = torch.empty(
+                (num_envs, 0), dtype=dtype, device=device
+            )
+            contact_forces_mean_end_effector = torch.empty(
+                (num_envs, 0), dtype=dtype, device=device
+            )
+            contact_force_matrix_end_effector = None
+
+        action_rate_metric = torch.mean(torch.square(act_current - act_previous), dim=1)
+        joint_torque_metric = torch.sum(torch.square(joint_applied_torque_robot), dim=1)
+        joint_acc_metric = torch.sum(torch.square(joint_acc_robot), dim=1)
+        undesired_contacts_metric = torch.max(
+            torch.norm(contact_forces_robot, dim=-1), dim=1
+        )[0]
+
+        # World down, like the single-object task; the FK frame follows the base.
+        top_down_alignment = torch.sum(
+            matrix_from_quat(tf_quat_end_effector)[:, :, 2]
+            * torch.tensor((0.0, 0.0, -1.0), device=device)
+            .unsqueeze(0)
+            .expand(num_envs, 3),
+            dim=1,
+        )
+
+        _dist_shaped = (
+            1.0
+            - torch.tanh(
+                torch.norm(tf_pos_end_effector_to_objs, dim=-1)
+                / rew.tanh_std_distance_ee_to_objs
+            )
+        ).sum(dim=1)
+
+        if contact_force_matrix_end_effector is not None:
+            grasp_metric = (
+                torch.mean(
+                    torch.max(
+                        torch.norm(contact_force_matrix_end_effector, dim=-1),
+                        dim=-1,
+                    )[0],
+                    dim=1,
+                )
+                > rew.threshold_grasp
+            ).float()
+        else:
+            grasp_metric = torch.zeros(num_envs, dtype=dtype, device=device)
+
+        _lift_shaped = (
+            1.0
+            - torch.tanh(
+                (
+                    torch.abs(
+                        tf_pos_objs[:, :, 2]
+                        - self._tf_pos_objs_initial[:, :, 2]
+                        - rew.height_offset_lift
+                    )
+                    - rew.height_span_lift
+                ).clamp(min=0.0)
+                / rew.tanh_std_lift
+            )
+        ).sum(dim=1)
+
+        _target_dist_shaped = (
+            1.0
+            - torch.tanh(
+                torch.norm(tf_pos_objs_to_target, dim=-1)
+                / rew.tanh_std_distance_objs_to_target
+            )
+        ).sum(dim=1)
+
+        reward: dict[str, torch.Tensor] = {
+            "penalty_action_rate": rew.penalty_action_rate(action_rate_metric),
+            "penalty_joint_torque": rew.penalty_joint_torque(joint_torque_metric),
+            "penalty_joint_acceleration": rew.penalty_joint_acceleration(
+                joint_acc_metric
+            ),
+            "penalty_undesired_robot_contacts": rew.penalty_undesired_robot_contacts(
+                undesired_contacts_metric
+            ),
+            "reward_top_down_orientation": rew.reward_top_down_orientation(
+                top_down_alignment
+            ),
+            "reward_distance_ee_to_objs": rew.reward_distance_ee_to_objs(_dist_shaped),
+            "reward_grasp": rew.reward_grasp(grasp_metric),
+            "reward_lift": rew.reward_lift(_lift_shaped),
+            "reward_distance_objs_to_target": rew.reward_distance_objs_to_target(
+                _target_dist_shaped
+            ),
+        }
+
+        # Keep disabled single-object terms in logs for compatibility.
+        _zero = torch.zeros(num_envs, dtype=dtype, device=device)
+        reward["reward_distance_ee_to_obj"] = rew.reward_distance_ee_to_obj(_zero)
+        reward["reward_distance_obj_to_target"] = rew.reward_distance_obj_to_target(
+            _zero
+        )
+        reward["penalty_obj_fallen"] = rew.penalty_obj_fallen(_zero)
+
+        termination = torch.zeros(num_envs, dtype=torch.bool, device=device)
+        truncation = (
+            self.episode_length_buf >= self.max_episode_length
+            if self.cfg.truncate_episodes
+            else torch.zeros(num_envs, dtype=torch.bool, device=device)
+        )
+
+        return StepReturn(
+            {
+                ObservationGroup.STATE: {
+                    "contact_forces_mean_robot": contact_forces_mean_robot,
+                    "contact_forces_mean_end_effector": contact_forces_mean_end_effector,
+                    "tf_pos_end_effector_to_objs": tf_pos_end_effector_to_objs.flatten(
+                        1
+                    ),
+                    "tf_rot6d_end_effector_to_objs": tf_rot6d_end_effector_to_objs.flatten(
+                        1
+                    ),
+                    "tf_pos_objs_to_target": tf_pos_objs_to_target.flatten(1),
+                    "tf_rot6d_objs_to_target": tf_rot6d_objs_to_target.flatten(1),
+                },
+                ObservationGroup.STATE_DYN: {
+                    "contact_forces_robot": contact_forces_robot.flatten(1),
+                    "contact_forces_end_effector": contact_forces_end_effector,
+                },
+                ObservationGroup.PROPRIO: {
+                    "fk_pos_end_effector": fk_pos_end_effector,
+                    "fk_rot6d_end_effector": fk_rot6d_end_effector,
+                },
+                ObservationGroup.PROPRIO_DYN: {
+                    "joint_pos_robot_normalized": joint_pos_robot_normalized,
+                    "joint_pos_end_effector_normalized": joint_pos_end_effector_normalized,
+                    "joint_acc_robot": joint_acc_robot,
+                    "joint_applied_torque_robot": joint_applied_torque_robot,
+                },
             },
-            "state_dyn": {
-                "contact_forces_robot": contact_forces_robot,
-                "contact_forces_end_effector": contact_forces_end_effector,
-            },
-            "proprio": {
-                "fk_pos_end_effector": fk_pos_end_effector,
-                "fk_rot6d_end_effector": fk_rot6d_end_effector,
-            },
-            "proprio_dyn": {
-                "joint_pos_robot_normalized": joint_pos_robot_normalized,
-                "joint_pos_end_effector_normalized": joint_pos_end_effector_normalized,
-                "joint_acc_robot": joint_acc_robot,
-                "joint_applied_torque_robot": joint_applied_torque_robot,
-            },
-        },
-        {
-            "penalty_action_rate": penalty_action_rate,
-            "penalty_joint_torque": penalty_joint_torque,
-            "penalty_joint_acceleration": penalty_joint_acceleration,
-            "penalty_undesired_robot_contacts": penalty_undesired_robot_contacts,
-            "reward_top_down_orientation": reward_top_down_orientation,
-            "reward_distance_end_effector_to_objs": reward_distance_end_effector_to_objs,
-            "reward_grasp": reward_grasp,
-            "reward_lift": reward_lift,
-            "reward_distance_objs_to_target": reward_distance_objs_to_target,
-        },
-        termination,
-        truncation,
-    )
+            reward,
+            termination,
+            truncation,
+        )
+
+
+class MultiTask(_TaskMixin, SrbEnv, ManipulationEnv):
+    cfg: MultiTaskCfg
+    _srb_direct_runtime = True
+
+    def __init__(self, cfg: MultiTaskCfg, **kwargs):
+        runtime_mode = kwargs.pop("runtime_mode", "isaac")
+        super().__init__(cfg, runtime_mode=runtime_mode, **kwargs)

@@ -1,0 +1,147 @@
+{
+  "elevation_bounds_m": [
+    -0.3,
+    0.5
+  ],
+  "grid_geometry": {
+    "axis0": "mission_x",
+    "axis1": "mission_y",
+    "cell_centre_rule": "lower_edge + (index + 0.5) * cell_size",
+    "cell_size_m": 0.05,
+    "extrapolation_allowed": false,
+    "global_block": [
+      5,
+      5
+    ],
+    "global_downsample": "area_mean",
+    "global_shape": [
+      16,
+      16
+    ],
+    "guard_cells": 33,
+    "interpolation": "bilinear",
+    "local_axis0": "rover_x_forward",
+    "local_axis1": "rover_y_left",
+    "local_shape": [
+      24,
+      16
+    ],
+    "local_x_centres_m": [
+      0.425,
+      1.575
+    ],
+    "local_y_centres_m": [
+      -0.375,
+      0.375
+    ],
+    "lower_edge_m": [
+      -3.65,
+      -3.65
+    ],
+    "roi_shape": [
+      80,
+      80
+    ],
+    "source_shape": [
+      146,
+      146
+    ],
+    "yaw_sign": "ccw"
+  },
+  "io_schema_fingerprint": "74bfe641e2c55b86f6bace161396b683b8a980673ef8b30fe25960a4da60ff16",
+  "manifest_id": "srb/terrain_landscaping_mound/target_manifest_v1",
+  "manifest_sha256": "a8ed000c5b5d6613a493716cec9925888cad104043983bf08b7390190cec5ce8",
+  "mission_frame": {
+    "calibration_version": "sim_env_origin_v1",
+    "elevation_datum_id": "containment_base_plane_z0",
+    "mission_frame_id": "srb/terrain_landscaping_crater/mission_v1",
+    "world_to_mission": "sim_subtract_env_origin"
+  },
+  "reset_layout": {
+    "crater_center_xy_m": [
+      0.0,
+      0.0
+    ],
+    "crater_depth_m": 0.0,
+    "crater_radius_m": 0.0,
+    "dim_x": 48,
+    "dim_y": 48,
+    "dim_z": 3,
+    "orientation_wxyz": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "particle_size_m": 0.05,
+    "particle_spacing_m": 0.0,
+    "pile_center_xy_m": [
+      -0.25,
+      -0.2
+    ],
+    "pile_height_m": 0.24,
+    "pile_radius_m": 0.32,
+    "ratio": 0.75,
+    "reset_layout_sha256": "0a670a9b4b0df78bd2d07bd29960dcc60c7d3b2ec2549775c8a35264a5eb1071",
+    "spawner": "mound_pile",
+    "translation_m": [
+      0.0,
+      0.0,
+      0.025
+    ],
+    "velocity_m_s": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "version": "mound_pile_v1"
+  },
+  "schema_version": 1,
+  "success": {
+    "fraction_within_tolerance": 0.9,
+    "success_tolerance_m": 0.02,
+    "sustained_frames": 20
+  },
+  "surface_rule": {
+    "base_plane_elevation_m": 0.0,
+    "empty_support_fill": "base_plane",
+    "excluded_bodies": [
+      "rover",
+      "shovel",
+      "containment_wall",
+      "transient_occluders"
+    ],
+    "particle_radius_m": 0.025,
+    "percentile": 0.9,
+    "percentile_convention": "nearest_rank_ascending_ceil_minus_one",
+    "radius_offset_m": 0.025,
+    "rule_id": "support_disc_p90_v1",
+    "support_radius_m": 0.060355339059327384,
+    "surface_layer": "terrain_work_surface"
+  },
+  "target": {
+    "encoding": "analytic_flat_particle_bed_v1",
+    "flat_bed": {
+      "dim_x": 48,
+      "dim_y": 48,
+      "dim_z": 3,
+      "orientation_wxyz": [
+        1.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "particle_size_m": 0.05,
+      "particle_spacing_m": 0.0,
+      "ratio": 0.75,
+      "translation_m": [
+        0.0,
+        0.0,
+        0.025
+      ]
+    },
+    "grading_cell_count": 2398,
+    "target_map_sha256": "f20f228f33be89b0e080fc5dfbdb06b50f6c5119338ff313a8fa4ce4f305bc8a"
+  },
+  "task_id": "terrain_landscaping_mound"
+}

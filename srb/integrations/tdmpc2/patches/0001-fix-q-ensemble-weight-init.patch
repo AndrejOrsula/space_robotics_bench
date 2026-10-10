@@ -1,0 +1,58 @@
+From 94c4d503fe7924b3f6860dd962bbc47d09382a68 Mon Sep 17 00:00:00 2001
+From: SRB Maintainers <srb-maintainers@localhost>
+Date: Sat, 19 Sep 2026 12:00:00 +0000
+Subject: [PATCH] SRB: qualify TD-MPC2 ensemble device conversion
+
+Carry the upstream Q-ensemble weight-initialization backport (e9f59321933cbc8e11a002b842adc7d4ffae8ff1) and correct the functional Ensemble lifecycle for Torch 2.11. The registered stateless meta-device template remains available for train/eval propagation and state-dict compatibility, while _apply converts only the owned parameter collection.
+
+Upstream-backport: e9f59321933cbc8e11a002b842adc7d4ffae8ff1
+Source-correction: Ensemble._apply must not copy the stateless meta template during WorldModel.to().
+
+diff --git a/tdmpc2/common/init.py b/tdmpc2/common/init.py
+index 45a3f5e..9653658 100644
+--- a/tdmpc2/common/init.py
++++ b/tdmpc2/common/init.py
+@@ -9,11 +9,6 @@ def weight_init(m):
+             nn.init.constant_(m.bias, 0)
+     elif isinstance(m, nn.Embedding):
+         nn.init.uniform_(m.weight, -0.02, 0.02)
+-	elif isinstance(m, nn.ParameterList):
+-		for i,p in enumerate(m):
+-			if p.dim() == 3: # Linear
+-				nn.init.trunc_normal_(p, std=0.02) # Weight
+-				nn.init.constant_(m[i+1], 0) # Bias
+
+
+ def zero_(params):
+diff --git a/tdmpc2/common/layers.py b/tdmpc2/common/layers.py
+index 97e977c..2fb1a52 100644
+--- a/tdmpc2/common/layers.py
++++ b/tdmpc2/common/layers.py
+@@ -22,6 +22,12 @@ class Ensemble(nn.Module):
+     def __len__(self):
+         return self._n
+
++	def _apply(self, fn, recurse=True):
++		"""Convert owned parameters without copying the meta-device template."""
++		if recurse:
++			self.params._apply(fn)
++		return torch.nn.Module._apply(self, fn, recurse=False)
++
+     def _call(self, params, *args, **kwargs):
+         with params.to_module(self.module):
+             return self.module(*args, **kwargs)
+diff --git a/tdmpc2/common/world_model.py b/tdmpc2/common/world_model.py
+index f748f0c..3e36c36 100644
+--- a/tdmpc2/common/world_model.py
++++ b/tdmpc2/common/world_model.py
+@@ -27,7 +27,7 @@ class WorldModel(nn.Module):
+         self._reward = layers.mlp(cfg.latent_dim + cfg.action_dim + cfg.task_dim, 2*[cfg.mlp_dim], max(cfg.num_bins, 1))
+         self._termination = layers.mlp(cfg.latent_dim + cfg.task_dim, 2*[cfg.mlp_dim], 1) if cfg.episodic else None
+         self._pi = layers.mlp(cfg.latent_dim + cfg.task_dim, 2*[cfg.mlp_dim], 2*cfg.action_dim)
+-		self._Qs = layers.Ensemble([layers.mlp(cfg.latent_dim + cfg.action_dim + cfg.task_dim, 2*[cfg.mlp_dim], max(cfg.num_bins, 1), dropout=cfg.dropout) for _ in range(cfg.num_q)])
++		self._Qs = layers.Ensemble([layers.mlp(cfg.latent_dim + cfg.action_dim + cfg.task_dim, 2*[cfg.mlp_dim], max(cfg.num_bins, 1), dropout=cfg.dropout).apply(init.weight_init) for _ in range(cfg.num_q)])
+         self.apply(init.weight_init)
+         init.zero_([self._reward[-1].weight, self._Qs.params["2", "weight"]])
+
+--
+2.34.1

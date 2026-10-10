@@ -1,0 +1,6 @@
+schema_version = 1
+base_sha = "8bbc14ebabdb32ea7ada5c801dc525d0dc73bafe"
+backport_sha = "e9f59321933cbc8e11a002b842adc7d4ffae8ff1"
+qualified_sha = "94c4d503fe7924b3f6860dd962bbc47d09382a68"
+rejected_dependency_pin_sha = "75212c3a090115df212402ac911df446ccc2047f"
+patch_path = "srb/integrations/tdmpc2/patches/0001-fix-q-ensemble-weight-init.patch"

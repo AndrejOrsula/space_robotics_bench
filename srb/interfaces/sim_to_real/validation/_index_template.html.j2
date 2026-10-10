@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SRB validation sessions</title>
+  <style>
+    body { font-family: -apple-system, sans-serif; padding: 1rem; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { padding: 0.4rem 0.6rem; border-bottom: 1px solid #ddd; text-align: left; }
+    th { background: #f0f0f0; }
+    .pass { color: green; }
+    .fail { color: red; }
+    .skipped { color: #888; }
+  </style>
+</head>
+<body>
+  <h1>SRB validation sessions</h1>
+  <p>Total: {{ rows | length }}</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Timestamp</th><th>Task</th><th>Algo</th><th>Pass</th>
+        {% for m in metric_keys %}<th>{{ m }}</th>{% endfor %}
+        <th>Session</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td>{{ r.timestamp }}</td>
+        <td>{{ r.task }}</td>
+        <td>{{ r.algo }}</td>
+        <td class="{% if r.exit_code == 0 %}pass{% else %}fail{% endif %}">
+          {% if r.exit_code == 0 %}pass{% else %}fail (exit {{ r.exit_code }}){% endif %}
+        </td>
+        {% for m in metric_keys %}
+        <td>{{ '%.3f' | format(r.metrics[m]) if m in r.metrics else '—' }}</td>
+        {% endfor %}
+        <td><a href="{{ r.session_dir }}/report.md">{{ r.session_dir.split('/')[-1] }}</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</body>
+</html>

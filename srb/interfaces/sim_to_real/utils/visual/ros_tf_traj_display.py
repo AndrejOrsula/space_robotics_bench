@@ -9,20 +9,16 @@ from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPo
 
 
 class TfToPathNode(Node):
-    """
-    A ROS 2 node that subscribes to the transform (TF) of a specific frame
-    and republishes its trajectory as a nav_msgs/msg/Path. This path can be
-    visualized in RViz to see the frame's movement history.
-    """
+    """Publish a frame's TF trajectory as ``nav_msgs/msg/Path`` for RViz."""
 
     def __init__(self):
         super().__init__("tf_to_path_node")
 
-        # --- Parameters ---
-        # Declare and get parameters to make the node more configurable.
+        # Parameters
         self.declare_parameter("source_frame", "world")
         self.declare_parameter("target_frame", "target")
         self.declare_parameter("publish_rate_hz", 10.0)
+        self.declare_parameter("max_path_length", 1000)
 
         self.source_frame = (
             self.get_parameter("source_frame").get_parameter_value().string_value
@@ -33,19 +29,23 @@ class TfToPathNode(Node):
         self.publish_rate = (
             self.get_parameter("publish_rate_hz").get_parameter_value().double_value
         )
+        if not self.publish_rate > 0.0 or self.publish_rate == float("inf"):
+            raise ValueError(
+                f"publish_rate_hz must be finite and positive, got {self.publish_rate}"
+            )
+        self.max_path_length = max(
+            1, self.get_parameter("max_path_length").get_parameter_value().integer_value
+        )
 
         self.get_logger().info(
             f"Configuration: Tracking '{self.target_frame}' relative to '{self.source_frame}'"
         )
 
-        # --- TF2 Listener ---
-        # The buffer stores received transforms and the listener subscribes to the /tf topic.
+        # Listen for transforms.
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
 
-        # --- Path Publisher ---
-        # We use a Latching QoS to ensure that new subscribers to the path topic
-        # receive the last published message, which contains the full trajectory.
+        # Transient-local QoS gives new subscribers the latest path.
         latching_qos = QoSProfile(
             reliability=ReliabilityPolicy.RELIABLE,
             history=HistoryPolicy.KEEP_LAST,
@@ -56,31 +56,24 @@ class TfToPathNode(Node):
             Path, "target_path", qos_profile=latching_qos
         )
 
-        # --- Path Message ---
-        # This will store the history of poses for the path.
+        # Store the trajectory history.
         self.path_msg = Path()
         self.path_msg.header.frame_id = self.source_frame
 
-        # --- Timer ---
-        # The timer triggers the main logic at the specified rate.
+        # Publish at the configured rate.
         self.timer = self.create_timer(1.0 / self.publish_rate, self.timer_callback)
 
         self.get_logger().info("TF to Path node has started.")
 
     def timer_callback(self):
-        """
-        Main logic of the node, executed at a fixed rate by the timer.
-        It looks up the transform, creates a PoseStamped message, appends it
-        to the path, and publishes the updated path.
-        """
+        """Look up the latest transform and append it to the published path."""
         try:
-            # Look up the latest transform between the source and target frames.
-            # rclpy.time.Time() means get the latest available transform.
+            # An empty time requests the latest available transform.
             t = self.tf_buffer.lookup_transform(
                 self.source_frame,
                 self.target_frame,
-                rclpy.time.Time(),  # type: ignore
-                timeout=Duration(seconds=0.1),  # type: ignore
+                rclpy.time.Time(),
+                Duration(seconds=0.1),
             )
         except Exception as e:
             self.get_logger().warn(
@@ -88,28 +81,30 @@ class TfToPathNode(Node):
             )
             return
 
-        # Create a new PoseStamped message from the transform.
         pose = PoseStamped()
         pose.header.stamp = self.get_clock().now().to_msg()
         pose.header.frame_id = self.source_frame
 
-        # The transform's translation becomes the pose's position.
         pose.pose.position.x = t.transform.translation.x
         pose.pose.position.y = t.transform.translation.y
         pose.pose.position.z = t.transform.translation.z
 
-        # Rotation is not preserved as requested, so we use an identity quaternion.
-        pose.pose.orientation.w = t.transform.rotation.w
         pose.pose.orientation.x = t.transform.rotation.x
         pose.pose.orientation.y = t.transform.rotation.y
         pose.pose.orientation.z = t.transform.rotation.z
+        pose.pose.orientation.w = t.transform.rotation.w
 
-        # Append the new pose to the path's list of poses.
-        self.path_msg.poses.append(pose)  # type: ignore
-
-        # Update the path's header timestamp and publish the message.
+        self._append_pose(pose)
+        # Stamp and publish the updated path.
         self.path_msg.header.stamp = self.get_clock().now().to_msg()
         self.path_publisher.publish(self.path_msg)
+
+    def _append_pose(self, pose: PoseStamped):
+        """Append a pose while retaining only the newest configured history."""
+        self.path_msg.poses.append(pose)  # type: ignore[attr-defined]
+        excess = len(self.path_msg.poses) - self.max_path_length
+        if excess > 0:
+            del self.path_msg.poses[:excess]
 
 
 def main(args=None):

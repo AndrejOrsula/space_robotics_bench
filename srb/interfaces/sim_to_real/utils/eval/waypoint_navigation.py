@@ -1,33 +1,23 @@
 #!/usr/bin/env python3
-"""
-A comprehensive, single-file tool for the collection, processing, and
-analysis of robot trajectory data for academic publications.
-
-This script provides a full workflow via four commands:
-  1. collect:  (Requires ROS 2) Records raw trajectory data from TF2 frames.
-  2. process:  Calculates performance metrics from raw data files.
-  3. report:   Generates all publication-quality png plots and LaTeX tables.
-  4. animate:  Creates a high-quality video of a single experimental run.
-"""
+"""Collect, process, report, and animate robot trajectory data."""
 
 import argparse
 import json
 import math
 import threading
+from collections.abc import Iterable
 from itertools import cycle
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
-import matplotlib.animation as animation
 import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
 import numpy as np
 import pandas as pd
 import rclpy
 import seaborn as sns
+from matplotlib import animation, ticker
 from rclpy.node import Node
 from rclpy.time import Duration, Time
-from tf2_ros import Buffer, TransformListener
+from tf2_ros import Buffer, TransformException, TransformListener
 
 plt.style.use("seaborn-v0_8-whitegrid")
 PLOT_STYLE = {
@@ -44,7 +34,7 @@ plt.rcParams.update(PLOT_STYLE)
 
 
 class TrajectoryCollectorNode(Node):
-    """ROS 2 Node for high-fidelity recording of trajectory and orientation data."""
+    """Record trajectory and orientation data from ROS 2 TF2 frames."""
 
     def __init__(self, args: argparse.Namespace):
         super().__init__("trajectory_collector")
@@ -55,8 +45,9 @@ class TrajectoryCollectorNode(Node):
         self.robot_frame = args.robot_frame
         self.target_frame = args.target_frame
         self.data_lock = threading.Lock()
-        self.data: List[Dict[str, float]] = []
-        self.start_time: Optional[Time] = None
+        self.data: list[dict[str, float]] = []
+        self.start_time: Time | None = None
+        self._last_robot_tf_time: float | None = None
 
         self.timer = self.create_timer(1.0 / args.rate, self.timer_callback)
         self.get_logger().info("Collector started.")
@@ -68,7 +59,7 @@ class TrajectoryCollectorNode(Node):
 
     @staticmethod
     def _quaternion_to_yaw(q) -> float:
-        """Converts a ROS Quaternion to a yaw angle in radians."""
+        """Convert a ROS quaternion to yaw in radians."""
         return math.atan2(
             2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z)
         )
@@ -80,13 +71,25 @@ class TrajectoryCollectorNode(Node):
                 self.fixed_frame,
                 self.robot_frame,
                 Time(),
-                timeout=Duration(seconds=0.05),
+                Duration(seconds=0.05),
             )
+            robot_tf_time = (
+                robot_tf.header.stamp.sec + robot_tf.header.stamp.nanosec / 1e9
+            )
+            # Smoothness metrics differentiate the robot pose, so only a new
+            # robot transform makes a new sample; the target may update slower.
+            if (
+                self._last_robot_tf_time is not None
+                and robot_tf_time <= self._last_robot_tf_time
+            ):
+                return
+            # Evaluate the target at the robot sample's stamp so the tracking
+            # error compares poses from one instant (tf2 interpolates).
             target_tf = self.tf_buffer.lookup_transform(
                 self.fixed_frame,
                 self.target_frame,
-                Time(),
-                timeout=Duration(seconds=0.05),
+                Time.from_msg(robot_tf.header.stamp),
+                Duration(seconds=0.05),
             )
 
             if self.start_time is None:
@@ -94,6 +97,10 @@ class TrajectoryCollectorNode(Node):
                 self.get_logger().info("First transform received. Recording started.")
 
             time_elapsed = (now - self.start_time).nanoseconds / 1e9
+            target_tf_time = (
+                target_tf.header.stamp.sec + target_tf.header.stamp.nanosec / 1e9
+            )
+
             robot_yaw = self._quaternion_to_yaw(robot_tf.transform.rotation)
             target_yaw = self._quaternion_to_yaw(target_tf.transform.rotation)
 
@@ -101,6 +108,8 @@ class TrajectoryCollectorNode(Node):
                 self.data.append(
                     {
                         "time": time_elapsed,
+                        "robot_tf_time": robot_tf_time,
+                        "target_tf_time": target_tf_time,
                         "robot_x": robot_tf.transform.translation.x,
                         "robot_y": robot_tf.transform.translation.y,
                         "robot_yaw": robot_yaw,
@@ -109,11 +118,12 @@ class TrajectoryCollectorNode(Node):
                         "target_yaw": target_yaw,
                     }
                 )
-        except Exception as e:
+                self._last_robot_tf_time = robot_tf_time
+        except TransformException as e:
             self.get_logger().warn(f"TF lookup failed: {e}", throttle_duration_sec=5.0)
 
     def save_data(self):
-        """Saves the collected data to a CSV file upon shutdown."""
+        """Save collected data to CSV on shutdown."""
         self.get_logger().info("Shutdown signal received. Saving data...")
         if not self.data:
             self.get_logger().warn("No data was collected. Exiting without saving.")
@@ -124,7 +134,7 @@ class TrajectoryCollectorNode(Node):
 
 
 def _process_file(input_path: Path):
-    """Calculates performance metrics for a single raw trajectory file."""
+    """Calculate metrics for one raw trajectory file."""
     print(f"Processing: {input_path.name}")
     try:
         df = pd.read_csv(input_path)
@@ -138,10 +148,45 @@ def _process_file(input_path: Path):
         )
         return
 
-    df = df.sort_values(by="time").reset_index(drop=True)
-    dt = df["time"].diff()
-    dt.iloc[0] = dt.median()
-    dt_filled = dt.replace(0, 1e-9)
+    timestamp_column = "robot_tf_time" if "robot_tf_time" in df.columns else "time"
+    df = (
+        df.sort_values(by=timestamp_column)
+        .drop_duplicates(subset=[timestamp_column], keep="last")
+        .reset_index(drop=True)
+    )
+    if len(df) < 5:
+        print("  -> Skipping, requires at least 5 unique timestamps.")
+        return
+    tf_dt = df[timestamp_column].diff()
+    # Use the typical (strictly-positive) sample interval for the first row and
+    # for any duplicate/zero-dt rows. Replacing dt==0 with 1e-9 (the old code)
+    # made distance/dt explode velocity/jerk by ~1e9 whenever the log had
+    # duplicate timestamps, corrupting the smoothness metrics.
+    positive_dt = tf_dt[tf_dt > 0]
+    typical_dt = float(positive_dt.median()) if len(positive_dt) else 1e-9
+    if timestamp_column == "robot_tf_time":
+        # TF updates are often slower than this collector's timer. Interpolate
+        # onto a uniform grid before differentiating to remove sampling phase
+        # artifacts and make finite differences use the TF clock.
+        source_times = df[timestamp_column].to_numpy(dtype=float)
+        # Linear interpolation across the +-pi seam would invent a full-turn
+        # sweep; unwrap first (the orientation error is re-wrapped below).
+        for yaw_column in ("robot_yaw", "target_yaw"):
+            df[yaw_column] = np.unwrap(df[yaw_column].to_numpy(dtype=float))
+        uniform_times = np.arange(
+            source_times[0], source_times[-1] + typical_dt * 0.5, typical_dt
+        )
+        if len(uniform_times) >= 5:
+            resampled = {
+                column: np.interp(
+                    uniform_times, source_times, df[column].to_numpy(dtype=float)
+                )
+                for column in df.select_dtypes(include=[np.number]).columns
+            }
+            df = pd.DataFrame(resampled)
+            df[timestamp_column] = uniform_times
+    dt = df[timestamp_column].diff()
+    dt.iloc[0] = typical_dt
 
     df["euclidean_error"] = np.sqrt(
         (df["target_x"] - df["robot_x"]) ** 2 + (df["target_y"] - df["robot_y"]) ** 2
@@ -152,11 +197,11 @@ def _process_file(input_path: Path):
         np.sin(orientation_error_raw), np.cos(orientation_error_raw)
     )
 
-    df["robot_velocity"] = (
-        np.sqrt(df["robot_x"].diff() ** 2 + df["robot_y"].diff() ** 2) / dt_filled
-    ).fillna(0)
-    df["robot_accel"] = (df["robot_velocity"].diff() / dt_filled).fillna(0)
-    df["robot_jerk"] = (df["robot_accel"].diff() / dt_filled).fillna(0)
+    velocity = np.sqrt(df["robot_x"].diff() ** 2 + df["robot_y"].diff() ** 2) / dt
+    acceleration = velocity.diff() / dt
+    df["robot_velocity"] = velocity
+    df["robot_accel"] = acceleration
+    df["robot_jerk"] = acceleration.diff() / dt
 
     summary = {
         "ate_m": df["euclidean_error"].mean(),
@@ -174,13 +219,13 @@ def _process_file(input_path: Path):
 
 
 def _load_and_group_experiments(
-    exp_definitions: List[Tuple[str, str]],
-) -> Dict[str, Dict[str, List[Path]]]:
-    """Groups experiment files by trajectory and method for comparative analysis."""
+    exp_definitions: list[tuple[str, str]],
+) -> dict[str, dict[str, list[Path]]]:
+    """Group experiment files by trajectory and method."""
     grouped_results = {}
     print("--- Loading and Grouping Experiment Files ---")
     for method_name, glob_pattern in exp_definitions:
-        paths = sorted(list(Path(".").glob(glob_pattern)))
+        paths = sorted(Path(".").glob(glob_pattern))
         if not paths:
             print(
                 f"Warning: No files found for method '{method_name}' with pattern '{glob_pattern}'"
@@ -197,14 +242,9 @@ def _load_and_group_experiments(
     return grouped_results
 
 
-def _plot_trajectories_with_confidence(grouped_results: Dict, output_dir: Path):
-    """
-    Generates trajectory plots centered at the origin with a shaded confidence interval
-    and saves as png.
-    """
-    print(
-        "\n--- Generating Centered Trajectory Plots with Confidence Intervals (png) ---"
-    )
+def _plot_trajectories(grouped_results: dict, output_dir: Path):
+    """Plot trajectories centered at the origin."""
+    print("\n--- Generating Centered Trajectory Plots (png) ---")
 
     color_palette = sns.color_palette("colorblind")
     method_color_map = {
@@ -220,7 +260,7 @@ def _plot_trajectories_with_confidence(grouped_results: Dict, output_dir: Path):
         fig, ax = plt.subplots(figsize=(8, 8))
 
         target_df_for_centering = None
-        for method_name, paths in methods.items():
+        for paths in methods.values():
             for p in paths:
                 proc_path = p.with_name(f"{p.stem}_processed.csv")
                 if proc_path.exists():
@@ -333,9 +373,9 @@ def _plot_trajectories_with_confidence(grouped_results: Dict, output_dir: Path):
 
 
 def _generate_summary_plots_and_table(
-    exp_definitions: List[Tuple[str, str]], output_dir: Path, caption: str, label: str
+    exp_definitions: list[tuple[str, str]], output_dir: Path, caption: str, label: str
 ):
-    """Generates bar charts (as png) and a LaTeX table from all experiment summary files."""
+    """Generate summary charts and a LaTeX table from experiment results."""
     summary_rows = []
     for method_name, glob_pattern in exp_definitions:
         for path in Path(".").glob(glob_pattern):
@@ -346,8 +386,8 @@ def _generate_summary_plots_and_table(
                     summary_rows.append(
                         {
                             "Method": method_name,
-                            "ATE (m)": data["ate_m"] * 100.0,
-                            "Orientation Error (rad)": data.get("ate_rad", 0.0)
+                            "ATE (cm)": data["ate_m"] * 100.0,
+                            "Orientation Error (deg)": data.get("ate_rad", 0.0)
                             * 180
                             / np.pi,
                             "Jerk (m/s³)": data["jerk_avg_m_s3"],
@@ -360,7 +400,7 @@ def _generate_summary_plots_and_table(
     df_summary = pd.DataFrame(summary_rows)
 
     print("\n--- Generating Performance Bar Charts (png) ---")
-    for metric in ["ATE (m)", "Orientation Error (rad)", "Jerk (m/s³)"]:
+    for metric in ["ATE (cm)", "Orientation Error (deg)", "Jerk (m/s³)"]:
         if metric not in df_summary.columns or df_summary[metric].sum() == 0:
             continue
         fig, ax = plt.subplots(figsize=(8, 5))
@@ -378,33 +418,35 @@ def _generate_summary_plots_and_table(
     print("\n--- Generating LaTeX Table ---")
     df_agg = df_summary.groupby("Method").agg([np.mean, np.std])
 
-    ate_means = df_agg[("ATE (m)", "mean")]
+    ate_means = df_agg[("ATE (cm)", "mean")]
     jerk_means = df_agg[("Jerk (m/s³)", "mean")]
     min_ate_method = ate_means.idxmin()
     min_jerk_method = jerk_means.idxmin()
 
-    if "Orientation Error (rad)" in df_summary.columns:
-        orient_means = df_agg[("Orientation Error (rad)", "mean")]
+    if "Orientation Error (deg)" in df_summary.columns:
+        orient_means = df_agg[("Orientation Error (deg)", "mean")]
         min_orient_method = orient_means.idxmin()
     else:
         min_orient_method = None
 
     formatted_rows = {}
     for method, row in df_agg.iterrows():
-        ate_str = f"{row[('ATE (m)', 'mean')]:.3f} $\\pm$ {row[('ATE (m)', 'std')]:.3f}"
+        ate_str = (
+            f"{row[('ATE (cm)', 'mean')]:.3f} $\\pm$ {row[('ATE (cm)', 'std')]:.3f}"
+        )
         jerk_str = f"{row[('Jerk (m/s³)', 'mean')]:.3f} $\\pm$ {row[('Jerk (m/s³)', 'std')]:.3f}"
         if method == min_ate_method:
             ate_str = f"\\textbf{{{ate_str}}}"
         if method == min_jerk_method:
             jerk_str = f"\\textbf{{{jerk_str}}}"
 
-        formatted_rows[method] = {"ATE (m)": ate_str, "Jerk (m/s³)": jerk_str}
+        formatted_rows[method] = {"ATE (cm)": ate_str, "Jerk (m/s³)": jerk_str}
 
         if min_orient_method:
-            orient_str = f"{row[('Orientation Error (rad)', 'mean')]:.3f} $\\pm$ {row[('Orientation Error (rad)', 'std')]:.3f}"
+            orient_str = f"{row[('Orientation Error (deg)', 'mean')]:.3f} $\\pm$ {row[('Orientation Error (deg)', 'std')]:.3f}"
             if method == min_orient_method:
                 orient_str = f"\\textbf{{{orient_str}}}"
-            formatted_rows[method]["Orientation Error (rad)"] = orient_str
+            formatted_rows[method]["Orientation Error (deg)"] = orient_str
 
     df_final = pd.DataFrame.from_dict(formatted_rows, orient="index")
     column_format = "lrrr" if min_orient_method else "lrr"
@@ -425,20 +467,50 @@ def _generate_summary_plots_and_table(
     print(latex_str)
 
 
+def _normalize_processed_paths(
+    processed_file: str | Path | Iterable[str | Path],
+) -> list[Path]:
+    """Convert one or more animation inputs to paths."""
+    paths = (
+        [processed_file] if isinstance(processed_file, (str, Path)) else processed_file
+    )
+    return [Path(path) for path in paths]
+
+
 def run_animation(args: argparse.Namespace):
-    """Generates a high-quality MP4 animation of a single run."""
-    if isinstance(args.processed_file, (str, Path)):
-        proc_paths = [args.processed_file]
-    else:
-        proc_paths = args.processed_file
+    """Generate an MP4 animation for each processed run."""
+    proc_paths = _normalize_processed_paths(args.processed_file)
+    missing_inputs: list[Path] = []
 
     for proc_path in proc_paths:
         if not proc_path.exists():
             print(f"Error: Processed file not found: {proc_path}")
-            return
+            missing_inputs.append(proc_path)
+            continue
 
         print(f"--- Generating Animation for {proc_path.name} ---")
         df = pd.read_csv(proc_path)
+        required_columns = (
+            "target_x",
+            "target_y",
+            "target_yaw",
+            "robot_x",
+            "robot_y",
+            "robot_yaw",
+            "orientation_error_rad",
+            "euclidean_error",
+        )
+        missing = [column for column in required_columns if column not in df]
+        if df.empty or missing:
+            print(
+                "  -> Skipping, processed input is empty or missing required "
+                f"columns: {missing}."
+            )
+            continue
+        numeric = df.loc[:, required_columns].to_numpy(dtype=np.float64)
+        if not np.all(np.isfinite(numeric)):
+            print("  -> Skipping, processed input contains non-finite values.")
+            continue
 
         min_x = df["target_x"].min()
         max_x = df["target_x"].max()
@@ -491,12 +563,20 @@ def run_animation(args: argparse.Namespace):
             transform=ax.transAxes,
             fontsize=12,
             va="top",
-            bbox=dict(facecolor="white", alpha=0.8),
+            bbox={"facecolor": "white", "alpha": 0.8},
         )
 
         ax.legend(loc="upper right", ncol=2)
 
-        def update(frame: int) -> Tuple:
+        def update(
+            frame: int,
+            *,
+            df=df,
+            robot_path=robot_path,
+            robot_quiver=robot_quiver,
+            target_quiver=target_quiver,
+            time_text=time_text,
+        ) -> tuple:
             robot_path.set_data(df["robot_x"][: frame + 1], df["robot_y"][: frame + 1])
             robot_x, robot_y, robot_yaw = (
                 df["robot_x"][frame],
@@ -522,8 +602,11 @@ def run_animation(args: argparse.Namespace):
             return robot_path, target_quiver, robot_quiver, time_text
 
         frame_step = max(1, len(df) // 450)
+        frames = list(range(0, len(df), frame_step))
+        if frames[-1] != len(df) - 1:
+            frames.append(len(df) - 1)
         ani = animation.FuncAnimation(
-            fig, update, frames=range(0, len(df), frame_step), blit=True, interval=33
+            fig, update, frames=frames, blit=True, interval=33
         )
 
         anim_path = (
@@ -531,20 +614,19 @@ def run_animation(args: argparse.Namespace):
             / f"{proc_path.stem.replace('_processed', '')}_animation.mp4"
         )
         try:
-            writer = animation.FFMpegWriter(
-                fps=30, metadata=dict(artist="LCS-SnT"), bitrate=3000
-            )
+            writer = animation.FFMpegWriter(fps=30, bitrate=3000)
             ani.save(str(anim_path), writer=writer, dpi=200)
             print(f"Saved animation: {anim_path}")
         except FileNotFoundError:
-            print(
-                "\nERROR: FFmpeg NOT FOUND. Animation not saved. Please install ffmpeg.\n"
-            )
+            print("\nAnimation not saved: FFmpeg is unavailable; install FFmpeg.\n")
         plt.close(fig)
+
+    if missing_inputs:
+        print(f"Animation inputs missing: {missing_inputs}")
 
 
 def run_collection(args: argparse.Namespace):
-    """Entry point for the 'collect' command."""
+    """Run the trajectory collector node."""
     args.output.parent.mkdir(parents=True, exist_ok=True)
     rclpy.init()
     node = TrajectoryCollectorNode(args)
@@ -553,13 +635,17 @@ def run_collection(args: argparse.Namespace):
     except KeyboardInterrupt:
         pass
     finally:
-        node.save_data()
-        node.destroy_node()
-        rclpy.shutdown()
+        try:
+            node.save_data()
+        finally:
+            try:
+                node.destroy_node()
+            finally:
+                rclpy.shutdown()
 
 
 def run_processing(args: argparse.Namespace):
-    """Entry point for the 'process' command."""
+    """Process raw trajectory files."""
     print("--- Starting Batch Data Processing ---")
     for file_path in args.input_files:
         if file_path.is_file() and "_processed" not in file_path.name:
@@ -569,20 +655,27 @@ def run_processing(args: argparse.Namespace):
 
 
 def run_report(args: argparse.Namespace):
-    """Entry point for the 'report' command."""
+    """Generate comparison plots and a summary table."""
     args.output_dir.mkdir(parents=True, exist_ok=True)
     grouped_results = _load_and_group_experiments(args.exp)
     if not grouped_results:
         print("No data found. Exiting report generation.")
         return
-    _plot_trajectories_with_confidence(grouped_results, args.output_dir)
+    _plot_trajectories(grouped_results, args.output_dir)
     _generate_summary_plots_and_table(
         args.exp, args.output_dir, args.caption, args.label
     )
 
 
+def _positive_float(value: str) -> float:
+    rate = float(value)
+    if not math.isfinite(rate) or rate <= 0.0:
+        raise argparse.ArgumentTypeError(f"must be finite and positive, got {value}")
+    return rate
+
+
 def main():
-    """Main function to parse arguments and execute the selected command."""
+    """Parse arguments and run the selected command."""
     parser = argparse.ArgumentParser(
         description="A comprehensive tool for rover trajectory evaluation.",
         formatter_class=argparse.RawTextHelpFormatter,
@@ -622,7 +715,10 @@ def main():
         help="The fixed TF frame (e.g., odom, map).",
     )
     p_collect.add_argument(
-        "--rate", type=float, default=50.0, help="Data collection frequency (Hz)."
+        "--rate",
+        type=_positive_float,
+        default=50.0,
+        help="Data collection frequency (Hz).",
     )
     p_collect.set_defaults(func=run_collection)
 
@@ -642,7 +738,7 @@ def main():
     p_report = subparsers.add_parser(
         "report",
         help="Generate all plots (png) and tables for a publication.",
-        description="Compares multiple methods by analyzing processed data. Generates trajectory plots with confidence intervals, performance bar charts with error bars, and a publication-ready LaTeX table.",
+        description="Compares methods by analyzing processed data. Generates trajectory plots, performance bar charts with error bars, and a publication-ready LaTeX table.",
     )
     p_report.add_argument(
         "--exp",

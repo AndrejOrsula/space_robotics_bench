@@ -8,11 +8,18 @@ all-features = true
 # Considered when running `cargo deny check advisories`
 # https://embarkstudios.github.io/cargo-deny/checks/advisories/cfg.html
 [advisories]
-ignore = [{ id = "RUSTSEC-2024-0320" }, { id = "RUSTSEC-2024-0436" }]
+ignore = [
+  # Unmaintained crates without a maintained drop-in replacement upstream.
+  { id = "RUSTSEC-2024-0320", reason = "yaml-rust, via syntect (egui_commonmark)" },
+  { id = "RUSTSEC-2024-0436", reason = "paste, via r2r" },
+  { id = "RUSTSEC-2025-0141", reason = "bincode, via syntect (egui_commonmark)" },
+  { id = "RUSTSEC-2026-0192", reason = "ttf-parser, via egui/epaint font loading" },
+]
 
 # Considered when running `cargo deny check bans`
 # https://embarkstudios.github.io/cargo-deny/checks/bans/cfg.html
 [bans]
+# Advisory only: duplicate versions are reported as warnings and nothing is denied.
 multiple-versions = "warn"
 wildcards = "allow"
 deny = []
@@ -32,7 +39,6 @@ allow = [
     "CDLA-Permissive-2.0",            # https://spdx.org/licenses/CDLA-Permissive-2.0.html
     "ISC",                            # https://spdx.org/licenses/ISC.html
     "MIT",                            # https://spdx.org/licenses/MIT.html
-    "MPL-2.0",                        # https://spdx.org/licenses/MPL-2.0.html
     "Unicode-3.0",                    # https://spdx.org/licenses/Unicode-3.0.html
     "Zlib",                           # https://spdx.org/licenses/Zlib.html
 ]

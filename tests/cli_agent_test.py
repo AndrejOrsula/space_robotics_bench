@@ -9,16 +9,16 @@ import pytest
 
 from srb.utils import logging
 from srb.utils.cache import read_offline_srb_env_cache
-from srb.utils.isaacsim import get_isaacsim_python
+from srb.utils.failures import IntegrityFailureError
+from srb.utils.isaacsim import get_isaacsim_python, get_kit_python
 from srb.utils.subprocess import terminate_process
 
 NUM_ENVS: int = 4
 MAX_DURATION_RAND: float = 40.0
 MAX_DURATION_TRAIN: float = 80.0
 
-HEADLESS: bool = True
+HEADLESS: bool = False
 STACK: bool = True
-TEST_VISUAL_ENVS: bool = False
 TEST_TEMPLATE_ENVS: bool = False
 TEST_EXCAVATION: bool = True
 
@@ -31,37 +31,77 @@ PERF_OUTPUT_DIR: str = os.path.join(
 TEST_START_TIME: float = time.time()
 
 
-def _list_envs() -> Iterable[str]:
-    if envs := read_offline_srb_env_cache():
-        if not TEST_VISUAL_ENVS:
-            envs = filter(lambda env: not _is_visual_env(env), envs)
-        if not TEST_TEMPLATE_ENVS:
-            envs = filter(lambda env: not env.startswith("_"), envs)
-        if not TEST_EXCAVATION:
-            envs = filter(lambda env: "excavation" not in env, envs)
-        envs = sorted(envs)
-    else:
-        test_filepath = Path(__file__)
-        logging.warning(
-            f"Skipping {test_filepath.parent.name}/{test_filepath.name} because no environments were found in the cache (repeat the test)"
+#: Isaac Sim release series this matrix is valid on.
+SUPPORTED_ISAAC_SIM_SERIES: str = "6.1"
+
+
+def _require_supported_isaac_sim() -> None:
+    """Skip when the local Isaac Sim release is unsupported.
+
+    This matrix can launch Kit for minutes, so a mismatched version gives no
+    useful evidence. Read the release from the adjacent `VERSION` file; keep
+    prior behavior when that file is absent.
+    """
+    version_file = Path(get_isaacsim_python()).parent / "VERSION"
+    try:
+        version = version_file.read_text(encoding="utf-8").strip()
+    except OSError:
+        return
+    series = ".".join(version.split("+", 1)[0].split("-", 1)[0].split(".")[:2])
+    if series != SUPPORTED_ISAAC_SIM_SERIES:
+        pytest.skip(
+            f"{Path(__file__).name}: Isaac Sim {version} at {version_file.parent} "
+            f"is not the supported {SUPPORTED_ISAAC_SIM_SERIES} series; "
+            "run this matrix in the container (`srb test` there)",
+            allow_module_level=True,
         )
-        envs = []
-
-    return envs
 
 
-def _is_visual_env(env: str) -> bool:
-    return env.endswith("_visual")
+_require_supported_isaac_sim()
+
+
+def _is_cache_permission_issue(exc: BaseException) -> bool:
+    if not isinstance(exc, IntegrityFailureError):
+        return False
+    cause = str(exc.info.details.get("cause", "")).lower()
+    return "permission denied" in cause
+
+
+def _list_envs() -> Iterable[str]:
+    """Return cached environments, or skip with the reason the cache is unusable."""
+    test_filepath = Path(__file__)
+    label = f"{test_filepath.parent.name}/{test_filepath.name}"
+    try:
+        envs = read_offline_srb_env_cache()
+    except IntegrityFailureError as exc:
+        if _is_cache_permission_issue(exc):
+            pytest.skip(
+                f"{label}: offline cache is not readable in this environment ({exc})",
+                allow_module_level=True,
+            )
+        raise
+
+    if not envs:
+        pytest.skip(
+            f"{label}: no environments in the offline cache; run `srb cache update`",
+            allow_module_level=True,
+        )
+
+    if not TEST_TEMPLATE_ENVS:
+        envs = filter(lambda env: not env.startswith("_"), envs)
+    if not TEST_EXCAVATION:
+        envs = filter(lambda env: "excavation" not in env, envs)
+    return sorted(envs)
 
 
 @pytest.mark.parametrize(
     "env,num_envs",
-    ((env, num_envs) for env in _list_envs() for num_envs in (NUM_ENVS,)),
+    tuple((env, num_envs) for env in _list_envs() for num_envs in (NUM_ENVS,)),
 )
 def test_cli_agent_rand(env: str, num_envs: int):
     with tempfile.TemporaryDirectory(prefix="srb_") as tmpdir:
         cmd = (
-            get_isaacsim_python(),
+            get_kit_python(),
             "-m",
             "srb",
             "agent",
@@ -99,41 +139,53 @@ def test_cli_agent_rand(env: str, num_envs: int):
         environ["SF_BAKER"] = "0"
 
         process = None
+        stdout_file = None
+        stderr_file = None
         try:
+            stdout_file = open(os.path.join(tmpdir, "stdout.log"), "w+")
+            stderr_file = open(os.path.join(tmpdir, "stderr.log"), "w+")
             process = subprocess.Popen(
                 cmd,
                 env=environ,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                preexec_fn=os.setsid,
+                stdout=stdout_file,
+                stderr=stderr_file,
+                start_new_session=True,
             )
 
             if PERF:
-                process.wait()
+                assert process.wait() == 0
             else:
                 start = time.time()
                 while time.time() - start < MAX_DURATION_RAND:
                     if process.poll() is not None:
                         logging.critical(f"[{env}] Failed command: {' '.join(cmd)}")
-                        stdout, stderr = process.communicate()
+                        stdout_file.seek(0)
+                        stderr_file.seek(0)
+                        stdout, stderr = stdout_file.read(), stderr_file.read()
                         pytest.fail(
                             f'Process failed for env "{env}"\n[env={env}] STDOUT:\n{stdout}\n[env={env}] STDERR:\n{stderr}'
                         )
                     time.sleep(0.01 * MAX_DURATION_RAND)
-        except Exception as e:
+                assert process.poll() is None
+        except (OSError, ValueError) as e:
             logging.critical(f"[{env}] Failed command: {' '.join(cmd)}")
             pytest.fail(
                 f'Failed to start process for env "{env}"\n[env={env}] Exception: {e}'
             )
         finally:
             terminate_process("srb", process)
+            if stdout_file is not None:
+                stdout_file.close()
+            if stderr_file is not None:
+                stderr_file.close()
 
 
-@pytest.mark.skip
+# Dreamer training can take up to MAX_DURATION_TRAIN seconds per environment;
+# opt in with `-m long_training`.
+@pytest.mark.long_training
 @pytest.mark.parametrize(
     "env,num_envs,algo",
-    (
+    tuple(
         (env, num_envs, algo)
         for env in _list_envs()
         for num_envs in (NUM_ENVS,)
@@ -147,7 +199,7 @@ def test_cli_agent_train(env: str, num_envs: int, algo: str):
                 agent_params = ()
 
         cmd = (
-            get_isaacsim_python(),
+            get_kit_python(),
             "-m",
             "srb",
             "agent",
@@ -167,32 +219,39 @@ def test_cli_agent_train(env: str, num_envs: int, algo: str):
         environ["SF_BAKER"] = "0"
 
         process = None
+        stdout_file = None
+        stderr_file = None
         try:
+            stdout_file = open(os.path.join(tmpdir, "stdout.log"), "w+")
+            stderr_file = open(os.path.join(tmpdir, "stderr.log"), "w+")
             process = subprocess.Popen(
                 cmd,
                 env=environ,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                preexec_fn=os.setsid,
+                stdout=stdout_file,
+                stderr=stderr_file,
+                start_new_session=True,
             )
 
             start = time.time()
             while time.time() - start < MAX_DURATION_TRAIN:
                 if process.poll() is not None:
                     logging.critical(f"[{env}] Failed command: {' '.join(cmd)}")
-                    stdout, stderr = process.communicate()
+                    stdout_file.seek(0)
+                    stderr_file.seek(0)
+                    stdout, stderr = stdout_file.read(), stderr_file.read()
                     pytest.fail(
                         f'Process failed for env "{env}"\n[env={env}] STDOUT:\n{stdout}\n[env={env}] STDERR:\n{stderr}'
                     )
                 time.sleep(0.01 * MAX_DURATION_TRAIN)
-        except Exception as e:
+            assert process.poll() is None
+        except (OSError, ValueError) as e:
             logging.critical(f"[{env}] Failed command: {' '.join(cmd)}")
             pytest.fail(
                 f'Failed to start process for env "{env}"\n[env={env}] Exception: {e}'
             )
         finally:
             terminate_process("srb", process)
-
-
-# TODO[mid]: Add test for combination of all robots and end-effectors
+            if stdout_file is not None:
+                stdout_file.close()
+            if stderr_file is not None:
+                stderr_file.close()

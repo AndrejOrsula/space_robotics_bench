@@ -1,32 +1,53 @@
 # Agent Configuration
 
-The Space Robotics Bench leverages [Hydra](https://hydra.cc) for managing agent configurations across different robot learning frameworks. This document provides an overview of the configuration structure and common parameters for training agents in SRB.
+Configure agents with [Hydra](https://hydra.cc).
+
+```bash
+srb agent train --algo sb3_ppo --env peg_in_hole \
+    agent.learning_rate=0.0003 \
+    agent.batch_size=128
+```
 
 ## Default Hyperparameters
 
-The default hyperparameters for all algorithms and environments are available under the [space_robotics_bench/hyperparams](https://github.com/AndrejOrsula/space_robotics_bench/tree/main/hyperparams) directory. If you do not wish to use Hydra, you can directly modify these files before training your agent.
-
-> **Note:** The available hyperparameters and their structure are specific to each framework and algorithm.
+Use [`hyperparams/`](https://github.com/AndrejOrsula/space_robotics_bench/tree/main/hyperparams) for defaults. Add optional task overrides in `hyperparams/task/`.
 
 ## Modifying Configurations
 
-You can modify agent configurations in several ways:
+Edit framework defaults or pass Hydra overrides.
 
-### 1. Command-Line Overrides
+### Configuration Files
 
-```bash
-srb agent <WORKFLOW> --algo <ALGO> --env <ENV> \
-    agent.learning_rate=0.0001 \
-    agent.batch_size=64 \
-    ...
+Defaults are grouped by framework (YAML except Robomimic's JSON):
+
+```
+hyperparams/
+├── sb3/           # Stable Baselines 3 (ppo, sac, td3, ...)
+├── sbx/           # SB3 eXtensions
+├── skrl/          # SKRL (ppo, a2c, ppo_rnn, ...)
+├── rsl_rl/        # RSL RL
+├── robomimic/     # Robomimic
+├── dreamerv3.yaml # DreamerV3 (single-algorithm framework)
+└── tdmpc2.yaml    # TD-MPC2 (single-algorithm framework)
 ```
 
-### 2. Configuration Files
+Use framework-prefixed algorithm names (`sb3_ppo`, `sbx_sac`, `skrl_ppo`, `rsl_rl_ppo`, `dreamer`, `tdmpc2`) and pass Hydra overrides on the command line.
 
-<!-- TODO[docs]: Add instructions for agent configuration files -->
+> **Note:** For algorithms with a registered agent dictionary, `--cfg` replaces the whole `agent` mapping. Include every required setting; omitted registered values are dropped.
 
-<div class="warning">
+### SKRL SAC
 
-#### This section is under construction. Please check back later for updates.
+`hyperparams/skrl/sac.yaml` pins SRB's bounded/squashed Gaussian policy, two
+critics and target critics, plus explicit `terminated`/`truncated` replay flags.
+`skrl_sac` supports train, eval, and policy collection.
 
-</div>
+## Tuned configurations
+
+[`srb agent tune`](../reference/cli_agent_tune.md) writes the requested modality's config, resolving **task-specific → global** layers:
+
+- `hyperparams/<framework>/<algo>.yaml` — global per-algorithm set (state observations); `<algo>_visual.yaml` for visual observations.
+- `hyperparams/task/<task>/<framework>/<algo>.yaml` — optional per-task override that takes precedence for that task only.
+
+The `# Tuned by srb agent tune …` provenance header records study, trial, objective, seeds, date, git SHA, and Optuna version. See [Hyperparameter Tuning](../workflows/hyperparameter_tuning.md).
+
+Visual profiles (`hyperparams/visual_profiles.yaml`) do not ship. Optuna tuning spaces are included under `srb/tuning/spaces`. Without them, `train` and `eval` reject `--obs visual`; use `--obs state` or supply a valid catalog. `tune` supports only `--obs state`.

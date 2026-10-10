@@ -1,14 +1,12 @@
 # IDE Configuration
 
-Just like any other software project, Space Robotics Bench development benefits from proper IDE setup.
-
 ## VSCode Setup
 
-[Visual Studio Code (VS Code)](https://code.visualstudio.com) is the recommended IDE for working with the Space Robotics Bench codebase. However, you are welcome to use any IDE of your choice.
+[Visual Studio Code (VS Code)](https://code.visualstudio.com) is recommended. Other IDEs work too.
 
 ### Extensions
 
-The Python source code of SRB is fully typed, and the recommended extensions for VSCode include:
+Install these recommended extensions. SRB uses Python annotations, and SRB configures strict mypy for selected modules; CI runs pytest and pre-commit checks, not mypy:
 
 - [Python](https://marketplace.visualstudio.com/items?itemName=ms-python.python)
 - [Pylance](https://marketplace.visualstudio.com/items?itemName=ms-python.vscode-pylance)
@@ -25,7 +23,7 @@ code --reuse-window \
      --install-extension tamasfe.even-better-toml
 ```
 
-For Rust development, the recommended extensions include:
+For Rust:
 
 - [Rust Analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
 - [Even Better TOML](https://marketplace.visualstudio.com/items?itemName=tamasfe.even-better-toml)
@@ -38,11 +36,12 @@ code --reuse-window \
 
 ### Workspace Settings
 
-SRB comes with [workspace settings](https://github.com/AndrejOrsula/space_robotics_bench/blob/main/.vscode/settings.json) that primarily configure Python paths for Isaac Sim/Lab modules. It does so with these assumptions (which you can adjust as needed):
+The [workspace settings](https://github.com/AndrejOrsula/space_robotics_bench/blob/main/.vscode/settings.json) configure Python paths with these assumptions:
 
-- Isaac Sim is installed at `~/isaac-sim`
+- Isaac Sim is installed at `../isaac-sim`
 - Isaac Lab is installed at `../isaaclab`
+- SimForge sources, if used, are at `../simforge` and `../simforge_foundry`
 
 ## Using the Dev Container
 
-For a pre-configured development environment, consider using [Dev Container](devcontainer.md), which automatically includes all necessary tools and extensions.
+For a preconfigured environment, use the [Dev Container](devcontainer.md).

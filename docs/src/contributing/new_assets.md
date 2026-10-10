@@ -1,36 +1,40 @@
 # Contributing — New Assets
 
-This guide explains how to contribute new assets to the Space Robotics Bench.
+Contribute SRB static assets through [srb_assets](https://github.com/AndrejOrsula/srb_assets). Isaac Lab also supplies assets.
 
-## Asset Types Overview
+## Choose an asset type
 
-The Space Robotics Bench categorizes assets into three main types:
+SRB assets fall into three types:
 
-| Asset Type  | Description                                        |
+| Asset Type | Description |
 | ----------- | -------------------------------------------------- |
-| **Scenery** | Environmental elements like terrain and structures |
-| **Objects** | Interactive objects, tools, and payloads           |
-| **Robots**  | Systems that are intended to be controlled         |
+| **Scenery** | Terrain and structures |
+| **Objects** | Interactive objects, tools, and payloads |
+| **Robots** | Controllable systems |
 
-## Static Assets
+## Add a static asset
 
-All static assets used by the Space Robotics Bench are separated into the [srb_assets](https://github.com/AndrejOrsula/srb_assets) repository to encourage their reuse.
+1. Identify its family and interface:
 
-If you wish to contribute your asset, please follow these guidelines:
+   - Robots: joints and sensors.
+   - Terrain: source metadata.
+   - Objects: spawn configuration.
 
-- Simplify the mesh for efficient simulation
-- Aim for watertight meshes with clean topology
-- Bake materials into PBR textures for compatibility
-- Export meshes in the USD format (`.usd`/`.usda`/`.usdc`/`.usdz`)
-- For articulated assets, add relevant joints and APIs (you can use Isaac Sim for this)
+1. Record the source, author, and license in the applicable metadata catalog. For assets in SRB's catalog, edit `docs/data/assets.toml`.
 
-Afterward, you can add the asset to your [fork of srb_assets](https://github.com/AndrejOrsula/srb_assets/fork) and submit a pull request. We greatly appreciate your contributions!
+1. Follow the family format and validation rules. The rock pipeline checksum-verifies, decodes, bounds, and cleans terrain rocks. Robot and scenery checks differ.
 
-## Procedural Assets with SimForge
+1. Check dependencies, payload paths, and references against family conventions.
+
+1. Add the asset to your [srb_assets fork](https://github.com/AndrejOrsula/srb_assets/fork).
+
+1. Submit a pull request.
+
+## Create procedural assets with SimForge
 
 > Reference: [SimForge](https://AndrejOrsula.github.io/simforge)
 
-[SimForge](https://github.com/AndrejOrsula/simforge) is a framework for creating diverse virtual environments through procedural generation. SRB leverages SimForge to generate all procedural assets. Below are some examples:
+[SimForge](https://github.com/AndrejOrsula/simforge) supplies procedural environments and assets, including robot structures such as the Cubesat. Examples:
 
 <iframe style="width:100%;aspect-ratio:16/9" src="https://www.youtube.com/embed/XgXYHmEIvSM?si=IZGp8lwmlxWIsO4h&mute=1&autoplay=1&loop=1&playlist=XgXYHmEIvSM" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
 
@@ -38,9 +42,9 @@ Afterward, you can add the asset to your [fork of srb_assets](https://github.com
 
 <iframe style="width:100%;aspect-ratio:16/9" src="https://www.youtube.com/embed/DbnE086w-sY?si=WXsuxjkrSW6Oxy1A&mute=1&autoplay=1&loop=1&playlist=DbnE086w-sY" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
 
-Please refer to the [SimForge documentation](https://AndrejOrsula.github.io/simforge) if you wish to contribute new procedural assets, particularly the following sections:
+See the [SimForge documentation](https://AndrejOrsula.github.io/simforge), especially:
 
 - [New Assets](https://AndrejOrsula.github.io/simforge/development/assets.html)
   - [Blender Generator: New Assets](https://andrejorsula.github.io/simforge/generators/blender.html#new-assets)
 
-We look forward to seeing your fantastic contributions. Many thanks in advance!
+Next: [Contribute a new task](new_tasks.md)

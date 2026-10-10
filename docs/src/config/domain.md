@@ -1,42 +1,35 @@
 # Environment Configuration — Domain
 
-The `env.domain` parameter configures the planetary or orbital environment for your simulation. This affects gravity, lighting conditions, terrain type, atmospheric properties, and visual appearance.
+Set `env.domain` to choose a planetary or orbital domain. Each domain provides
+default gravity and lighting. Scenery provides terrain. Domains have no
+atmospheric model.
 
 ## Available Domains
 
-Space Robotics Bench currently supports the following domains:
+Choose one of five domains. No shipped task defaults to `earth` or `asteroid`:
 
-| Domain             | Description                             |
+| Domain | Description |
 | ------------------ | --------------------------------------- |
-| `moon` \[default\] | Lunar surface                           |
-| `mars`             | Martian surface                         |
-| `earth`            | Earth surface                           |
-| `asteroid`         | Low-gravity body with irregular terrain |
-| `orbit`            | Orbital microgravity environment        |
+| `moon` [default] | Lunar surface |
+| `mars` | Martian surface |
+| `earth` | Earth surface |
+| `asteroid` | Low-gravity body |
+| `orbit` | Orbital microgravity environment |
 
-## Usage
-
-You can specify the domain via the command line:
+Set the domain on the command line:
 
 ```bash
 # Run a simulation on Mars
 srb agent teleop --env sample_collection env.domain=mars
 ```
 
-## Domain-Specific Effects
+Gravity affects free bodies and mobile bases. Shipped manipulators disable
+gravity. To use gravity from another domain, set `env.gravity=<domain>`. This
+also uses that domain's gravity randomization. `modular_assembly` defaults to
+`earth` gravity.
 
-Each domain affects various aspects of the simulation:
+Lighting sets intensity, color temperature, angular diameter, and skydome. To
+set fog, use `env.visuals.fog`. Rendered irradiance is not calibrated
+atmospheric lighting.
 
-### Physical Properties
-
-- **Gravity magnitude**: Affects object dynamics, robot mobility and manipulation requirements
-
-### Visual Properties
-
-- **Lighting**: Light intensity, color temperature, and angular diameter
-- **Skydome**: Background appearance and intensity
-- **Atmosphere**: Fog intensity and color gradient (if applicable)
-
-### Asset Selection
-
-Some assets are domain-specific and will only appear for compatible domains. When an asset is registered, it can specify the domains it supports through the `DOMAINS` class attribute.
+Variant resolution excludes candidates whose nonempty `DOMAINS` omits the selected domain; an empty list permits all. This rule applies only to variants.

@@ -8,24 +8,24 @@
 	"workspaceFolder": "/root/ws",
 	"workspaceMount": "type=bind,source=${localWorkspaceFolder},target=/root/ws",
 	"runArgs": [
-		// Network mode
+		// Network
 		"--network=host",
 		"--ipc=host",
-		// NVIDIA GPU
+		// NVIDIA
 		"--gpus=all",
 		// Other GPUs
 		"--device=/dev/dri:/dev/dri",
 		"--group-add=video"
 	],
 	"mounts": [
-		/// Common
+		// Common
 		// Time
 		"type=bind,source=/etc/localtime,target=/etc/localtime,readonly",
 		"type=bind,source=/etc/timezone,target=/etc/timezone,readonly",
 		// GUI (X11)
 		"type=bind,source=/tmp/.X11-unix,target=/tmp/.X11-unix",
 		"type=bind,source=${localEnv:TMPDIR:/tmp}/xauth_docker_vsc_${localWorkspaceFolderBasename}_${localEnv:USER},target=${localEnv:TMPDIR:/tmp}/xauth_docker_vsc_${localWorkspaceFolderBasename}_${localEnv:USER}",
-		/// Isaac Sim
+		// Isaac Sim
 		// Data
 		"type=bind,source=${localEnv:HOME}/.nvidia-omniverse/data/ov,target=/root/.local/share/ov/data",
 		"type=bind,source=${localEnv:HOME}/.nvidia-omniverse/data/isaac-sim,target=/root/isaac-sim/kit/data",
@@ -37,7 +37,7 @@
 		// Logs
 		"type=bind,source=${localEnv:HOME}/.nvidia-omniverse/logs,target=/root/.nvidia-omniverse/logs",
 		"type=bind,source=${localEnv:HOME}/.nvidia-omniverse/logs/isaac-sim,target=/root/isaac-sim/kit/logs",
-		/// SimForge
+		// SimForge
 		// Cache
 		"type=bind,source=${localEnv:HOME}/.cache/simforge,target=/root/.cache/simforge"
 	],

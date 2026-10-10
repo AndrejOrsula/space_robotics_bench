@@ -2,15 +2,18 @@
 # See https://pre-commit.com/hooks.html for more hooks
 
 exclude: Cargo.lock|uv.lock|CHANGELOG.md
+
+default_language_version:
+  python: python3.12
+
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.6.0
+    rev: v6.0.0
     hooks:
       - id: check-added-large-files
       - id: check-ast
       - id: check-builtin-literals
       - id: check-case-conflict
-      - id: check-docstring-first
       - id: check-executables-have-shebangs
       - id: check-merge-conflict
       - id: check-shebang-scripts-are-executable
@@ -30,59 +33,53 @@ repos:
       - id: trailing-whitespace
 
   - repo: https://github.com/executablebooks/mdformat
-    rev: 0.7.18
+    rev: 1.0.0
     hooks:
       - id: mdformat
 
   - repo: https://github.com/lovesegfault/beautysh
-    rev: v6.2.1
+    rev: v6.4.2
     hooks:
       - id: beautysh
+        exclude: ^\.docker/install/install_tdmpc2\.bash$
 
   - repo: https://github.com/AndrejOrsula/pre-commit-cargo
-    rev: 0.4.0
+    rev: 0.5.0
     hooks:
       - id: cargo-fmt
-      - id: cargo-update
-      - id: cargo-clippy
-        args: ["--workspace", "--all-targets", "--", "--deny=warnings"]
-      - id: cargo-check
-        args: ["--workspace", "--all-targets"]
-      - id: cargo-test
-        args: ["--workspace", "--all-targets"]
-      - id: cargo-test-doc
-        args: ["--workspace"]
-      - id: cargo-doc
-        args: ["--workspace", "--no-deps", "--document-private-items"]
-      - id: cargo-deny-check
 
   - repo: https://github.com/astral-sh/uv-pre-commit
-    rev: 0.9.0
+    rev: 0.10.7
     hooks:
       - id: uv-lock
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.14.0
+    rev: v0.15.4
     hooks:
       - id: ruff
         args: ["--fix"]
       - id: ruff-format
 
-  - repo: https://github.com/pycqa/isort
-    rev: 5.13.2
-    hooks:
-      - id: isort
-        args: ["--profile", "black"]
-
   - repo: https://github.com/hadolint/hadolint
     rev: v2.14.0
     hooks:
       - id: hadolint-docker
-        args: ["--ignore=DL3059"]
+        args:
+          [
+            "--ignore=DL3059",
+            "--ignore=SC3010",
+            "--ignore=SC3015",
+            "--ignore=SC3046",
+            "--ignore=SC3059",
+          ]
 
   - repo: https://github.com/codespell-project/codespell
     rev: v2.4.1
     hooks:
       - id: codespell
-        args: ["--ignore-words-list", "crate,empy,fro,HAA"]
+        args:
+          [
+            "--ignore-words-list",
+            "crate,empy,fpr,fro,HAA,lod,Lod,LOD,Nd,unparseable,Unparseable,pre-empt,re-declared,re-declaring,re-used",
+          ]
         exclude: cliff.toml

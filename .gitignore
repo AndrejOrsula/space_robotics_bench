@@ -1,13 +1,18 @@
 ## Python
-__pycache__/
-*.py[oc]
+**/__pycache__/
+**/*.py[oc]
+**/.pytest_cache/
+**/.ruff_cache/
+**/.mypy_cache/
+**/.hypothesis/
 build/
 dist/
 wheels/
 *.egg-info
 
 ## Virtual environments
-.venv
+**/.venv/
+**/.worktrees/
 
 ## Rust
 debug/
@@ -30,11 +35,29 @@ docs/index.html
 ## Logs
 *.log
 logs/
+
+# colcon / ROS build log root
+log/
 outputs/
 wandb/
 
 ## Offline SRB cache
-.cache
+.cache/
+
+## NVIDIA/Omniverse runtime shader cache
+nv_shadercache/
+
+## Raw assets
+assets/**/*_raw/
 
 ## Dump files
 **/core.*
+
+## Misc
+srb/core/reward/scripts/reward_terms.pdf
+srb/core/reward/scripts/penalty_terms.pdf
+nv_shadercache/
+.*.gen_check_*.py
+.*.publication.lock
+.*.stage
+.coverage

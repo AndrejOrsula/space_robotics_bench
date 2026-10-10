@@ -1,57 +1,28 @@
 # Installation
 
-Before proceeding, ensure your system meets the [system requirements](requirements.md).
-
-## Installation Methods
-
-SRB supports three installation methods, each with different trade-offs:
-
-### A. [Native](install_native.md)
-
-- ✅ Full system integration
-- ✅ Smooth development experience
-- ❗ Complex setup process
-- ❗ Potential dependency conflicts
-
-### B. [Docker (Recommended)](install_docker.md)
-
-- ✅ Simple installation & deployment
-- ✅ Reproducible environment & easy to update
-- ⚠️ Moderate development experience (via Dev Containers)
-- ❗ Requires privileged access (not suitable for HPC)
-
-### C. [Apptainer/Singularity](install_apptainer.md)
-
-- ✅ Deployable to HPC clusters
-- ❗ Uff...
-
-## Alternative — Temporary Setup (Quickstart)
-
-For quick experimentation with SRB, you can use a temporary setup that downloads a pre-built Docker image and runs it in a pre-configured container. A single [script](https://github.com/AndrejOrsula/space_robotics_bench/blob/main/.docker/run.bash) accomplishes everything, which you can call directly via [`curl`](https://curl.se) or [`wget`](https://www.gnu.org/software/wget) (consider inspecting the script before executing it):
-
-#### A. `curl`
+Clone the repository with submodules, then follow one installation guide:
 
 ```bash
-ENSURE_DOCKER=true WITH_DEV_VOLUME=false WITH_HISTORY=false bash -c "$(curl -fsSL https://raw.githubusercontent.com/AndrejOrsula/space_robotics_bench/refs/heads/main/.docker/run.bash)" --
+git clone --recurse-submodules https://github.com/AndrejOrsula/space_robotics_bench.git
+cd space_robotics_bench
 ```
 
-#### B. `wget`
+| Method | Use when | Limits |
+| --- | --- | --- |
+| [Docker (Recommended)](install_docker.md) | Simple, reproducible installation and updates; helper scripts for GUI, headless, and ephemeral sessions; least-privilege profile for lightweight commands. | Moderate development experience (via Dev Containers). Isaac Sim's trusted profile grants host-adjacent access (not suitable for HPC). |
+| [Native](install_native.md) | Full system integration (documented path) and a smooth development experience. | Complex setup; potential dependency conflicts; untested. |
+| [Apptainer/Singularity](install_apptainer.md) | HPC deployment. | Requires local Docker to build the Apptainer image (`.sif`); limited interactive development support; untested. |
 
-```bash
-ENSURE_DOCKER=true WITH_DEV_VOLUME=false WITH_HISTORY=false bash -c "$(wget -qO - https://raw.githubusercontent.com/AndrejOrsula/space_robotics_bench/refs/heads/main/.docker/run.bash)" --
-```
+Use Docker with a locally built image or a release image pinned by its full `sha256` digest. Do not pipe a mutable branch's setup script into a shell: clone or authenticate and inspect the runner first. See [system requirements](requirements.md) for platform support and simulator pins.
 
-<div class="warning">
+## Installed wheel support
 
-The Docker container created by this setup is ephemeral (`WITH_DEV_VOLUME=false`), and data does not persist between sessions. **Any changes made inside the container will be lost when the container is removed.**
+Wheels support data and CLI commands that need no simulator assets or repository files. CLI dependencies need `pip install "srb[cli]"`; the base wheel omits them but includes the `srb` entry point and hyperparameter resources. `srb test`, `srb doc`, and simulator-launching commands need a source checkout; simulator commands also work in an SRB container with assets. Clone tagged releases with submodules, e.g. `git clone --recurse-submodules --branch 0.1.0 https://github.com/AndrejOrsula/space_robotics_bench.git`. GitHub source archives omit submodules and simulator assets.
 
-</div>
+Wheel runs log to `logs/` in the current directory. Cache defaults to `$XDG_CACHE_HOME/srb` (`~/.cache/srb` if `XDG_CACHE_HOME` is unset, empty, or relative); set `SRB_CACHE_ROOT` to change it.
 
-### Cleanup of Temporary Setup
+## Temporary Docker sessions
 
-If you do not wish to continue using SRB, you can remove the Docker container and its associated image by executing these commands:
+The runner uses `--rm`, so the container filesystem is discarded on exit. See the [Docker installation guide](install_docker.md) for runner profiles and image requirements.
 
-```bash
-docker rm -f space_robotics_bench
-docker rmi andrejorsula/space_robotics_bench:latest
-```
+Next: [Docker installation](install_docker.md)

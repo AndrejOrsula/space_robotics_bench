@@ -7,4 +7,10 @@ language = "en"
 [output.html]
 site-url = "/space_robotics_bench/"
 git-repository-url = "https://github.com/AndrejOrsula/space_robotics_bench"
-edit-url-template = "https://github.com/AndrejOrsula/space_robotics_bench/edit/main/docs/{path}"
+edit-url-template = "https://github.com/AndrejOrsula/space_robotics_bench/edit/main/docs/src/{path}"
+additional-css = ["theme/style.css"]
+no-section-label = true
+
+[output.html.fold]
+enable = true
+level = 0

@@ -1,148 +1,196 @@
 # Installation — Native
 
-This guide covers installing SRB natively on your system without containerization. Although this approach simplifies development, it requires more manual setup and decreases reproducibility.
+Native installs are untested and need manual work. Builds use Isaac Sim 6.1.0 and Isaac Lab 3.0.0 ([system requirements](requirements.md)). On Ubuntu 22.04, use `uv` Python 3.12; system Python is older. Use Isaac Sim's `python.sh` for SRB and Isaac Lab.
 
-## 1. Clone the Repository
-
-First, clone the SRB repository with all submodules:
+## 1. Prepare the host
 
 ```bash
-git clone --recurse-submodules https://github.com/AndrejOrsula/space_robotics_bench.git
+sudo apt-get update
+sudo apt-get install -y git git-lfs gcc-11 g++-11 cmake build-essential curl unzip xz-utils python3 jq
+curl -LsSf https://astral.sh/uv/install.sh | sh
+uv python install 3.12
+uv python find 3.12
 ```
 
-## 2. Install NVIDIA Isaac Sim 5.0
-
-> Official instructions: [Isaac Sim — Workstation Installation](https://docs.isaacsim.omniverse.nvidia.com/5.0.0/installation/install_workstation.html)
-
-Install Isaac Sim either by following the official instructions above or using the provided convenience [script](https://github.com/AndrejOrsula/space_robotics_bench/blob/main/scripts/install_isaacsim.bash):
+Without `sudo`, install `git-lfs` locally and add `~/.local/bin` to `PATH`:
 
 ```bash
-./space_robotics_bench/scripts/install_isaacsim.bash "$HOME/isaac-sim"
+mkdir -p ~/.local/bin /tmp/git-lfs-install
+curl -sSL https://github.com/git-lfs/git-lfs/releases/download/v3.6.1/git-lfs-linux-amd64-v3.6.1.tar.gz -o /tmp/git-lfs.tar.gz
+tar xzf /tmp/git-lfs.tar.gz -C /tmp/git-lfs-install
+cp /tmp/git-lfs-install/git-lfs-*/git-lfs ~/.local/bin/
+rm -rf /tmp/git-lfs.tar.gz /tmp/git-lfs-install
 ```
 
-### `ISAAC_SIM_PYTHON`
+## 2. Initialize Git LFS
 
-It is highly recommended to make `ISAAC_SIM_PYTHON` point to the Python entrypoint of Isaac Sim in your shell configuration (the script above will prompt you to do so):
-
-##### A. `bash`
+Run this before cloning, including after the local fallback:
 
 ```bash
-echo "export ISAAC_SIM_PYTHON='$HOME/isaac-sim/python.sh'" >> ~/.bashrc
-source ~/.bashrc
+git lfs install
 ```
 
-##### B. `zsh`
+## 3. Clone SRB
 
-```sh
-echo "export ISAAC_SIM_PYTHON='$HOME/isaac-sim/python.sh'" >> ~/.zshrc
-source ~/.zshrc
-```
-
-##### C. `fish`
-
-```sh
-set -Ux ISAAC_SIM_PYTHON "$HOME/isaac-sim/python.sh"
-```
-
-## 3. Install NVIDIA Isaac Lab 2.2
-
-> Official instructions: [Isaac Lab — Installation](https://isaac-sim.github.io/IsaacLab/v2.2.1/source/setup/installation/binaries_installation.html#installing-isaac-lab)
-
-Install Isaac Lab either by following the official instructions above or using the provided convenience [script](https://github.com/AndrejOrsula/space_robotics_bench/blob/main/scripts/install_isaaclab.bash):
+Initialize submodules, then run commands from the repository root:
 
 ```bash
-./space_robotics_bench/scripts/install_isaaclab.bash "$HOME/isaaclab"
+git clone https://github.com/AndrejOrsula/space_robotics_bench.git
+cd space_robotics_bench
+git submodule update --init --recursive
 ```
 
-## 4. Install Blender 4.5 with SimForge
+## 4. Build Isaac Sim
 
-> Official instructions: [Blender — Install from blender.org](https://docs.blender.org/manual/en/4.5/getting_started/installing/linux.html#install-from-blender-org)
-
-1. Install Blender by following the official instructions for downloading and extracting its archive.
-1. Ensure that the `blender` executable is accessible from your system's `PATH`.
-1. Install SimForge with its assets within the Blender Python environment.
-
-As an example, the commands below will install Blender in your home directory and create a symbolic link to `$HOME/.local/bin/blender` (assuming it is in your `PATH`):
+Accept NVIDIA's license before setting `ACCEPT_EULA=Y`. The build requires `sudo`, substantial time, and disk space.
 
 ```bash
-export BLENDER_VERSION="4.5.3"
-export BLENDER_VERSION_SHORT=$(echo $BLENDER_VERSION | sed 's/\.[^.]*$//')
-mkdir -p $HOME/blender
-curl -fsSL "https://download.blender.org/release/Blender$BLENDER_VERSION_SHORT/blender-$BLENDER_VERSION-linux-x64.tar.xz" | tar xJ -C $HOME/blender --strip-components=1
-mkdir -p $HOME/.local/bin
-ln -sf $HOME/blender/blender $HOME/.local/bin/blender
-"$HOME/blender/$BLENDER_VERSION_SHORT/python/bin/python3.11" -m pip install simforge[assets]
+ACCEPT_EULA=Y \
+SRC_BRANCH=release/6.1 \
+SRC_COMMIT_SHA=7c206f75bdadd9e05fc457f19863ca4c3f0cb693 \
+  ./.docker/install/install_isaacsim.bash "$HOME/isaac-sim"
 ```
 
-<div class="warning">
+## 5. Configure the Isaac Sim environment
 
-Avoid installing Blender through Snap, as it would prevent the integration of the required Python dependencies within its environment.
+Copy the installer's `export VK_DRIVER_FILES=...` line. It detects or creates the Vulkan ICD path. Add all exports to shell config, source it, and keep `~/.local/bin` on `PATH` for CLI wrappers.
 
-</div>
+### Environment Variables
 
-## 5. Install the Space Robotics Bench
+| Shell | Configuration file | `PATH` command | Other exports |
+| --- | --- | --- | --- |
+| `bash` | `~/.bashrc` | `export PATH="$HOME/.local/bin:$PATH"` | `export ISAACSIM_PYTHON="$HOME/isaac-sim/python.sh"`; `export ISAACSIM_PATH="$HOME/isaac-sim"`; `export ISAAC_PATH="$HOME/isaac-sim"`; `export CARB_APP_PATH="$HOME/isaac-sim/kit"`; `export EXP_PATH="$HOME/isaac-sim/apps"`; `export LD_PRELOAD="$HOME/isaac-sim/kit/libcarb.so"`; `export ISAACSIM_ASSET_ROOT="$HOME/isaac-sim/assets"`; `export ISAACSIM_ASSET_ROOT_PROFILE="isaac-sim-6.1"`; `export OMNI_KIT_ALLOW_ROOT="1"` |
+| `zsh` | `~/.zshrc` | `export PATH="$HOME/.local/bin:$PATH"` | Same `export` lines as `bash` |
+| `fish` | universal variables | `fish_add_path "$HOME/.local/bin"` | `set -Ux ISAACSIM_PYTHON "$HOME/isaac-sim/python.sh"`; `set -Ux ISAACSIM_PATH "$HOME/isaac-sim"`; `set -Ux ISAAC_PATH "$HOME/isaac-sim"`; `set -Ux CARB_APP_PATH "$HOME/isaac-sim/kit"`; `set -Ux EXP_PATH "$HOME/isaac-sim/apps"`; `set -Ux LD_PRELOAD "$HOME/isaac-sim/kit/libcarb.so"`; `set -Ux ISAACSIM_ASSET_ROOT "$HOME/isaac-sim/assets"`; `set -Ux ISAACSIM_ASSET_ROOT_PROFILE "isaac-sim-6.1"`; `set -Ux VK_DRIVER_FILES "/etc/vulkan/icd.d/nvidia_icd.json"`; `set -Ux OMNI_KIT_ALLOW_ROOT "1"` |
 
-Install the `srb` package in editable mode:
+For bash/zsh, append with `cat >> ~/.bashrc << 'EOF'` or `cat >> ~/.zshrc << 'EOF'`, close `EOF`, and source the file. In fish, set `VK_DRIVER_FILES` to the ICD path printed by the installer; the example above uses a common path. `ISAACSIM_ASSET_ROOT` defaults to `$HOME/isaac-sim/assets`; use the printed root and profile.
+
+| Vulkan ICD location | Use |
+| --- | --- |
+| `/usr/share/vulkan/icd.d/nvidia_icd.json` | Common with Ubuntu driver packages |
+| `/etc/vulkan/icd.d/nvidia_icd.json` | Created by the script if neither existing path is found |
+
+## 6. Install Isaac Lab
+
+Install the pinned Isaac Lab source. Its script resolves NumPy conflicts and installs `array_api_compat`.
 
 ```bash
-"$ISAAC_SIM_PYTHON" -m pip install --editable ./space_robotics_bench[all]
+SRC_BRANCH=release/3.0.0 \
+SRC_COMMIT_SHA=fdc650c88dfd86aa158b9a1760b6537fef360555 \
+  ./.docker/install/install_isaaclab.bash "$HOME/isaaclab"
 ```
 
-> **Note**: The `all` extra installs optional dependencies to support all workflows and improve usability. Feel free to check [`pyproject.toml`](https://github.com/AndrejOrsula/space_robotics_bench/blob/main/pyproject.toml) and adjust the extras to your needs.
+## 7. Install Blender and SimForge
 
-### Setup CLI
-
-Make the `srb` CLI command available in your shell through the provided [script](https://github.com/AndrejOrsula/space_robotics_bench/blob/main/scripts/setup_cli.bash):
+Follow [Blender's official Linux instructions](https://docs.blender.org/manual/en/4.5/getting_started/installing/linux.html#install-from-blender-org), then use SRB's [Blender installer](https://github.com/AndrejOrsula/space_robotics_bench/blob/main/.docker/install/install_blender.bash) for Blender 4.5 and SimForge:
 
 ```bash
-./space_robotics_bench/scripts/setup_cli.bash
+./.docker/install/install_blender.bash "$HOME/blender"
 ```
 
-> **Note:** In case the script fails, the `srb` CLI is still accessible via `"$ISAAC_SIM_PYTHON" -m srb`.
+Installer downloads Blender, links `~/.local/bin/blender`, installs Docker-pinned `simforge[dev]` 0.4.0 and `simforge-foundry` 0.3.1 in Blender Python, checks exact pins before download, then applies SRB's Isaac Lab compatibility patch (`.docker/install/patch_simforge_isaaclab.bash`). Avoid Snap: it blocks Python dependency integration.
 
-## 6. Verify Installation
+## 8. Install optional RL frameworks
 
-After the installation, verify that everything works as expected. If you encounter any issues, please refer to the [Troubleshooting](../misc/troubleshooting.md) guide.
+Source your shell configuration first; most scripts require `ISAACSIM_PYTHON`.
 
-### Isaac Sim
+| Framework | Command | Behavior / limit |
+| --- | --- | --- |
+| DreamerV3 | `./.docker/install/install_dreamerv3.bash "$HOME/dreamerv3"` | Editable source install |
+| TD-MPC2 | `./.docker/install/install_tdmpc2.bash "$HOME/tdmpc2"` | Clones source only; install dependencies such as `tensordict` and `torchrl` later via `pyproject.toml` |
+| robomimic | `./.docker/install/install_robomimic.bash "$HOME/robomimic"` | Pins upstream; applies Docker-matching lazy-language patch (`srb/integrations/robomimic/patches/`); verifies revision before install and prevents offline language-model downloads |
+| rsl_rl | `./.docker/install/install_rsl_rl.bash "$HOME/rsl_rl"` | Source install |
 
-Confirm that you can launch Isaac Sim:
+The TD-MPC2 script pins upstream and applies `srb/integrations/tdmpc2/patches/`, including the Q-ensemble initialization fix. It skips upstream's dependency-pin commit to avoid downgrading Isaac Sim Torch/TensorDict/TorchRL. SRB rejects checkouts without the backport; use this script or the error's pin, never plain `git clone`.
+
+Set `TDMPC2_PATH`:
 
 ```bash
-"$HOME/isaac-sim/isaac-sim.sh"
+# Bash
+echo "export TDMPC2_PATH='$HOME/tdmpc2/tdmpc2'" >> ~/.bashrc && source ~/.bashrc
+# Zsh
+echo "export TDMPC2_PATH='$HOME/tdmpc2/tdmpc2'" >> ~/.zshrc && source ~/.zshrc
+# Fish
+set -Ux TDMPC2_PATH "$HOME/tdmpc2/tdmpc2"
 ```
 
-> Note: The first launch might take a while because Isaac Sim needs to compile shaders and prepare the environment.
+The robomimic checkout remains in place; no SRB extra includes it.
 
-### Isaac Lab
+## 9. Install SRB
 
-Confirm that Isaac Lab is installed:
+Install SRB with optional dependencies for all workflows:
 
 ```bash
-"$ISAAC_SIM_PYTHON" -m pip show isaaclab
+"$ISAACSIM_PYTHON" -m pip install --editable ".[all]"
 ```
 
-### Space Robotics Bench
-
-Verify that the entrypoint script of SRB is available in the Python environment of Isaac Sim:
+Adjust the `all` extra in [`pyproject.toml`](https://github.com/AndrejOrsula/space_robotics_bench/blob/main/pyproject.toml) as needed. Published metadata rejects direct Git references, so extras omit Git-pinned upstreams; install robomimic in step 8. `all` omits the v2e event-camera backend and E2VID reconstruction operator. Install these pinned groups with bundled pip 25.1 or newer:
 
 ```bash
-"$ISAAC_SIM_PYTHON" -m srb --help
+"$ISAACSIM_PYTHON" -m pip install --upgrade 'pip>=25.1'
+"$ISAACSIM_PYTHON" -m pip install --editable ".[event-v2e,event-reconstruction]" --group source-event-v2e --group source-event-reconstruction
 ```
 
-Verify that the `srb` command is available:
+## 10. Set up the CLI
+
+Put executable `ISAACSIM_PYTHON` and its destination (default `~/.local/bin`) on `PATH`. Setup uses `ISAACSIM_PYTHON` or fallback `python3` for SRB's Hydra completion cache. `register-python-argcomplete` lookup checks Isaac Sim, system `PATH`, then Isaac Sim's Python package.
 
 ```bash
-srb --help
+./.docker/helpers/setup_cli.bash
+# Regenerate completions only for these shells
+./.docker/helpers/setup_cli.bash --completions-only bash zsh fish
+srb completions generate
+srb completions install
+exec "$SHELL" -l
 ```
 
-Verify that argument completion works:
+The setup script copies `srb`, `simforge`, and `space_robotics_bench` shims to `~/.local/bin` and configures detected shells; it exits with an error when no requested shell gets completions. Hydra override completions need `jq`. If setup fails or shims are skipped, run `"$ISAACSIM_PYTHON" -m srb`.
+
+## 11. Verify the installation
+
+The first Isaac Sim launch takes longer while shaders compile. See [Troubleshooting](#troubleshooting) for failures.
+
+| Component | Check |
+| --- | --- |
+| Isaac Sim | `"$ISAACSIM_PYTHON" -c "`<br>`from isaacsim import SimulationApp`<br>`sim = SimulationApp({'headless': True})`<br>`print('Isaac Sim OK — is_running:', sim.is_running())`<br>`sim.close()`<br>`"` |
+| Isaac Lab | `"$ISAACSIM_PYTHON" -m pip show isaaclab` |
+| Blender | `blender --version` |
+| SRB and CLI | `"$ISAACSIM_PYTHON" -m srb --help`; `command -v srb`; `srb --help`; `"$ISAACSIM_PYTHON" -m srb cache update` |
+| Quick simulation | `"$ISAACSIM_PYTHON" -m srb agent zero --headless -e sample_collection --cfg ignore --perf --perf_duration 10`; confirm the final performance report includes steps per second |
+
+______________________________________________________________________
+
+## Troubleshooting
+
+### "Failed to create any GPU devices"
+
+**Symptom:** Isaac Sim cannot create a GPU device. **Cause:** `VK_DRIVER_FILES` does not point to a valid Vulkan ICD file. **Fix:** Check the configured path, then set it to the existing ICD file.
 
 ```bash
-srb <TAB> <TAB>
+ls -la "$VK_DRIVER_FILES"
+find /etc/vulkan /usr/share/vulkan -name "nvidia_icd.json" 2>/dev/null
 ```
 
-## ... continue with [Basic Usage](./basic_usage.md)
+Update `VK_DRIVER_FILES` in your shell configuration.
+
+### "Application failed to start"
+
+**Symptom:** Isaac Sim fails to start. **Cause:** `DISPLAY` is unset. **Fix:** On a headless server, set it for the virtual display:
+
+```bash
+# Bash/Zsh
+echo 'export DISPLAY=:99' >> ~/.bashrc  # or ~/.zshrc
+# Fish
+set -Ux DISPLAY :99
+```
+
+### numpy version conflicts
+
+**Symptom:** NumPy version errors return. **Cause:** Manual package changes reintroduced conflicts after the installer resolved them. **Fix:** Install compatible packages:
+
+```bash
+"$ISAACSIM_PYTHON" -m pip install "numpy>=2.1" array_api_compat
+```
 
 ______________________________________________________________________
 
@@ -150,4 +198,6 @@ ______________________________________________________________________
 
 ### Development
 
-To improve your development experience, consider [configuring your IDE (guide)](../development/ide.md).
+See [IDE configuration](../development/ide_cfg.md).
+
+Next: [Basic Usage](basic_usage.md)

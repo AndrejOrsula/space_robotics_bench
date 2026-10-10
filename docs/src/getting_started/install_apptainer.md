@@ -1,34 +1,37 @@
 # Installation — Apptainer/Singularity
 
-You can use SRB on HPC clusters or systems where Docker is not available by leveraging Apptainer. Apptainer is a containerization tool similar to Docker but designed for environments with stricter security policies or without Docker support.
+Build the `.sif` from the Docker image, which pins Isaac Sim and Lab ([requirements](requirements.md)), then transfer it to the cluster.
 
 ## Setup (Local)
 
-### 1. Clone the Repository
+<div class="warning">
 
-First, clone the SRB repository with all submodules:
+Apptainer installs are untested.
+
+</div>
+
+### 1. Clone the repository
+
+Clone from the repository root:
 
 ```bash
 git clone --recurse-submodules https://github.com/AndrejOrsula/space_robotics_bench.git
+cd space_robotics_bench
 ```
 
-### 2. Install Docker Engine & NVIDIA Container Toolkit
+### 2. Install Docker Engine and NVIDIA Container Toolkit
 
-> 1. Official instructions: [Install Docker Engine](https://docs.docker.com/engine/install)
-> 1. Official instructions: [Linux post-installation steps for Docker Engine](https://docs.docker.com/engine/install/linux-postinstall)
-> 1. Official instructions: [Installing the NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)
-
-Install Docker Engine and NVIDIA Container Toolkit either by following the official instructions above or using the provided convenience [script](https://github.com/AndrejOrsula/space_robotics_bench/blob/main/.docker/host/install_docker.bash):
+Install [Docker Engine](https://docs.docker.com/engine/install), follow its [Linux post-install steps](https://docs.docker.com/engine/install/linux-postinstall), and install [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html). Or run the [pinned helper](https://github.com/AndrejOrsula/space_robotics_bench/blob/main/.docker/host/install_docker.bash):
 
 ```bash
-./space_robotics_bench/.docker/host/install_docker.bash
+./.docker/host/install_docker.bash
 ```
+
+The helper supports Ubuntu 22.04/24.04 amd64/arm64, verifies key fingerprints, and pins Docker Engine/CLI 29.8.0 and optional NVIDIA Container Toolkit 1.20.0. Docker's guide covers version overrides and non-interactive group behavior.
 
 ### 3. Install Apptainer
 
-> Official instructions: [Installing Apptainer](https://apptainer.org/docs/admin/main/installation.html)
-
-Install Apptainer by following the official instructions above. For instance, you can use these commands on Ubuntu:
+Follow [Apptainer installation instructions](https://apptainer.org/docs/admin/main/installation.html) or install on Ubuntu:
 
 ```bash
 sudo add-apt-repository -y ppa:apptainer/ppa
@@ -38,84 +41,130 @@ sudo apt install -y apptainer
 
 ### 4. Build the Apptainer Image
 
-Now you can build the Apptainer image with the provided [script](https://github.com/AndrejOrsula/space_robotics_bench/blob/main/.docker/hpc/build.bash):
+Run the [build script](https://github.com/AndrejOrsula/space_robotics_bench/blob/main/.docker/hpc/build.bash):
 
 ```bash
-./space_robotics_bench/.docker/hpc/build.bash
+./.docker/hpc/build.bash 6.1.0
 ```
 
-This will create an Apptainer image `space_robotics_bench.sif` inside the `./space_robotics_bench/.docker/hpc/images/` directory.
+This builds a tagged Docker image and converts it to `.docker/hpc/images/space_robotics_bench.sif`.
+
+### 5. Record image details
+
+Before transfer, record its source digest and architecture, plus SIF metadata and checksum:
+
+```bash
+docker image inspect --format '{{.Id}} {{.Architecture}}' space_robotics_bench:6.1.0 # prefix '<user>/' if `docker info` lists a Username
+apptainer inspect .docker/hpc/images/space_robotics_bench.sif
+sha256sum .docker/hpc/images/space_robotics_bench.sif
+```
+
+A `docker info` username prefixes the image tag: `<username>/space_robotics_bench:6.1.0`.
 
 ## Deployment (HPC Cluster)
 
-### 1. Transfer the Repository (with the Apptainer Image)
+### 1. Transfer repository and image
 
-Transfer the local SRB repository to the HPC cluster using your preferred method (e.g., `scp` or `rsync`):
-
-#### A. `scp`
+Choose one method:
 
 ```bash
-scp -r ./space_robotics_bench user@hpc-cluster:/path/to/space_robotics_bench
+scp -r /path/to/space_robotics_bench user@hpc-cluster:/path/to/space_robotics_bench
 ```
-
-#### B. `rsync`
 
 ```bash
-rsync -avr ./space_robotics_bench user@hpc-cluster:/path/to/space_robotics_bench
+rsync -avr /path/to/space_robotics_bench user@hpc-cluster:/path/to/space_robotics_bench
 ```
 
-### 2. SSH into the HPC Cluster
-
-SSH into the HPC cluster:
+### 2. Connect to the cluster
 
 ```bash
 ssh user@hpc-cluster
 ```
 
-### 3. Run the Apptainer Image
+### 3. Run the image
 
-Now you can run the Apptainer image with the provided [script](https://github.com/AndrejOrsula/space_robotics_bench/blob/main/.docker/hpc/run.bash) inside an interactive session (you might need make some adjustments based on your HPC environment):
+On a `module` node, adjust [run.bash](https://github.com/AndrejOrsula/space_robotics_bench/blob/main/.docker/hpc/run.bash). The script loads `tools/Singularity` and calls `singularity`. Because `singularity exec` skips the Docker entrypoint, the script sources `/entrypoint.bash` (ROS Jazzy).
 
 ```bash
-# HPC interactive session
 /path/to/space_robotics_bench/.docker/hpc/run.bash bash
 ```
 
+| Setting | Behavior |
+| --- | --- |
+| Mount / caches | Source image: checkout at `/root/ws`; caches under `${SCRATCH:-$HOME}/volumes/space_robotics_bench/`. NGC image: checkout at `/workspace` (override with `SRB_NGC_WORKSPACE`); caches under `${SCRATCH:-$HOME}/volumes/space_robotics_bench/ngc/isaac-sim-6.1/<arch>` (override with `SRB_NGC_CACHE_DIR`). |
+| `WITH_GPU` | Defaults `true` (`--nv`); `false` omits passthrough but keeps Isaac Sim in the image. |
+| Command | Arguments follow `run.bash`; `bash` opens an interactive shell. |
+
+For NGC images:
+
+| Setting | Behavior |
+| --- | --- |
+| `IMAGE_PATH` | Required for NGC; set it when `.sif` is outside `.docker/hpc/images/`. |
+| Provenance | Checks the recorded SIF checksum on each run; large files may take longer. |
+| `SRB_NGC_CACHE_OWNERSHIP` | `user` (default) or `skip`; the invoking user runs Singularity and owns caches. |
+| Paths, digest, and RTX | Sets `ISAACSIM_PATH=/isaac-sim`; requires an NGC SIF via `IMAGE_PATH` and checks its recorded digest and checksum. The RTX check matches Docker NGC preflight. |
+
+Use the target architecture's `<arch digest>` for both NGC commands. From the repository root:
+
+```bash
+SRB_DOCKER_PROFILE=ngc IMAGE_PATH=X.sif ./.docker/hpc/run.bash bash
+```
+
+```bash
+apptainer build X.sif docker://nvcr.io/nvidia/isaac-sim@sha256:<arch digest>
+ref='nvcr.io/nvidia/isaac-sim@sha256:<arch digest>'
+printf 'source=%s\nsif_sha256=%s\n' "$ref" "$(sha256sum X.sif | cut -d' ' -f1)" > X.sif.ngc-source
+```
+
+```bash
+/path/to/space_robotics_bench/.docker/hpc/run.bash bash -lc '
+source /opt/ros/jazzy/setup.bash
+export ROS_DOMAIN_ID=0
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+printf "%s\n" "$ROS_DISTRO" "$AMENT_PREFIX_PATH" "$LD_LIBRARY_PATH" "$RMW_IMPLEMENTATION" "$ROS_DOMAIN_ID"
+srb agent ros --headless -e peg_in_hole
+'
+```
+
+HPC GUI and WebRTC sessions are untested.
+
 ### 4. Verify Installation
 
-Once you enter the Apptainer container, verify that everything works as expected. If you encounter any issues, please refer to the [Troubleshooting](../misc/troubleshooting.md) guide.
+In the container, see [Troubleshooting](../misc/troubleshooting.md).
 
 #### Isaac Sim
 
-Confirm that you can launch Isaac Sim:
-
 ```bash
-# Inside Apptainer container
-"$HOME/isaac-sim/isaac-sim.sh"
+nvidia-smi
+"${ISAACSIM_PATH:-$HOME/isaac-sim}/isaac-sim.sh"
 ```
 
-> Note: The first launch might take a while because Isaac Sim needs to compile shaders and prepare the environment.
+Initial launch may take longer because Isaac Sim compiles shaders and prepares the environment.
 
 #### Space Robotics Bench
 
-Verify that the `srb` command is available:
+Check the SRB cache and interpreter:
 
 ```bash
-# Inside Apptainer container
+srb --help
+srb cache update
+"${ISAACSIM_PATH:-$HOME/isaac-sim}/python.sh" -c "import isaacsim; print(isaacsim.__file__)"
+"${ISAACSIM_PATH:-$HOME/isaac-sim}/python.sh" -c "import srb; print(srb.__file__)"
 srb --help
 ```
 
-## ... continue with [Basic Usage](basic_usage.md)
-
-______________________________________________________________________
+`isaacsim` and `srb` paths must share an installation; the last command runs the `srb` found on `PATH`. SRB has no `--version` command.
 
 ## Extras
 
 ### Schedule a SLURM Job
 
-For long-running tasks or automated workflows, you can schedule a SLURM job that will automatically run the Apptainer image. It is highly recommended that you adjust the [script](https://github.com/AndrejOrsula/space_robotics_bench/blob/main/.docker/hpc/submit.bash) to your needs before submitting the job:
+Adjust the [cluster SLURM script](https://github.com/AndrejOrsula/space_robotics_bench/blob/main/.docker/hpc/submit.bash):
 
 ```bash
-# HPC login node
 /path/to/space_robotics_bench/.docker/hpc/submit.bash [CMD]
 ```
+
+It writes under `$HOME/jobs/` by default and submits with `sbatch`. Review the partition, constraint, memory, wall time, and GPU settings.
+
+Next: [Basic Usage](basic_usage.md)

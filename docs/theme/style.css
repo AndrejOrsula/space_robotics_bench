@@ -1,0 +1,16 @@
+/* Sidebar "on this page" lists second-level headings only */
+.on-this-page ol ol {
+    display: none;
+}
+
+/* Hide header rows of tables whose header cells are all empty */
+table thead:not(:has(th:not(:empty))) {
+    display: none;
+}
+
+/* Fit the book title in the mobile menu bar */
+@media (max-width: 480px) {
+    .menu-title {
+        font-size: 1.6rem;
+    }
+}

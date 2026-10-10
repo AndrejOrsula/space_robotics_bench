@@ -2,6 +2,7 @@
     Copy,
     Clone,
     Debug,
+    Default,
     Eq,
     PartialEq,
     Hash,
@@ -11,28 +12,26 @@
     strum::EnumIter,
 )]
 pub enum Page {
+    #[default]
     QuickStart,
     Interface,
-}
-
-impl Default for Page {
-    fn default() -> Self {
-        Self::QuickStart
-    }
+    Metrics,
 }
 
 impl Page {
     pub fn title(&self) -> &str {
         match self {
-            Self::QuickStart => "Quickstart",
-            Self::Interface => "Interface",
+            Self::QuickStart => "Tasks",
+            Self::Interface => "Session",
+            Self::Metrics => "Metrics",
         }
     }
 
     pub fn description(&self) -> &str {
         match self {
-            Self::QuickStart => "Select your experience",
-            Self::Interface => "Complete the task",
+            Self::QuickStart => "Browse and select a task",
+            Self::Interface => "Configure and run your session",
+            Self::Metrics => "Track reward over time",
         }
     }
 }

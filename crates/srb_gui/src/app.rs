@@ -1,982 +1,572 @@
-use crate::cache::{self, EnvCache, ObjectCache, RobotCache, SceneryCache};
-use crate::env_cfg::{Domain, TaskConfig, Workflow};
+use crate::cache;
+use crate::gui_interface_controls::{GuiInterfaceControlEvent, GuiInterfaceControls};
+use crate::gui_ros::GuiRosControls;
+use crate::gui_runtime::GuiRuntimeError;
+use crate::gui_runtime::GuiRuntimeSession;
+use crate::gui_runtime_params::RuntimeParams;
+use crate::gui_session::GuiSessionState;
+use crate::gui_task_browser::GuiTaskBrowser;
+use crate::gui_workflow::GuiWorkflow;
+use crate::gui_workflow::GuiWorkflowError;
 use crate::page::Page;
-use egui::Color32;
-use egui_commonmark::{commonmark_str, CommonMarkCache};
-use r2r::std_msgs::msg::{Bool as BoolMsg, Empty as EmptyMsg, Float64 as Float64Msg};
-use r2r::QosProfile;
-use std::io::{Read, Write};
-use std::path::PathBuf;
+use egui_commonmark::{CommonMarkCache, CommonMarkViewer};
 use strum::IntoEnumIterator;
-use tracing::{error, info, trace, warn};
+use tracing::error;
 
-const LOGFILE_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../logs/gui.txt");
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub enum GuiInitializationState {
+    #[default]
+    Healthy,
+    Unhealthy(GuiWorkflowError),
+}
 
+impl GuiInitializationState {
+    #[must_use]
+    pub const fn is_healthy(&self) -> bool {
+        matches!(self, Self::Healthy)
+    }
+
+    #[must_use]
+    pub fn error(&self) -> Option<&GuiWorkflowError> {
+        match self {
+            Self::Healthy => None,
+            Self::Unhealthy(error) => Some(error),
+        }
+    }
+}
+
+/// Restore the `(theme:...)` value under `eframe::APP_KEY` without initializing `App`.
 #[derive(serde::Deserialize, serde::Serialize)]
-#[serde(default)]
+struct PersistedApp {
+    theme: egui::Theme,
+}
+
 pub struct App {
     theme: egui::Theme,
-    #[serde(skip)]
-    current_page: Page,
-    #[serde(skip)]
-    task_config: TaskConfig,
-    #[serde(skip)]
-    subprocess: Option<subprocess::Popen>,
+    task_browser: GuiTaskBrowser,
+    runtime_session: GuiRuntimeSession,
+    session: GuiSessionState,
+    ros: GuiRosControls,
+    interface_controls: GuiInterfaceControls,
+    metrics: crate::gui_metrics::GuiMetrics,
 
-    // --- UI State ---
-    #[serde(skip)]
-    show_about: bool,
-    #[serde(skip)]
-    show_virtual_keyboard_window: bool,
-    #[serde(skip)]
-    show_developer_options: bool,
+    gui_catalog: cache::GuiCatalogCacheResult,
 
-    // --- Data Collection ---
-    #[serde(skip)]
-    collect_trajectory: bool,
-    #[serde(skip)]
-    n_collected_trajectories: usize,
+    initialization: GuiInitializationState,
+    workflow_errors: Vec<GuiWorkflowError>,
 
-    // --- Real-time Params (Keep as is for now) ---
-    #[serde(skip)]
-    gravity: f64,
-    #[serde(skip)]
-    latency: f64,
-    #[serde(skip)]
-    motion_sensitivity: f64,
-    #[serde(skip)]
-    force_feedback_sensitivity: f64,
-    #[serde(skip)]
-    max_feedback_force: f64,
-
-    #[serde(skip)]
-    prev_gravity: f64,
-    #[serde(skip)]
-    prev_latency: f64,
-    #[serde(skip)]
-    prev_motion_sensitivity: f64,
-    #[serde(skip)]
-    prev_force_feedback_sensitivity: f64,
-    #[serde(skip)]
-    prev_max_feedback_force: f64,
-
-    // --- ROS ---
-    #[serde(skip)]
-    node: r2r::Node,
-    #[serde(skip)]
-    pub_gripper_toggle: r2r::Publisher<BoolMsg>,
-    #[serde(skip)]
-    pub_reset_discard_dataset: r2r::Publisher<EmptyMsg>,
-    #[serde(skip)]
-    pub_gracefully_shutdown_process: r2r::Publisher<EmptyMsg>,
-    #[serde(skip)]
-    pub_gravity: r2r::Publisher<Float64Msg>,
-    #[serde(skip)]
-    pub_latency: r2r::Publisher<Float64Msg>,
-    #[serde(skip)]
-    pub_motion_sensitivity: r2r::Publisher<Float64Msg>,
-    #[serde(skip)]
-    pub_force_feedback_sensitivity: r2r::Publisher<Float64Msg>,
-    #[serde(skip)]
-    pub_max_feedback_force: r2r::Publisher<Float64Msg>,
-
-    #[serde(skip)]
-    last_message_pub: std::time::Instant,
-
-    // --- Logging ---
-    #[serde(skip)]
-    logfile: std::fs::File,
-
-    // --- Cache Data ---
-    #[serde(skip)]
-    env_cache: EnvCache,
-    #[serde(skip)]
-    robot_cache: RobotCache,
-    #[serde(skip)]
-    object_cache: ObjectCache,
-    #[serde(skip)]
-    scenery_cache: SceneryCache,
-
-    // --- UI Helpers ---
-    #[serde(skip)]
-    hovered_task: Option<usize>,
-    #[serde(skip)]
-    all_robot_names: Vec<String>,
-    #[serde(skip)]
-    all_object_names: Vec<String>,
-    #[serde(skip)]
-    all_scenery_names: Vec<String>, // Added
-    #[serde(skip)]
-    all_tool_names: Vec<String>, // For end effectors
-    #[serde(skip)]
-    all_payload_names: Vec<String>, // For payloads
-    #[serde(skip)]
-    all_domain_names: Vec<String>,
-
-    // --- Commonmark ---
-    #[serde(skip)]
     commonmark_cache: CommonMarkCache,
+
+    runtime_params_delivery: RuntimeParamsDelivery,
 }
 
 impl Default for App {
     fn default() -> Self {
-        // --- Load Cache Data ---
-        let env_cache = cache::load_env_cache();
-        let robot_cache = cache::load_robot_cache();
-        let object_cache = cache::load_object_cache();
-        let scenery_cache = cache::load_scenery_cache();
-
-        // --- Prepare UI Helper Lists ---
-        let all_robot_names = cache::get_all_robot_names(&robot_cache);
-        let all_object_names = cache::get_all_asset_names(&object_cache);
-        let all_scenery_names = cache::get_all_asset_names(&scenery_cache);
-        // all_scenery_names.insert(0, "none".to_string());
-        // all_scenery_names.sort();
-        // all_scenery_names.dedup();
-
-        // Use helpers which already include "none" and ""
-        let all_tool_names = cache::get_object_names_by_subtype(&object_cache, "tool");
-        let all_payload_names = cache::get_object_names_by_subtype(&object_cache, "payload");
-
-        let all_domain_names = Domain::iter().map(|d| d.to_string()).collect();
-
-        // --- Initialize TaskConfig with defaults based on cache if possible ---
-        let mut task_config = TaskConfig::builder().build();
-        if let Some(first_env) = env_cache.first() {
-            task_config.task = first_env.clone();
-        }
-        if let Some(first_robot) = all_robot_names.first() {
-            // Ensure default robot exists in cache, otherwise keep hardcoded default
-            if all_robot_names.contains(&task_config.robot) {
-                // Keep default if it's valid
-            } else {
-                task_config.robot = first_robot.clone();
-            }
-        }
-        // Set default gravity based on default domain
-        let initial_gravity = task_config.domain.gravity_magnitude();
-
-        // --- ROS Initialization (Keep as is) ---
-        let ctx = r2r::Context::create().unwrap();
-        let mut node = r2r::Node::create(ctx, "srb_gui_gui", "").unwrap();
-        let pub_gripper_toggle = node
-            .create_publisher::<BoolMsg>("/touch/event", QosProfile::default())
-            .unwrap();
-        let pub_reset_discard_dataset = node
-            .create_publisher::<EmptyMsg>("/gui/reset_discard_dataset", QosProfile::default())
-            .unwrap();
-        let pub_gracefully_shutdown_process = node
-            .create_publisher::<EmptyMsg>("/gui/shutdown_process", QosProfile::default())
-            .unwrap();
-        let pub_gravity = node
-            .create_publisher::<Float64Msg>("/gui/gravity", QosProfile::default())
-            .unwrap();
-        let pub_latency = node
-            .create_publisher::<Float64Msg>("/gui/latency", QosProfile::default())
-            .unwrap();
-        let pub_motion_sensitivity = node
-            .create_publisher::<Float64Msg>("/gui/motion_sensitivity", QosProfile::default())
-            .unwrap();
-        let pub_force_feedback_sensitivity = node
-            .create_publisher::<Float64Msg>(
-                "/gui/force_feedback_sensitivity",
-                QosProfile::default(),
-            )
-            .unwrap();
-        let pub_max_feedback_force = node
-            .create_publisher::<Float64Msg>("/gui/max_feedback_force", QosProfile::default())
-            .unwrap();
-        let last_message_pub = std::time::Instant::now();
-
-        // --- Log File Initialization (Keep as is) ---
-        let logfile_path = PathBuf::from(LOGFILE_PATH);
-        if let Some(parent) = logfile_path.parent() {
-            if !parent.exists() {
-                std::fs::create_dir_all(parent).unwrap();
-            }
-        }
-        let mut logfile = std::fs::OpenOptions::new()
-            .create(true)
-            .read(true)
-            .append(true)
-            .open(LOGFILE_PATH)
-            .unwrap();
-        let n_collected_trajectories = {
-            let mut file_str = String::new();
-            logfile.read_to_string(&mut file_str).unwrap();
-            file_str
-                .clone()
-                .lines()
-                .filter(|x| x.starts_with("DATA"))
-                .count()
-        };
-        writeln!(
-            logfile,
-            "START, {}, {}",
-            chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_secs(),
-        )
-        .unwrap();
-
-        // --- Construct App State ---
-        Self {
-            theme: egui::Theme::Dark,
-            current_page: Page::default(),
-            task_config, // Use updated default
-            subprocess: None,
-
-            show_about: false,
-            show_virtual_keyboard_window: false,
-            show_developer_options: false, // Maybe default to true now?
-
-            collect_trajectory: false,
-            n_collected_trajectories,
-
-            gravity: initial_gravity, // Use calculated initial gravity
-            latency: 0.0,
-            motion_sensitivity: 1.0,
-            force_feedback_sensitivity: 1.0,
-            max_feedback_force: 2.0,
-
-            // Initialize prev values to force initial publish
-            prev_gravity: initial_gravity + 1.0, // Ensure initial publish
-            prev_latency: -1.0,                  // Ensure initial publish
-            prev_motion_sensitivity: -1.0,       // Ensure initial publish
-            prev_force_feedback_sensitivity: -1.0, // Ensure initial publish
-            prev_max_feedback_force: -1.0,       // Ensure initial publish
-
-            node,
-            pub_gripper_toggle,
-            pub_reset_discard_dataset,
-            pub_gracefully_shutdown_process,
-            pub_gravity,
-            pub_latency,
-            pub_motion_sensitivity,
-            pub_force_feedback_sensitivity,
-            pub_max_feedback_force,
-
-            last_message_pub,
-            logfile,
-
-            // Store loaded cache data
-            env_cache,
-            robot_cache,
-            object_cache,
-            scenery_cache,
-
-            // Store UI helper lists
-            hovered_task: None,
-            all_robot_names,
-            all_object_names,
-            all_scenery_names,
-            all_tool_names,
-            all_payload_names,
-            all_domain_names,
-
-            commonmark_cache: CommonMarkCache::default(),
+        let gui_catalog = cache::load_gui_catalog();
+        match Self::try_initialize(gui_catalog.clone()) {
+            Ok(app) => app,
+            Err(error) => Self::neutral_initialization_fallback(gui_catalog, error),
         }
     }
 }
 
 impl App {
+    const MAX_WORKFLOW_ERRORS: usize = 32;
+    const HEADER_HEIGHT: f32 = 50.0;
+    const HEADER_CONTENT_HEIGHT: f32 = 34.0;
+    const HEADER_NAV_BUTTON_WIDTH: f32 = 118.0;
+    const HEADER_NAV_BUTTON_HEIGHT: f32 = 30.0;
+    const HEADER_CONFIG_WIDTH: f32 = 118.0;
+    const HEADER_SIDE_MARGIN: f32 = 14.0;
+
     #[must_use]
     pub fn new(cc: &eframe::CreationContext) -> Self {
-        // Enable image loading
         egui_extras::install_image_loaders(&cc.egui_ctx);
 
-        // Load the fonts
         crate::style::load_fonts(&cc.egui_ctx);
 
-        // Enable screen web reader support
-        #[cfg(target_arch = "wasm32")]
-        cc.egui_ctx.options_mut(|o| o.screen_reader = true);
+        let restored_theme = cc.storage.and_then(restore_theme);
+        let mut app = Self::default();
+        if let Some(theme) = restored_theme {
+            app.theme = theme;
+        }
 
-        // Construct the app state
-        let mut app = if let Some(storage) = cc.storage {
-            // Try to restore previous state
-            eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default()
-        } else {
-            // Otherwise, use default state
-            Self::default()
-        };
-
-        // Set the theme
         crate::style::set_theme(&cc.egui_ctx, app.theme);
 
-        // Publish messages
-        app.publish_messages();
+        app.publish_runtime_params();
 
         app
+    }
+
+    pub fn try_default() -> Result<Self, GuiWorkflowError> {
+        Self::try_initialize(cache::load_gui_catalog())
+    }
+
+    #[must_use]
+    pub fn initialization_state(&self) -> &GuiInitializationState {
+        &self.initialization
+    }
+
+    #[must_use]
+    pub fn workflow_errors(&self) -> &[GuiWorkflowError] {
+        &self.workflow_errors
+    }
+
+    fn try_initialize(gui_catalog: cache::GuiCatalogCacheResult) -> Result<Self, GuiWorkflowError> {
+        let task_browser =
+            GuiTaskBrowser::from_catalog_result(&gui_catalog).map_err(|error| match error {
+                crate::gui_selection::GuiSelectionInitializationError::CatalogLoad(error) => {
+                    GuiWorkflowError::CatalogLoad(error)
+                }
+                crate::gui_selection::GuiSelectionInitializationError::InvalidCatalogDefaults(
+                    error,
+                ) => GuiWorkflowError::CatalogDefaults(error),
+            })?;
+        let session = GuiSessionState::from_selection(&task_browser.selection);
+        let runtime_session = GuiRuntimeSession::try_new().map_err(GuiWorkflowError::Runtime)?;
+
+        Ok(Self {
+            theme: egui::Theme::Dark,
+            task_browser,
+            runtime_session,
+            session,
+            ros: GuiRosControls::default(),
+            interface_controls: GuiInterfaceControls::default(),
+            metrics: crate::gui_metrics::GuiMetrics::default(),
+            gui_catalog,
+            initialization: GuiInitializationState::Healthy,
+            workflow_errors: Vec::new(),
+            commonmark_cache: CommonMarkCache::default(),
+            runtime_params_delivery: RuntimeParamsDelivery::default(),
+        })
+    }
+
+    fn neutral_initialization_fallback(
+        gui_catalog: cache::GuiCatalogCacheResult,
+        error: GuiWorkflowError,
+    ) -> Self {
+        let task_browser = GuiTaskBrowser::neutral_initialization_fallback();
+        let session = GuiSessionState::from_selection(&task_browser.selection);
+        Self {
+            theme: egui::Theme::Dark,
+            task_browser,
+            runtime_session: GuiRuntimeSession::unavailable(
+                crate::gui_runtime::GuiRuntimeError::initialization_disabled(),
+            ),
+            session,
+            ros: GuiRosControls::default(),
+            interface_controls: GuiInterfaceControls::default(),
+            metrics: crate::gui_metrics::GuiMetrics::default(),
+            gui_catalog,
+            initialization: GuiInitializationState::Unhealthy(error.clone()),
+            workflow_errors: vec![error],
+            commonmark_cache: CommonMarkCache::default(),
+            runtime_params_delivery: RuntimeParamsDelivery::default(),
+        }
     }
 }
 
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        // Synchronize the page URL and content if the URL contains a hash
-        #[cfg(target_arch = "wasm32")]
-        if let Some(page) = frame.info().web_info.location.hash.strip_prefix('#') {
-            if let Some(page) = crate::ENABLED_PAGES
-                .into_iter()
-                .find(|x| x.to_string().eq_ignore_ascii_case(page))
-            {
-                // If a known page was requested, update the current page
-                self.current_page = page;
-            } else {
-                // If an unknown page was requested, update the URL to open the default page
-                crate::utils::egui::open_url_on_page(ctx, Page::default(), true);
-            }
-        } else {
-            // Otherwise, update the URL to match the current page
-            crate::utils::egui::open_url_on_page(ctx, self.current_page, true);
+        // A stop runs on a worker thread; keep polling frames flowing so its
+        // terminal result is adopted promptly even without input events.
+        if self.runtime_session.is_stopping() {
+            ctx.request_repaint_after(std::time::Duration::from_millis(50));
         }
-
-        // Support native fullscreen toggle
-        #[cfg(not(target_arch = "wasm32"))]
         if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::F11)) {
             let fullscreen = ctx.input(|i| i.viewport().fullscreen.unwrap_or(false));
             ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(!fullscreen));
         }
 
-        // Navigation panel that allows switching between page
         egui::TopBottomPanel::top("top_panel")
-            .max_height(32.0)
+            .exact_height(Self::HEADER_HEIGHT)
             .show(ctx, |ui| {
-                ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                    // Navigation
-                    ui.spacing_mut().item_spacing.x = 16.0;
-                    self.navigation_buttons(ui);
-
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        self.advanced_opts_button(ui);
-
-                        ui.add_space(65.0);
-
-                        self.show_top_center_bar(ui);
-                    });
-                });
+                self.app_header(ui);
             });
 
-        // Bottom panel
-        egui::TopBottomPanel::bottom("bottom_panel").show(ctx, |ui| {
-            ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    // self.about_button(ui);
-
-                    ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                        self.dark_mode_toggle_button(ui);
-                        ui.separator();
-                        self.show_trajectory_collection_checkbox(ui);
-                        self.warn_if_debug_build(ui);
-                    });
-                });
+        egui::TopBottomPanel::bottom("bottom_panel")
+            .exact_height(36.0)
+            .show(ctx, |ui| {
+                self.status_bar(ui);
             });
-        });
 
-        // Central panel
         crate::utils::egui::ScrollableFramedCentralPanel::builder()
             .max_content_width(ctx.content_rect().width())
             .build()
             .show(ctx, |ui| {
-                match self.current_page {
-                    Page::QuickStart => {
-                        self.quickstart_page(ui);
-                    }
-                    Page::Interface => {
-                        self.configuration_page(ui);
-                    }
+                if let Some(error) = self.initialization.error() {
+                    self.initialization_error_page(ui, error);
+                    return;
                 }
+                let selected_task = self
+                    .gui_catalog
+                    .as_ref()
+                    .ok()
+                    .and_then(|catalog| self.task_browser.primary_task(catalog))
+                    .cloned();
+                let runtime_running = self.runtime_running_for_controls();
+                let event = match self.session.current_page() {
+                    Page::QuickStart => self.interface_controls.quickstart_page(
+                        ui,
+                        &mut self.task_browser,
+                        &self.gui_catalog,
+                    ),
+                    Page::Interface => self.interface_controls.configuration_page(
+                        ui,
+                        &mut self.task_browser,
+                        &mut self.session,
+                        selected_task,
+                        runtime_running,
+                    ),
+                    Page::Metrics => {
+                        self.metrics.show(ui);
+                        None
+                    }
+                };
+                self.handle_interface_control_event(event);
                 self.about_window(ui);
                 self.virtual_keyboard_window(ui);
-                self.developer_options_window(ui);
+                let event = self.interface_controls.customization_window(
+                    ui,
+                    &mut self.task_browser,
+                    &mut self.session,
+                    self.gui_catalog.as_ref().ok(),
+                    runtime_running,
+                );
+                self.handle_interface_control_event(event);
             });
 
-        // Publish values
-        if self.current_page == Page::Interface || self.show_developer_options {
-            self.publish_messages();
+        if matches!(
+            self.session.current_page(),
+            Page::QuickStart | Page::Interface
+        ) || self.interface_controls.customization_visible()
+        {
+            self.publish_runtime_params();
         }
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    fn as_any_mut(&mut self) -> Option<&mut dyn std::any::Any> {
-        Some(&mut *self)
     }
 
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
-        eframe::set_value(storage, eframe::APP_KEY, self);
+        eframe::set_value(
+            storage,
+            eframe::APP_KEY,
+            &PersistedApp { theme: self.theme },
+        );
     }
 }
 
-impl App {
-    fn navigation_buttons(&mut self, ui: &mut egui::Ui) {
-        for page in Page::iter() {
-            if self.current_page == page {
-                ui.add(egui::Button::new(page.title()))
-                    .highlight()
-                    .on_hover_text(format!("{} (current page)", page.description()));
+trait RuntimeParamsPublisher {
+    fn publish_runtime_params(
+        &mut self,
+        params: RuntimeParams,
+    ) -> Result<RuntimeParams, crate::gui_ros::GuiRosError>;
+
+    fn resend_all_on_next_publish(&mut self);
+}
+
+impl RuntimeParamsPublisher for GuiRosControls {
+    fn publish_runtime_params(
+        &mut self,
+        params: RuntimeParams,
+    ) -> Result<RuntimeParams, crate::gui_ros::GuiRosError> {
+        GuiRosControls::publish_runtime_params(self, params)
+    }
+
+    fn resend_all_on_next_publish(&mut self) {
+        GuiRosControls::resend_all_on_next_publish(self);
+    }
+}
+
+#[derive(Debug, Default)]
+struct RuntimeParamsDelivery {
+    armed_launch: Option<u64>,
+    retry_at: Option<std::time::Instant>,
+    retry_delay: std::time::Duration,
+}
+
+impl RuntimeParamsDelivery {
+    const INITIAL_RETRY_DELAY: std::time::Duration = std::time::Duration::from_millis(250);
+    const MAX_RETRY_DELAY: std::time::Duration = std::time::Duration::from_secs(5);
+}
+
+struct LaunchRuntimeParamsPublisher<'a, P: RuntimeParamsPublisher> {
+    publisher: &'a mut P,
+    delivery: &'a mut RuntimeParamsDelivery,
+    runtime_session: &'a GuiRuntimeSession,
+    now: std::time::Instant,
+}
+
+impl<'a, P: RuntimeParamsPublisher> LaunchRuntimeParamsPublisher<'a, P> {
+    fn new(
+        publisher: &'a mut P,
+        delivery: &'a mut RuntimeParamsDelivery,
+        runtime_session: &'a GuiRuntimeSession,
+        now: std::time::Instant,
+    ) -> Self {
+        Self {
+            publisher,
+            delivery,
+            runtime_session,
+            now,
+        }
+    }
+
+    fn publish_runtime_params(
+        &mut self,
+        params: RuntimeParams,
+    ) -> Option<Result<RuntimeParams, crate::gui_ros::GuiRosError>> {
+        let launch = self.runtime_session.launch_generation();
+        if self.delivery.armed_launch != Some(launch) {
+            self.publisher.resend_all_on_next_publish();
+            self.delivery.armed_launch = Some(launch);
+            self.delivery.retry_at = None;
+            self.delivery.retry_delay = std::time::Duration::ZERO;
+        }
+        if self.delivery.retry_at.is_some_and(|at| self.now < at) {
+            return None;
+        }
+        let result = self.publisher.publish_runtime_params(params);
+        if result.is_ok() {
+            self.delivery.retry_at = None;
+            self.delivery.retry_delay = std::time::Duration::ZERO;
+        } else {
+            let delay = if self.delivery.retry_delay.is_zero() {
+                RuntimeParamsDelivery::INITIAL_RETRY_DELAY
             } else {
-                let button = ui
-                    .add(egui::Button::new(page.title()))
-                    .on_hover_text(page.description());
-                // If the button is clicked, change the current page
-                if button.clicked() {
-                    // Change URL to the new page in the same tab
-                    #[cfg(target_arch = "wasm32")]
-                    crate::utils::egui::open_url_on_page(ui.ctx(), page, true);
+                (self.delivery.retry_delay * 2).min(RuntimeParamsDelivery::MAX_RETRY_DELAY)
+            };
+            self.delivery.retry_delay = delay;
+            self.delivery.retry_at = Some(self.now + delay);
+        }
+        Some(result)
+    }
+}
 
-                    // Manually update the current page for non-web platforms
-                    #[cfg(not(target_arch = "wasm32"))]
-                    {
-                        self.current_page = page;
-                    }
+/// Published runtime parameters for trajectory `DATA` rows (`gravity` in m/s^2,
+/// `latency_ms` in milliseconds, `motion_sensitivity` as a factor; non-finite as `null`).
+fn runtime_params_record(params: RuntimeParams) -> serde_json::Value {
+    serde_json::json!({
+        "gravity": params.gravity,
+        "latency_ms": params.latency_ms,
+        "motion_sensitivity": params.motion_sensitivity,
+    })
+}
 
-                    if page == Page::QuickStart {
-                        self.show_about = false;
-                    }
-                } else {
-                    // Open URL in a new page if the middle mouse button is clicked
-                    #[cfg(target_arch = "wasm32")]
-                    if button.middle_clicked() {
-                        crate::utils::egui::open_url_on_page(ui.ctx(), page, false);
-                    }
-                }
+fn restore_theme(storage: &dyn eframe::Storage) -> Option<egui::Theme> {
+    eframe::get_value::<PersistedApp>(storage, eframe::APP_KEY).map(|stored| stored.theme)
+}
+
+impl App {
+    fn runtime_running_for_controls(&mut self) -> bool {
+        let query = self.runtime_session.is_running();
+        self.runtime_running_from_query(query)
+    }
+
+    fn runtime_running_from_query(&mut self, query: Result<bool, GuiRuntimeError>) -> bool {
+        match query {
+            Ok(running) => running,
+            Err(error) => {
+                let workflow_error = GuiWorkflowError::Runtime(error);
+                error!("Failed to query GUI subprocess state: {workflow_error}");
+                self.record_workflow_error(workflow_error);
+
+                // Unknown runtime state must keep launch disabled. A later successful
+                // query supplies the fresh state; the bounded error remains evidence.
+                true
             }
         }
     }
 
-    #[allow(unused)]
-    fn about_button(&mut self, ui: &mut egui::Ui) {
-        let button = ui
-            .add(egui::Button::new({
-                let text = egui::RichText::new("About");
-                if self.show_about {
-                    text.strong()
-                } else {
-                    text
-                }
-            }))
-            .on_hover_text(if self.show_about {
-                "Close the associated window"
-            } else {
-                "Learn more about this demo"
-            });
-        // If the button is clicked, change the current page
-        if button.clicked() {
-            self.show_about = !self.show_about;
+    fn record_workflow_error(&mut self, workflow_error: GuiWorkflowError) {
+        if self.workflow_errors.contains(&workflow_error) {
+            return;
         }
+
+        self.workflow_errors.push(workflow_error);
+        if self.workflow_errors.len() > Self::MAX_WORKFLOW_ERRORS {
+            self.workflow_errors.remove(0);
+        }
+    }
+
+    fn app_header(&mut self, ui: &mut egui::Ui) {
+        ui.set_height(Self::HEADER_HEIGHT);
+        let header_rect = egui::Rect::from_min_size(
+            ui.max_rect().min,
+            egui::vec2(ui.max_rect().width(), Self::HEADER_HEIGHT),
+        );
+        let stroke = ui.visuals().widgets.noninteractive.bg_stroke;
+        ui.painter().line_segment(
+            [
+                egui::pos2(header_rect.left(), header_rect.bottom() - 0.5),
+                egui::pos2(header_rect.right(), header_rect.bottom() - 0.5),
+            ],
+            stroke,
+        );
+
+        let nav_size = egui::vec2(
+            Self::navigation_segment_width(),
+            Self::HEADER_CONTENT_HEIGHT,
+        );
+        let configure_size = egui::vec2(Self::HEADER_CONFIG_WIDTH, Self::HEADER_NAV_BUTTON_HEIGHT);
+        let configure_rect = egui::Rect::from_center_size(
+            egui::pos2(
+                header_rect.right() - Self::HEADER_SIDE_MARGIN - configure_size.x / 2.0,
+                header_rect.center().y,
+            ),
+            configure_size,
+        );
+        let min_nav_center_x = header_rect.left() + Self::HEADER_SIDE_MARGIN + nav_size.x / 2.0;
+        let max_nav_center_x = configure_rect.left() - 12.0 - nav_size.x / 2.0;
+        let nav_center_x = header_rect
+            .center()
+            .x
+            .min(max_nav_center_x)
+            .max(min_nav_center_x);
+        let nav_rect = egui::Rect::from_center_size(
+            egui::pos2(nav_center_x, header_rect.center().y),
+            nav_size,
+        );
+
+        ui.scope_builder(
+            egui::UiBuilder::new()
+                .id_salt("header_navigation")
+                .max_rect(nav_rect)
+                .layout(egui::Layout::left_to_right(egui::Align::Center)),
+            |ui| {
+                ui.set_min_size(nav_size);
+                self.navigation_buttons(ui);
+            },
+        );
+        ui.scope_builder(
+            egui::UiBuilder::new()
+                .id_salt("header_configuration")
+                .max_rect(configure_rect)
+                .layout(egui::Layout::left_to_right(egui::Align::Center)),
+            |ui| {
+                ui.set_min_size(configure_size);
+                self.advanced_opts_button(ui);
+            },
+        );
+    }
+
+    fn navigation_segment_width() -> f32 {
+        let page_count = Page::iter().count() as f32;
+        let button_gap = 2.0 * (page_count - 1.0).max(0.0);
+        let frame_margin = 4.0;
+        frame_margin + page_count * Self::HEADER_NAV_BUTTON_WIDTH + button_gap
+    }
+
+    fn status_bar(&mut self, ui: &mut egui::Ui) {
+        ui.add_space(3.0);
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 8.0;
+            self.dark_mode_toggle_button(ui);
+            self.warn_if_debug_build(ui);
+            if let Some(error) = self.workflow_errors.last() {
+                ui.colored_label(
+                    egui::Color32::LIGHT_RED,
+                    format!("{}: {}", error.category().label(), error),
+                );
+            }
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                self.show_trajectory_collection_checkbox(ui);
+            });
+        });
+    }
+
+    fn navigation_buttons(&mut self, ui: &mut egui::Ui) {
+        egui::Frame::default()
+            .inner_margin(egui::Margin {
+                left: 2,
+                right: 2,
+                top: 2,
+                bottom: 2,
+            })
+            .corner_radius(egui::CornerRadius::same(5))
+            .fill(ui.visuals().extreme_bg_color.gamma_multiply(0.18))
+            .stroke(ui.visuals().widgets.noninteractive.bg_stroke)
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 2.0;
+                    ui.spacing_mut().button_padding = egui::vec2(10.0, 4.0);
+                    for page in Page::iter() {
+                        let selected = self.session.current_page() == page;
+                        let text = if selected {
+                            egui::RichText::new(page.title()).strong().size(15.0)
+                        } else {
+                            egui::RichText::new(page.title()).size(15.0)
+                        };
+                        let mut button = egui::Button::new(text).frame(true).min_size(egui::vec2(
+                            Self::HEADER_NAV_BUTTON_WIDTH,
+                            Self::HEADER_NAV_BUTTON_HEIGHT,
+                        ));
+                        if selected {
+                            button =
+                                button.fill(ui.visuals().selection.bg_fill.gamma_multiply(0.48));
+                        } else {
+                            button = button.fill(ui.visuals().faint_bg_color.gamma_multiply(0.28));
+                        }
+
+                        let response = ui
+                            .add_sized(
+                                egui::vec2(
+                                    Self::HEADER_NAV_BUTTON_WIDTH,
+                                    Self::HEADER_NAV_BUTTON_HEIGHT,
+                                ),
+                                button,
+                            )
+                            .on_hover_text(if selected {
+                                format!("{} (current page)", page.description())
+                            } else {
+                                page.description().to_string()
+                            });
+
+                        if response.clicked() && !selected {
+                            self.session.select_page(page);
+                        }
+                    }
+                });
+            });
     }
 
     fn advanced_opts_button(&mut self, ui: &mut egui::Ui) {
+        let visible = self.interface_controls.customization_visible();
+        let text = if visible {
+            egui::RichText::new("Configure").strong().size(15.0)
+        } else {
+            egui::RichText::new("Configure").size(15.0)
+        };
+        let mut button = egui::Button::new(text).frame(true).min_size(egui::vec2(
+            Self::HEADER_CONFIG_WIDTH,
+            Self::HEADER_NAV_BUTTON_HEIGHT,
+        ));
+        if visible {
+            button = button.fill(ui.visuals().selection.bg_fill.gamma_multiply(0.48));
+        } else {
+            button = button.fill(ui.visuals().faint_bg_color.gamma_multiply(0.28));
+        }
         let button = ui
-            .add(egui::Button::new({
-                let text = egui::RichText::new("Customize");
-                if self.show_developer_options {
-                    text.strong()
-                } else {
-                    text
-                }
-            }))
-            .on_hover_text(if self.show_developer_options {
-                "Hide customization options"
+            .add_sized(
+                egui::vec2(Self::HEADER_CONFIG_WIDTH, Self::HEADER_NAV_BUTTON_HEIGHT),
+                button,
+            )
+            .on_hover_text(if visible {
+                "Hide task configuration"
             } else {
-                "Show customization options"
+                "Show task configuration"
             });
         if button.clicked() {
-            self.show_developer_options = !self.show_developer_options;
-        }
-    }
-
-    fn quickstart_page(&mut self, ui: &mut egui::Ui) {
-        let quick_start_options: [(
-            egui::Theme,
-            &str,
-            crate::utils::Difficulty,
-            egui::ImageSource,
-            TaskConfig,
-        ); 9] = [
-            (
-                egui::Theme::Dark,
-                "Rock Sample Collection",
-                crate::utils::Difficulty::Easy,
-                crate::macros::include_content_image!("_images/sample_collection_moon.jpg"),
-                TaskConfig::builder()
-                    .task("sample_collection".to_owned())
-                    .domain(Domain::Moon)
-                    .robot("franka".to_owned())
-                    .extras(vec!["env.sample=procedural".to_owned()])
-                    .build(),
-            ),
-            (
-                egui::Theme::Dark,
-                "Sample Tube Collection",
-                crate::utils::Difficulty::Easy,
-                crate::macros::include_content_image!("_images/sample_collection_mars.jpg"),
-                TaskConfig::builder()
-                    .task("sample_collection".to_owned())
-                    .domain(Domain::Mars)
-                    .robot("franka".to_owned())
-                    .seed(89)
-                    .build(),
-            ),
-            (
-                egui::Theme::Light,
-                "Debris Capture",
-                crate::utils::Difficulty::Medium,
-                crate::macros::include_content_image!("_images/debris_capture_orbit.jpg"),
-                TaskConfig::builder()
-                    .task("debris_capture".to_owned())
-                    .domain(Domain::Orbit)
-                    .robot("franka".to_owned())
-                    .build(),
-            ),
-            (
-                egui::Theme::Dark,
-                "Peg-in-Hole Assembly",
-                crate::utils::Difficulty::Challenging,
-                crate::macros::include_content_image!("_images/peg_in_hole_moon.jpg"),
-                TaskConfig::builder()
-                    .task("peg_in_hole_assembly".to_owned())
-                    .domain(Domain::Moon)
-                    .robot("franka".to_owned())
-                    .seed(9)
-                    .build(),
-            ),
-            (
-                egui::Theme::Dark,
-                "Perseverance Navigation",
-                crate::utils::Difficulty::Easy,
-                crate::macros::include_content_image!("_images/perseverance.jpg"),
-                TaskConfig::builder()
-                    .task("waypoint_navigation".to_owned())
-                    .domain(Domain::Mars)
-                    .robot("perseverance".to_owned())
-                    .extras(vec!["env.debug_vis=true".to_owned()])
-                    .build(),
-            ),
-            (
-                egui::Theme::Dark,
-                "Screwdriving",
-                crate::utils::Difficulty::Challenging,
-                crate::macros::include_content_image!("../../../docs/theme/favicon.png"),
-                TaskConfig::builder()
-                    .task("screwdriving".to_owned())
-                    .domain(Domain::Mars)
-                    .robot("franka+electric_screwdriver_m5".to_owned())
-                    .build(),
-            ),
-            (
-                egui::Theme::Dark,
-                "Excavation",
-                crate::utils::Difficulty::Challenging,
-                crate::macros::include_content_image!("../../../docs/theme/favicon.png"),
-                TaskConfig::builder()
-                    .task("excavation".to_owned())
-                    .domain(Domain::Moon)
-                    .robot("franka+scoop_rectangular".to_owned())
-                    .extras(vec!["env.spacing=5.0".to_owned()])
-                    .build(),
-            ),
-            (
-                egui::Theme::Dark,
-                "Ingenuity Flight",
-                crate::utils::Difficulty::Demo,
-                crate::macros::include_content_image!("_images/ingenuity.jpg"),
-                TaskConfig::builder()
-                    .task("_aerial".to_owned())
-                    .domain(Domain::Mars)
-                    .robot("ingenuity".to_owned())
-                    .build(),
-            ),
-            (
-                egui::Theme::Light,
-                "Gateway with Canadarm3",
-                crate::utils::Difficulty::Demo,
-                crate::macros::include_content_image!("_images/gateway.jpg"),
-                TaskConfig::builder()
-                    .task("_manipulation".to_owned())
-                    .domain(Domain::Orbit)
-                    .robot("canadarm3".to_owned())
-                    .scenery(Some("static_gateway".to_owned()))
-                    .build(),
-            ),
-        ];
-
-        ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
-            egui::Grid::new("extra_nav_buttons")
-                .spacing(egui::vec2(8.0, 8.0))
-                .show(ui, |ui| {
-                    const N_COLS: usize = 3;
-                    const N_ROWS: usize = 3;
-                    let target_button_width = ui.ctx().available_rect().width() / N_COLS as f32
-                        - 1.25 * ui.spacing().item_spacing.x;
-                    let target_button_height = (ui.ctx().available_rect().height() - 18.0)
-                        / N_ROWS as f32
-                        - 1.5 * ui.spacing().item_spacing.y;
-
-                    let mut hovered_task = None;
-
-                    quick_start_options.into_iter().enumerate().for_each(
-                        |(i, (theme, task, difficulty, thumbnail, config))| {
-                            ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
-                                difficulty.set_theme(ui, self.theme);
-
-                                let button = ui.add_sized(
-                                    egui::Vec2::new(target_button_width, target_button_height),
-                                    egui::Button::image(thumbnail).corner_radius(
-                                        0.01 * (target_button_height + target_button_width),
-                                    ),
-                                );
-                                if button.clicked() {
-                                    self.task_config = config;
-                                    self.gravity = self.task_config.domain.gravity_magnitude();
-                                    self.start_subprocess();
-                                    // self.current_page = Page::Interface;
-                                }
-                                if button.hovered() {
-                                    hovered_task = Some(i);
-                                }
-
-                                let task_text_size = 0.125 * button.rect.height();
-                                ui.scope_builder(
-                                    egui::UiBuilder::new().max_rect(egui::Rect {
-                                        min: egui::Pos2 {
-                                            x: button.rect.min.x,
-                                            y: button.rect.max.y - 1.3 * task_text_size,
-                                        },
-                                        max: egui::Pos2 {
-                                            x: button.rect.max.x,
-                                            y: button.rect.max.y - 0.3 * task_text_size,
-                                        },
-                                    }),
-                                    |ui| {
-                                        ui.with_layout(
-                                            egui::Layout::bottom_up(egui::Align::Center),
-                                            |ui| {
-                                                ui.add(
-                                                    egui::Label::new(
-                                                        egui::RichText::new(task)
-                                                            .color(
-                                                                // if button.hovered() {
-                                                                match theme {
-                                                                    egui::Theme::Light => {
-                                                                        Color32::from_rgb(
-                                                                            // 11, 12, 16,
-                                                                            0, 0, 0,
-                                                                        )
-                                                                    }
-                                                                    egui::Theme::Dark => {
-                                                                        Color32::from_rgb(
-                                                                            205, 214, 244,
-                                                                        )
-                                                                    }
-                                                                },
-                                                            )
-                                                            .size(task_text_size),
-                                                    )
-                                                    .selectable(false),
-                                                )
-                                            },
-                                        )
-                                    },
-                                );
-
-                                let difficulty_text_size = 0.1125 * button.rect.height();
-                                ui.scope_builder(
-                                    egui::UiBuilder::new().max_rect(egui::Rect {
-                                        min: egui::Pos2 {
-                                            x: button.rect.min.x + 0.5 * difficulty_text_size,
-                                            y: button.rect.min.y + 0.4 * difficulty_text_size,
-                                        },
-                                        max: egui::Pos2 {
-                                            x: button.rect.max.x,
-                                            y: button.rect.min.y + 1.4 * difficulty_text_size,
-                                        },
-                                    }),
-                                    |ui| {
-                                        ui.with_layout(
-                                            egui::Layout::left_to_right(egui::Align::TOP),
-                                            |ui| {
-                                                ui.add(
-                                                    egui::Label::new(
-                                                        egui::RichText::new(difficulty.to_string())
-                                                            .color(difficulty.get_text_color(
-                                                                if self.theme == egui::Theme::Dark {
-                                                                    button.hovered()
-                                                                } else {
-                                                                    !button.hovered()
-                                                                },
-                                                            ))
-                                                            .size(difficulty_text_size),
-                                                    )
-                                                    .selectable(false),
-                                                )
-                                            },
-                                        )
-                                    },
-                                );
-                            });
-
-                            if (i + 1) % N_COLS == 0 {
-                                ui.end_row();
-                            }
-                        },
-                    );
-
-                    self.hovered_task = hovered_task;
-                });
-        });
-    }
-
-    fn configuration_page(&mut self, ui: &mut egui::Ui) {
-        egui::ScrollArea::vertical().show(ui, |ui| {
-            let margin_x = (ui.ctx().content_rect().width() - 768.0).max(0.0) / 2.0;
-            let inner_margin = egui::Margin {
-                left: margin_x.max(0.0) as i8,
-                right: margin_x.max(0.0) as i8,
-                ..egui::Margin::default()
-            };
-            egui::Frame::default()
-                .inner_margin(inner_margin)
-                .show(ui, |ui| {
-                    ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
-                        egui::Grid::new("real_time_env_config").show(ui, |ui| {
-                            ui.style_mut().spacing.slider_width = 170.0;
-
-                            ui.add(
-                                egui::Label::new(
-                                    egui::RichText::new("\u{e80b} Gravity").size(22.0),
-                                )
-                                .selectable(false),
-                            )
-                            .on_hover_text("Acceleration due to gravity");
-                            ui.add(
-                                egui::Slider::new(&mut self.gravity, 0.0..=25.0)
-                                    .trailing_fill(true)
-                                    .custom_formatter(|x, _| format!("{x:.2}"))
-                                    .suffix(" m/s²")
-                                    .custom_parser(|x| {
-                                        if let Ok(x) = x.parse::<f64>() {
-                                            Some(x.max(0.0_f64))
-                                        } else {
-                                            None
-                                        }
-                                    }),
-                            );
-
-                            ui.with_layout(
-                                egui::Layout::left_to_right(egui::Align::Center),
-                                |ui| {
-                                    if ui
-                                        .add(
-                                            egui::Button::new(egui::RichText::new("Zero"))
-                                                .frame(true),
-                                        )
-                                        .clicked()
-                                    {
-                                        self.gravity = Domain::Orbit.gravity_magnitude();
-                                    }
-                                    if ui
-                                        .add(
-                                            egui::Button::new(egui::RichText::new("Moon"))
-                                                .frame(true),
-                                        )
-                                        .clicked()
-                                    {
-                                        self.gravity = Domain::Moon.gravity_magnitude();
-                                    }
-                                    if ui
-                                        .add(
-                                            egui::Button::new(egui::RichText::new("Mars"))
-                                                .frame(true),
-                                        )
-                                        .clicked()
-                                    {
-                                        self.gravity = Domain::Mars.gravity_magnitude();
-                                    }
-                                    if ui
-                                        .add(
-                                            egui::Button::new(egui::RichText::new("Earth"))
-                                                .frame(true),
-                                        )
-                                        .clicked()
-                                    {
-                                        self.gravity = 9.81;
-                                    }
-                                    if ui
-                                        .add(
-                                            egui::Button::new(egui::RichText::new("Jupiter"))
-                                                .frame(true),
-                                        )
-                                        .clicked()
-                                    {
-                                        self.gravity = 24.79;
-                                    }
-                                },
-                            );
-                            ui.end_row();
-
-                            ui.add(
-                                egui::Label::new(
-                                    egui::RichText::new("\u{e8b5} Latency").size(22.0),
-                                )
-                                .selectable(false),
-                            )
-                            .on_hover_text(
-                                "One-way communication delay between the operator and the robot",
-                            );
-                            ui.add(
-                                egui::Slider::new(&mut self.latency, 0.0..=2000.0)
-                                    .trailing_fill(true)
-                                    .custom_formatter(|x, _| format!("{x:.0}"))
-                                    .suffix(" ms"),
-                            );
-                            ui.with_layout(
-                                egui::Layout::left_to_right(egui::Align::Center),
-                                |ui| {
-                                    if ui
-                                        .add(
-                                            egui::Button::new(egui::RichText::new("None"))
-                                                .frame(true),
-                                        )
-                                        .clicked()
-                                    {
-                                        self.latency = 0.0;
-                                    }
-                                    if ui
-                                        .add(
-                                            egui::Button::new(egui::RichText::new("LEO"))
-                                                .frame(true),
-                                        )
-                                        .clicked()
-                                    {
-                                        self.latency = 50.0;
-                                    }
-                                    if ui
-                                        .add(
-                                            egui::Button::new(egui::RichText::new("MEO"))
-                                                .frame(true),
-                                        )
-                                        .clicked()
-                                    {
-                                        self.latency = 225.0;
-                                    }
-                                    if ui
-                                        .add(
-                                            egui::Button::new(egui::RichText::new("GEO"))
-                                                .frame(true),
-                                        )
-                                        .clicked()
-                                    {
-                                        self.latency = 280.0;
-                                    }
-                                    if ui
-                                        .add(
-                                            egui::Button::new(egui::RichText::new("Moon"))
-                                                .frame(true),
-                                        )
-                                        .clicked()
-                                    {
-                                        self.latency = 1250.0;
-                                    }
-                                    ui.end_row();
-                                },
-                            );
-
-                            ui.end_row();
-                        });
-
-                        ui.add_space(20.0);
-
-                        ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
-                            let max_button_width = ui.ctx().available_rect().width().min(768.0);
-
-                            if ui
-                                .add(
-                                    egui::Button::new(
-                                        egui::RichText::new("\u{f23a} Exit").size(32.0),
-                                    )
-                                    .min_size(egui::Vec2::new(max_button_width, 75.0))
-                                    .frame(true),
-                                )
-                                .clicked()
-                            {
-                                self.restart_episode();
-                                self.current_page = Page::QuickStart;
-                                self.show_about = false;
-                                self.gravity = self.task_config.domain.gravity_magnitude();
-                                self.latency = 0.0;
-                                self.motion_sensitivity = 1.0;
-                                self.force_feedback_sensitivity = 1.0;
-                                self.max_feedback_force = 2.0;
-                                self.collect_trajectory = false;
-                                self.task_config = TaskConfig::builder().build();
-                                self.stop_subprocess();
-                            }
-
-                            ui.add_space(10.0);
-
-                            if ui
-                                .add(
-                                    egui::Button::new(
-                                        egui::RichText::new("\u{e5d5} Restart").size(32.0),
-                                    )
-                                    .min_size(egui::Vec2::new(max_button_width, 75.0))
-                                    .frame(true),
-                                )
-                                .clicked()
-                            {
-                                self.restart_episode();
-                            }
-                        });
-                    });
-                });
-        });
-    }
-
-    fn restart_episode(&mut self) {
-        if self.subprocess.is_some() {
-            info!("Restarting episode");
-            // Log data collection event
-            if self.collect_trajectory {
-                info!("Logging collected trajectory data point (on restart)");
-                self.n_collected_trajectories += 1; // Increment here or based on actual save confirmation if added
-
-                // Log the configuration used for this trajectory
-                // Use serde_json for easy serialization of TaskConfig
-                let config_json = serde_json::to_string(&self.task_config)
-                    .unwrap_or_else(|e| format!("Error serializing config: {e}"));
-
-                writeln!(
-                    self.logfile,
-                    "DATA, {}, {}, {}",
-                    std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap()
-                        .as_secs(),
-                    chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
-                    config_json // Log the JSON config
-                )
-                .unwrap_or_else(|e| error!("Failed to write to logfile: {}", e));
-            }
-            // Send reset signal (discard current trajectory in sim)
-            self.pub_reset_discard_dataset
-                .publish(&EmptyMsg {})
-                .unwrap_or_else(|e| error!("Failed to publish reset message: {}", e));
-        } else {
-            error!("Cannot restart episode: subprocess is not running");
+            self.interface_controls.toggle_customization();
         }
     }
 
     fn about_window(&mut self, ui: &mut egui::Ui) {
-        if self.show_about {
+        if self.session.show_about() {
             let available_rect = ui.ctx().available_rect();
             let center_point = available_rect.center();
 
             egui::containers::Window::new(egui::RichText::new("About").size(18.0))
                 .interactable(true)
-                .open(&mut self.show_about)
+                .open(self.session.show_about_mut())
                 .collapsible(false)
                 .resizable(false)
                 .fixed_size([512.0, 1024.0])
@@ -992,10 +582,12 @@ impl App {
                 })
                 .show(ui.ctx(), |ui| {
                     ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
-                        commonmark_str!(
+                        // Keep this source-relative path valid in the crate checked by `cargo
+                        // publish`.
+                        CommonMarkViewer::new().show(
                             ui,
                             &mut self.commonmark_cache,
-                            "crates/srb_gui/content/about.md"
+                            include_str!("../content/about.md"),
                         );
                     });
                 });
@@ -1003,17 +595,16 @@ impl App {
     }
 
     fn virtual_keyboard_window(&mut self, ui: &mut egui::Ui) {
-        if self.show_virtual_keyboard_window && self.current_page == Page::Interface {
+        if self.interface_controls.virtual_keyboard_visible()
+            && self.session.current_page() == Page::Interface
+        {
             let available_rect = ui.ctx().available_rect();
-            // let available_size = available_rect.size(); // Not used
 
             egui::containers::Window::new(egui::RichText::new("Gripper").size(16.0))
                 .interactable(true)
                 .collapsible(true)
                 .resizable(false)
-                // .max_size([0.61 * available_size.x, 0.61 * available_size.y]) // Remove max size for simplicity
                 .default_rect(egui::Rect {
-                    // Position near bottom right?
                     min: egui::Pos2::new(
                         available_rect.max.x - 150.0,
                         available_rect.max.y - 100.0,
@@ -1024,19 +615,15 @@ impl App {
                     ui.with_layout(
                         egui::Layout::centered_and_justified(egui::Direction::LeftToRight),
                         |ui| {
-                            // Use a toggle button style
                             let button = egui::Button::new("🤏 Gripper Toggle");
                             if ui
                                 .add(button)
                                 .on_hover_text("Click to toggle gripper (Spacebar alternative)")
                                 .clicked()
                             {
-                                // Publish True, assuming the sim interprets any BoolMsg as a toggle trigger
-                                self.pub_gripper_toggle
-                                    .publish(&BoolMsg { data: true })
-                                    .unwrap_or_else(|e| {
-                                        error!("Failed to publish gripper toggle: {}", e);
-                                    });
+                                if let Err(error) = self.ros.publish_gripper_toggle() {
+                                    error!("Failed to publish gripper toggle: {error}");
+                                }
                             }
                         },
                     );
@@ -1044,387 +631,39 @@ impl App {
         }
     }
 
-    fn developer_options_window(&mut self, ui: &mut egui::Ui) {
-        if self.show_developer_options {
-            let available_rect = ui.ctx().available_rect();
-            egui::containers::Window::new(egui::RichText::new("Customization").size(22.0))
-                .interactable(true)
-                .collapsible(false)
-                .resizable(false)
-                .default_rect(egui::Rect {
-                    min: available_rect.max,
-                    max: available_rect.max,
-                })
-                .fixed_size([384.0, 256.0])
-                .show(ui.ctx(), |ui| {
-                    ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
-                        egui::Grid::new("extra_developer_options_grid").show(ui, |ui| {
-                            ui.add(
-                                egui::Label::new(
-                                    egui::RichText::new("\u{ea3c} Workflow").size(20.0),
-                                )
-                                .selectable(false),
-                            );
-                            egui::ComboBox::new("dev_workflow_combo_box", "")
-                                .width(235.0)
-                                .selected_text(
-                                    egui::RichText::new(match self.task_config.workflow {
-                                        Workflow::Zero => "Zero",
-                                        Workflow::Rand => "Rand",
-                                        Workflow::Teleop => "Teleop",
-                                    })
-                                    .size(20.0),
-                                )
-                                .show_ui(ui, |ui| {
-                                    ui.selectable_value(
-                                        &mut self.task_config.workflow,
-                                        Workflow::Rand,
-                                        "Rand",
-                                    );
-                                    ui.selectable_value(
-                                        &mut self.task_config.workflow,
-                                        Workflow::Zero,
-                                        "Zero",
-                                    );
-                                    ui.selectable_value(
-                                        &mut self.task_config.workflow,
-                                        Workflow::Teleop,
-                                        "Teleop",
-                                    );
-                                });
-
-                            ui.end_row();
-
-                            ui.add(
-                                egui::Label::new(egui::RichText::new("\u{ef75} Domain").size(20.0))
-                                    .selectable(false),
-                            );
-                            egui::ComboBox::new("dev_domain_combo_box", "")
-                                .width(235.0)
-                                .selected_text(
-                                    egui::RichText::new(match self.task_config.domain {
-                                        Domain::Asteroid => "Asteroid",
-                                        Domain::Earth => "Earth",
-                                        Domain::Mars => "Mars",
-                                        Domain::Moon => "Moon",
-                                        Domain::Orbit => "Orbit",
-                                    })
-                                    .size(20.0),
-                                )
-                                .show_ui(ui, |ui| {
-                                    ui.selectable_value(
-                                        &mut self.task_config.domain,
-                                        Domain::Asteroid,
-                                        "Asteroid",
-                                    );
-                                    ui.selectable_value(
-                                        &mut self.task_config.domain,
-                                        Domain::Earth,
-                                        "Earth",
-                                    );
-                                    ui.selectable_value(
-                                        &mut self.task_config.domain,
-                                        Domain::Moon,
-                                        "Moon",
-                                    );
-                                    ui.selectable_value(
-                                        &mut self.task_config.domain,
-                                        Domain::Mars,
-                                        "Mars",
-                                    );
-                                    ui.selectable_value(
-                                        &mut self.task_config.domain,
-                                        Domain::Orbit,
-                                        "Orbit",
-                                    );
-                                });
-
-                            ui.end_row();
-
-                            ui.add(
-                                egui::Label::new(
-                                    egui::RichText::new("\u{eb9b} Task".to_string()).size(20.0),
-                                )
-                                .selectable(false),
-                            );
-                            egui::ComboBox::new("dev_task_combo_box", "")
-                                .width(235.0)
-                                .selected_text(
-                                    egui::RichText::new(self.task_config.task.to_string())
-                                        .size(20.0),
-                                )
-                                .show_ui(ui, |ui| {
-                                    for task in self.env_cache.clone() {
-                                        ui.selectable_value(
-                                            &mut self.task_config.task,
-                                            task.clone(),
-                                            task,
-                                        );
-                                    }
-                                });
-
-                            ui.end_row();
-
-                            ui.style_mut().spacing.slider_width = 185.0;
-
-                            ui.add(
-                                egui::Label::new(
-                                    egui::RichText::new("\u{e9e1} Random seed").size(20.0),
-                                )
-                                .selectable(false),
-                            );
-                            ui.add(
-                                egui::Slider::new(&mut self.task_config.seed, 0..=42)
-                                    .trailing_fill(true)
-                                    .integer()
-                                    .custom_formatter(|x, _| format!("{x}")),
-                            );
-
-                            ui.end_row();
-
-                            ui.add(
-                                egui::Label::new(
-                                    egui::RichText::new("\u{e3ea} Parallel envs").size(20.0),
-                                )
-                                .selectable(false),
-                            );
-                            ui.add(
-                                egui::Slider::new(&mut self.task_config.num_envs, 1..=16)
-                                    .clamping(egui::SliderClamping::Never)
-                                    // .clamping(egui::SliderClamping::Always)
-                                    .trailing_fill(true)
-                                    .integer()
-                                    .custom_formatter(|x, _| format!("{x}")),
-                            );
-
-                            ui.end_row();
-
-                            ui.add(
-                                egui::Label::new(
-                                    egui::RichText::new("\u{e1bd} Hide UI").size(20.0),
-                                )
-                                .selectable(false),
-                            );
-                            let is_hidden = self.task_config.hide_ui;
-                            ui.add(egui::Checkbox::new(
-                                &mut self.task_config.hide_ui,
-                                egui::RichText::new(if is_hidden {
-                                    " Hidden"
-                                } else {
-                                    " Revealed"
-                                })
-                                .size(20.0),
-                            ));
-
-                            ui.end_row();
-                            ui.end_row();
-
-                            ui.add(
-                                egui::Label::new(
-                                    egui::RichText::new("\u{e766} Feedback sensitivity").size(20.0),
-                                )
-                                .selectable(false),
-                            );
-                            ui.add(
-                                egui::Slider::new(&mut self.force_feedback_sensitivity, 0.0..=20.0)
-                                    .clamping(egui::SliderClamping::Always)
-                                    .trailing_fill(true)
-                                    .custom_formatter(|x, _| format!("{x:.1}")),
-                            );
-
-                            ui.end_row();
-
-                            ui.add(
-                                egui::Label::new(
-                                    egui::RichText::new("\u{e9e4} Feedback force limit").size(20.0),
-                                )
-                                .selectable(false),
-                            );
-                            ui.add(
-                                egui::Slider::new(&mut self.max_feedback_force, 0.0..=5.0)
-                                    .clamping(egui::SliderClamping::Always)
-                                    .trailing_fill(true)
-                                    .custom_formatter(|x, _| format!("{x:.1}")),
-                            );
-
-                            ui.end_row();
-
-                            ui.add(
-                                egui::Label::new(
-                                    egui::RichText::new("\u{f049} Virtual gripper").size(20.0),
-                                )
-                                .selectable(false),
-                            );
-                            let is_enabled = self.show_virtual_keyboard_window;
-                            ui.add(egui::Checkbox::new(
-                                &mut self.show_virtual_keyboard_window,
-                                egui::RichText::new(if is_enabled {
-                                    " Enabled"
-                                } else {
-                                    " Disabled"
-                                })
-                                .size(20.0),
-                            ));
-                        });
-
-                        // ui.add_space(10.0);
-
-                        ui.separator();
-
-                        ui.with_layout(
-                            egui::Layout::centered_and_justified(egui::Direction::TopDown),
-                            |ui| {
-                                if ui
-                                    .add(
-                                        egui::Button::new(
-                                            egui::RichText::new("\u{e1c4}").size(40.0),
-                                        )
-                                        .frame(false),
-                                    )
-                                    .clicked()
-                                {
-                                    self.gravity = self.task_config.domain.gravity_magnitude();
-                                    self.start_subprocess();
-                                    // self.current_page = Page::Interface;
-                                }
-                            },
-                        );
-                    });
-                });
+    fn handle_interface_control_event(&mut self, event: Option<GuiInterfaceControlEvent>) {
+        let outcome = GuiWorkflow::handle_event(
+            event,
+            &mut self.task_browser,
+            &mut self.session,
+            &mut self.runtime_session,
+            &self.ros,
+        );
+        for error in outcome.errors {
+            self.record_workflow_error(error);
         }
     }
 
-    fn start_subprocess(&mut self) {
-        const PYTHON_SCRIPT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../srb/__main__.py");
-
-        self.stop_subprocess();
-        if self.subprocess.is_some() {
-            warn!("Subprocess already running.");
-            return;
-        }
-
-        // Construct the subprocess
-        println!("python: {}", Self::get_isaacsim_python_exe());
-        let exec = subprocess::Exec::cmd(Self::get_isaacsim_python_exe()).arg(PYTHON_SCRIPT);
-        let exec = self.task_config.set_exec_env(exec);
-
-        // Start the subprocess
-        info!("Starting subprocess: {:?}", exec);
-        let mut popen = exec.popen().unwrap();
-
-        popen
-            .wait_timeout(std::time::Duration::from_millis(2000))
-            .unwrap();
-
-        if popen.poll().is_none() {
-            info!("Subprocess started.");
-            self.subprocess = Some(popen);
-        } else {
-            error!("Failed to start subprocess.");
-        }
-    }
-
-    /// Note: The `python.sh` interface of isaac sim launches a new process `python3` but does not propagate the signal to the child process.
-    /// Therefore, we need kill the `python3` process directly.
-    fn stop_subprocess(&mut self) {
-        self.pub_gracefully_shutdown_process
-            .publish(&EmptyMsg {})
-            .unwrap();
-
-        const SUBPROCESS_NAME: &str = "python3";
-        const SUBPROCESS_NAME2: &str = "python.sh";
-        const SLEEP_DURATION: std::time::Duration = std::time::Duration::from_millis(10);
-
-        if let Some(p) = &mut self.subprocess {
-            info!("Stopping subprocess...");
-
-            if p.wait_timeout(std::time::Duration::from_millis(1000))
-                .unwrap()
-                .is_some()
-            {
-                info!("Subprocess stopped.");
-                self.subprocess = None;
-                return;
-            }
-
-            // Try to terminate the process gracefully
-            for signal in [
-                nix::sys::signal::Signal::SIGINT,
-                nix::sys::signal::Signal::SIGTERM,
-                nix::sys::signal::Signal::SIGKILL,
-            ] {
-                loop {
-                    let _ = Self::kill_all_processes_by_name(SUBPROCESS_NAME, signal);
-                    let _ = Self::kill_all_processes_by_name(SUBPROCESS_NAME2, signal);
-
-                    if p.wait_timeout(SLEEP_DURATION).unwrap().is_some() {
-                        info!("Subprocess stopped.");
-                        self.subprocess = None;
-                        return;
-                    }
-
-                    if signal != nix::sys::signal::Signal::SIGKILL {
-                        break;
+    fn initialization_error_page(&self, ui: &mut egui::Ui, error: &GuiWorkflowError) {
+        ui.vertical_centered(|ui| {
+            ui.heading("GUI initialization unavailable");
+            ui.label(format!("Category: {}", error.category().label()));
+            match error {
+                GuiWorkflowError::CatalogLoad(cache_error) => {
+                    ui.label(cache_error.summary());
+                    ui.label(cache_error.recovery_hint());
+                    for command in cache_error.recovery_commands() {
+                        ui.label(format!("{}: {}", command.label(), command.command()));
                     }
                 }
-            }
-        } else {
-            warn!("No known subprocess to stop.");
-            // Directly kill the process if the subprocess might have been spawned by other means
-            let _ = Self::kill_all_processes_by_name(
-                SUBPROCESS_NAME,
-                nix::sys::signal::Signal::SIGKILL,
-            );
-            let _ = Self::kill_all_processes_by_name(
-                SUBPROCESS_NAME2,
-                nix::sys::signal::Signal::SIGKILL,
-            );
-        }
-    }
-
-    fn get_isaacsim_python_exe() -> String {
-        if let Ok(python_exe) = std::env::var("ISAAC_SIM_PYTHON") {
-            trace!("ISAAC_SIM_PYTHON: {}", python_exe);
-            python_exe.trim().to_owned()
-        } else {
-            let home_dir = home::home_dir().unwrap_or("/root".into());
-            let isaac_sim_python_sh = home_dir.join("isaac-sim/python.sh");
-            if std::path::Path::new(&isaac_sim_python_sh).exists() {
-                trace!("ISAAC_SIM_PYTHON: {}", isaac_sim_python_sh.display());
-                isaac_sim_python_sh.display().to_string()
-            } else {
-                trace!("ISAAC_SIM_PYTHON: which python3");
-                subprocess::Exec::cmd("which")
-                    .arg("python3")
-                    .stdout(subprocess::Redirection::Pipe)
-                    .stderr(subprocess::Redirection::Merge)
-                    .capture()
-                    .expect("No Python interpreter was found.")
-                    .stdout_str()
-                    .trim()
-                    .to_owned()
-            }
-        }
-    }
-
-    fn kill_all_processes_by_name(name: &str, signal: nix::sys::signal::Signal) -> nix::Result<()> {
-        // Create a System object to gather information
-        let mut system = sysinfo::System::new_all();
-        // Refresh the process list
-        system.refresh_all();
-
-        // Iterate through all processes
-        for process in system.processes() {
-            // Check if the process name matches the given name
-            if process.1.name() == name {
-                let pid = process.1.pid();
-                // Send a signal to the process
-                trace!("Killing process {} with signal {:?}", pid, signal);
-                nix::sys::signal::kill(nix::unistd::Pid::from_raw(pid.as_u32() as i32), signal)?;
-            }
-        }
-
-        Ok(())
+                _ => {
+                    ui.label(error.to_string());
+                }
+            };
+            ui.add_space(8.0);
+            ui.label("No catalog selection, session mutation, or runtime process was accepted.");
+            ui.label("Fix the error above, then reopen the GUI.");
+        });
     }
 
     pub fn dark_mode_toggle_button(&mut self, ui: &mut egui::Ui) {
@@ -1442,7 +681,7 @@ impl App {
         };
 
         if ui
-            .add(egui::Button::new(icon))
+            .add(egui::Button::new(icon).min_size(egui::vec2(28.0, 24.0)))
             .on_hover_text(tooltip)
             .clicked()
         {
@@ -1454,96 +693,48 @@ impl App {
         }
     }
 
-    fn publish_messages(&mut self) {
-        self.gravity = self.gravity.max(0.0);
-        self.latency = self.latency.max(0.0);
-        self.motion_sensitivity = self.motion_sensitivity.max(0.0);
-        self.force_feedback_sensitivity = self.force_feedback_sensitivity.max(0.0);
-        self.max_feedback_force = self.max_feedback_force.clamp(0.0, 5.0);
-
-        if self.prev_gravity != self.gravity {
-            self.prev_gravity = self.gravity;
-            self.pub_gravity
-                .publish(&Float64Msg { data: self.gravity })
-                .unwrap();
-        }
-
-        if self.prev_latency != self.latency {
-            self.prev_latency = self.latency;
-            self.pub_latency
-                .publish(&Float64Msg {
-                    data: self.latency / 1000.0,
-                })
-                .unwrap();
-        }
-
-        if self.prev_motion_sensitivity != self.motion_sensitivity {
-            self.prev_motion_sensitivity = self.motion_sensitivity;
-            self.pub_motion_sensitivity
-                .publish(&Float64Msg {
-                    data: self.motion_sensitivity,
-                })
-                .unwrap();
-        }
-
-        if self.prev_force_feedback_sensitivity != self.force_feedback_sensitivity {
-            self.prev_force_feedback_sensitivity = self.force_feedback_sensitivity;
-            self.pub_force_feedback_sensitivity
-                .publish(&Float64Msg {
-                    data: self.force_feedback_sensitivity,
-                })
-                .unwrap();
-        }
-
-        if self.prev_max_feedback_force != self.max_feedback_force {
-            self.prev_max_feedback_force = self.max_feedback_force;
-            self.pub_max_feedback_force
-                .publish(&Float64Msg {
-                    data: self.max_feedback_force,
-                })
-                .unwrap();
+    fn publish_runtime_params(&mut self) {
+        let published = LaunchRuntimeParamsPublisher::new(
+            &mut self.ros,
+            &mut self.runtime_params_delivery,
+            &self.runtime_session,
+            std::time::Instant::now(),
+        )
+        .publish_runtime_params(self.session.runtime_params());
+        if let Some(published) = published {
+            self.record_runtime_params_publish(published);
         }
     }
 
-    fn show_top_center_bar(&mut self, ui: &mut egui::Ui) {
-        ui.with_layout(
-            egui::Layout::centered_and_justified(egui::Direction::LeftToRight),
-            |ui| match self.current_page {
-                Page::QuickStart => {
-                    ui.add(
-                        egui::Label::new(
-                            egui::RichText::new("\u{eb9b} Select your Experience \u{ef75}     ")
-                                .family(egui::FontFamily::Proportional)
-                                .strong(),
-                        )
-                        .selectable(false),
-                    );
-                }
-                Page::Interface => {
-                    ui.add(
-                        egui::Label::new(
-                            egui::RichText::new("\u{f049} Complete the Task \u{ea3c}     ")
-                                .family(egui::FontFamily::Proportional)
-                                .strong(),
-                        )
-                        .selectable(false),
-                    );
-                }
-            },
-        );
+    fn record_runtime_params_publish(
+        &mut self,
+        published: Result<RuntimeParams, crate::gui_ros::GuiRosError>,
+    ) {
+        match published {
+            Ok(params) => {
+                self.session.set_runtime_params(params);
+                self.runtime_session
+                    .set_published_runtime_params(runtime_params_record(params));
+            }
+            Err(error) => {
+                error!("Failed to publish runtime parameters: {error}");
+                self.record_workflow_error(GuiWorkflowError::Runtime(GuiRuntimeError::new(
+                    format!("Failed to publish runtime parameters: {error}"),
+                )));
+            }
+        }
     }
 
     fn show_trajectory_collection_checkbox(&mut self, ui: &mut egui::Ui) {
         ui.add(egui::Checkbox::new(
-            &mut self.collect_trajectory,
+            self.session.collect_trajectory_mut(),
             egui::RichText::new(format!(
-                " Collect Trajectory ( {} samples )",
-                self.n_collected_trajectories
+                "Record episode configs  |  {} records",
+                self.runtime_session.collected_trajectories()
             ))
-            .heading()
-            .size(20.0),
+            .size(14.0),
         ))
-        .on_hover_text("Your participation makes our robots more intelligent!");
+        .on_hover_text("Log the task configuration when restarting a running episode.");
     }
 
     fn warn_if_debug_build(&mut self, ui: &mut egui::Ui) {
@@ -1556,7 +747,7 @@ impl App {
                             "Current page: {:?}\n\
                                      Screen size:  {:?}\n\
                                     ",
-                            self.current_page,
+                            self.session.current_page(),
                             ui.ctx().content_rect().size(),
                         ))
                         .font(egui::FontId::monospace(

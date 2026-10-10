@@ -1,11 +1,9 @@
 from dataclasses import MISSING
-from typing import Sequence
 
 import torch
 
 from srb import assets
-from srb._typing import StepReturn
-from srb.core.action import ThrustAction
+from srb._typing import ObservationGroup, StepReturn
 from srb.core.asset import (
     Articulation,
     AssetVariant,
@@ -21,36 +19,98 @@ from srb.core.env import (
     OrbitalManipulationSceneCfg,
     ViewerCfg,
 )
-from srb.core.manager import EventTermCfg, SceneEntityCfg
+from srb.core.env.srb_env import SrbEnv
+from srb.core.manager import SceneEntityCfg
 from srb.core.mdp import reset_root_state_uniform
-from srb.core.sensor import ContactSensor
+from srb.core.randomization import RandomizationCategory, SrbEventTermCfg
+from srb.core.reward import (
+    BaseRewardCfg,
+    GaussianRewardTerm,
+    LinearRewardTerm,
+    SoftThresholdRewardTerm,
+)
+from srb.core.scene_introspection import get_scene_rigid_object
+from srb.core.sensor import ContactSensor, ContactSensorCfg
 from srb.core.sim import SimforgeAssetCfg
 from srb.tasks.manipulation.debris_capture.asset import select_debris
 from srb.utils.cfg import configclass
 from srb.utils.math import (
-    deg_to_rad,
     matrix_from_quat,
+    normalize_joint_pos,
+    radians,
     rotmat_to_rot6d,
-    scale_transform,
     subtract_frame_transforms,
 )
 
-##############
-### Config ###
-##############
+
+class RewardCfg(BaseRewardCfg):
+    """Combine orbital mobility and manipulation reward terms.
+
+    Shape approach and velocity matching before rewarding grasp contact.
+    Angular velocity matching is weighted twice as strongly as linear matching.
+    """
+
+    penalty_action_rate: LinearRewardTerm = LinearRewardTerm(weight=-0.1, limit=4.0)
+    """Discourages rapid changes in commanded actions."""
+
+    penalty_fuel_consumption: LinearRewardTerm = LinearRewardTerm(
+        weight=-2.0, limit=8.0
+    )
+    """Penalises fuel usage — moderate weight; manoeuvring is expected."""
+
+    penalty_angular_velocity: LinearRewardTerm = LinearRewardTerm(
+        weight=-0.05, limit=5.0
+    )
+    """Penalises base rotation to support stable manipulation."""
+
+    penalty_joint_torque: LinearRewardTerm = LinearRewardTerm(
+        weight=-0.000025, limit=4.0
+    )
+    """Penalises joint torque, with a small weight for orbital motion."""
+
+    penalty_joint_acceleration: LinearRewardTerm = LinearRewardTerm(
+        weight=-0.0005, limit=4.0
+    )
+    """Penalises large joint accelerations."""
+
+    reward_distance_end_effector_to_obj: GaussianRewardTerm = GaussianRewardTerm(
+        weight=16.0, scale=0.2
+    )
+    """Gaussian proximity reward with a 0.2 m scale."""
+
+    reward_grasp: SoftThresholdRewardTerm = SoftThresholdRewardTerm(
+        weight=32.0, threshold=5.0, operator=">", sharpness=1.0
+    )
+    """Soft reward for grasp contact near or above 5 N."""
+
+    reward_minimize_rel_lin_vel: GaussianRewardTerm = GaussianRewardTerm(
+        weight=12.0, scale=0.01
+    )
+    """Gaussian reward for low relative linear velocity (0.01 m/s scale)."""
+
+    reward_minimize_rel_ang_vel: GaussianRewardTerm = GaussianRewardTerm(
+        weight=24.0, scale=0.03
+    )
+    """Gaussian reward for low relative angular velocity (0.03 rad/s scale)."""
+
+    penalty_debris_too_far: LinearRewardTerm = LinearRewardTerm(
+        weight=-16.0, limit=16.0
+    )
+    """Penalises debris beyond end-effector range without terminating."""
 
 
 @configclass
 class SceneCfg(OrbitalManipulationSceneCfg):
     env_spacing: float = 8.0
-    debris: RigidObjectCfg = MISSING  # type: ignore
+    debris: RigidObjectCfg = MISSING  # type: ignore[assignment]
 
 
 @configclass
 class EventCfg(OrbitalManipulationEventCfg):
-    randomize_obj_state: EventTermCfg = EventTermCfg(
+    randomize_obj_state: SrbEventTermCfg = SrbEventTermCfg(
         func=reset_root_state_uniform,
         mode="reset",
+        category=RandomizationCategory.TASK,
         params={
             "asset_cfg": SceneEntityCfg("debris"),
             "pose_range": {
@@ -65,9 +125,9 @@ class EventCfg(OrbitalManipulationEventCfg):
                 "x": (-2.0, -0.5),
                 "y": (-0.5, 0.5),
                 "z": (-0.5, 0.5),
-                "roll": (-deg_to_rad(10.0), deg_to_rad(10.0)),
-                "pitch": (-deg_to_rad(10.0), deg_to_rad(10.0)),
-                "yaw": (-deg_to_rad(10.0), deg_to_rad(10.0)),
+                "roll": (-radians(10.0), radians(10.0)),
+                "pitch": (-radians(10.0), radians(10.0)),
+                "yaw": (-radians(10.0), radians(10.0)),
             },
         },
     )
@@ -75,11 +135,13 @@ class EventCfg(OrbitalManipulationEventCfg):
 
 @configclass
 class TaskCfg(OrbitalManipulationEnvCfg):
+    """Configure free-flight debris capture within 60-second episodes."""
+
     ## Assets
     robot: OrbitalManipulator | AssetVariant = assets.GenericOrbitalManipulator(
         mobile_base=assets.VenusExpress(), manipulator=assets.Franka()
     )
-    debris: Object | AssetVariant | None = AssetVariant.PROCEDURAL
+    debris: Object | AssetVariant = AssetVariant.PROCEDURAL
 
     ## Scene
     scene: SceneCfg = SceneCfg()
@@ -87,9 +149,16 @@ class TaskCfg(OrbitalManipulationEnvCfg):
     ## Events
     events: EventCfg = EventCfg()
 
+    ## Reward
+    reward: RewardCfg = RewardCfg()
+
     ## Time
     episode_length_s: float = 60.0
     is_finite_horizon: bool = True
+
+    ## Penalty thresholds
+    distance_debris_too_far: float = 25.0
+    """Distance threshold for the too-far debris penalty; does not terminate the episode."""
 
     ## Viewer
     viewer: ViewerCfg = ViewerCfg(
@@ -99,9 +168,8 @@ class TaskCfg(OrbitalManipulationEnvCfg):
     def __post_init__(self):
         super().__post_init__()
 
-        # Scene: Debris
         self.scene.debris = select_debris(
-            self,  # type: ignore
+            self,  # type: ignore[misc]
             prim_path="{ENV_REGEX_NS}/debris",
             init_state=RigidObjectCfg.InitialStateCfg(pos=(5.0, 0.0, 0.0)),
             activate_contact_sensors=True,
@@ -110,364 +178,227 @@ class TaskCfg(OrbitalManipulationEnvCfg):
         if isinstance(self.scene.debris.spawn, SimforgeAssetCfg):
             self.scene.debris.spawn.seed = self.seed + self.scene.num_envs
 
-        # Update seed & number of variants for procedural assets
+        # Reapply the debris filter after scene setup rebuilds this sensor;
+        # otherwise force_matrix_w is unset and the grasp reward stays zero.
+        if isinstance(self.scene.contacts_end_effector, ContactSensorCfg):
+            self.scene.contacts_end_effector.filter_prim_paths_expr = [
+                self.scene.debris.prim_path
+            ]
+
         self._update_procedural_assets()
 
 
-############
-### Task ###
-############
+class Task(SrbEnv, OrbitalManipulationEnv):
+    """Capture drifting debris with a free-flying robot and manipulator arm."""
 
-
-class Task(OrbitalManipulationEnv):
     cfg: TaskCfg
+    _srb_direct_runtime = True
 
     def __init__(self, cfg: TaskCfg, **kwargs):
-        super().__init__(cfg, **kwargs)
+        super().__init__(cfg, runtime_mode="isaac", **kwargs)
 
-        ## Get scene assets
-        self._obj: RigidObject = self.scene["debris"]
-        self._contacts_end_effector: ContactSensor = self.scene["contacts_end_effector"]
-
-    def _reset_idx(self, env_ids: Sequence[int]):
-        super()._reset_idx(env_ids)
+        self._obj: RigidObject = get_scene_rigid_object(self.scene, "debris")
+        # ``ManipulationEnv`` already binds the optional ``_contacts_end_effector``.
 
     def extract_step_return(self) -> StepReturn:
-        ## Get remaining fuel (if applicable)
-        if self._thrust_action_term_key:
-            thrust_action_term: ThrustAction = self.action_manager._terms[  # type: ignore
-                self._thrust_action_term_key
-            ]
+        rew = self.cfg.reward
+        num_envs = self.num_envs
+
+        thrust_action_term = self._thrust_action_term
+        if thrust_action_term is not None:
             remaining_fuel = (
                 thrust_action_term.remaining_fuel / thrust_action_term.cfg.fuel_capacity
             ).unsqueeze(-1)
         else:
-            remaining_fuel = None
+            remaining_fuel = torch.ones(
+                (num_envs, 1), dtype=torch.float32, device=self.device
+            )
 
-        return _compute_step_return(
-            ## Time
-            episode_length=self.episode_length_buf,
-            max_episode_length=self.max_episode_length,
-            truncate_episodes=self.cfg.truncate_episodes,
-            ## Actions
-            act_current=self.action_manager.action,
-            act_previous=self.action_manager.prev_action,
-            ## States
-            # Root
-            tf_pos_robot=self._robot.data.root_pos_w,
-            tf_quat_robot=self._robot.data.root_quat_w,
-            vel_lin_robot=self._robot.data.root_lin_vel_b,
-            vel_ang_robot=self._robot.data.root_ang_vel_b,
-            # Joints
-            joint_pos_robot=self._manipulator.data.joint_pos,
-            joint_pos_limits_robot=(
-                self._manipulator.data.soft_joint_pos_limits
-                if torch.all(
-                    torch.isfinite(self._manipulator.data.soft_joint_pos_limits)
-                )
-                else None
-            ),
-            joint_pos_end_effector=self._end_effector.data.joint_pos
+        tf_pos_robot = self._robot.data.root_pos_w
+        tf_quat_robot = self._robot.data.root_quat_w
+        vel_lin_robot = self._robot.data.root_lin_vel_w
+        vel_ang_robot = self._robot.data.root_ang_vel_w
+
+        tf_rotmat_robot = matrix_from_quat(tf_quat_robot)
+        tf_rot6d_robot = rotmat_to_rot6d(tf_rotmat_robot)
+
+        tf_pos_obj = self._obj.data.root_pos_w
+        tf_quat_obj = self._obj.data.root_quat_w
+        vel_obj = self._obj.data.root_vel_w
+        tf_pos_robot_to_obj = tf_pos_obj - tf_pos_robot
+        vel_lin_robot_to_obj = vel_obj[:, :3] - vel_lin_robot
+        vel_ang_robot_to_obj = vel_obj[:, 3:] - vel_ang_robot
+
+        joint_pos_robot = self._manipulator.data.joint_pos
+        joint_pos_robot_normalized = normalize_joint_pos(
+            joint_pos_robot, self._manipulator.data.soft_joint_pos_limits
+        )
+
+        joint_pos_end_effector = (
+            self._end_effector.data.joint_pos
             if isinstance(self._end_effector, Articulation)
-            else None,
-            joint_pos_limits_end_effector=(
-                self._end_effector.data.soft_joint_pos_limits
-                if isinstance(self._end_effector, Articulation)
-                and torch.all(
-                    torch.isfinite(self._end_effector.data.soft_joint_pos_limits)
-                )
-                else None
-            ),
-            joint_acc_robot=self._manipulator.data.joint_acc,
-            joint_applied_torque_robot=self._manipulator.data.applied_torque,
-            # Kinematics
-            fk_pos_end_effector=self._tf_end_effector.data.target_pos_source[:, 0, :],
-            fk_quat_end_effector=self._tf_end_effector.data.target_quat_source[:, 0, :],
-            # Transforms (world frame)
-            tf_pos_end_effector=self._tf_end_effector.data.target_pos_w[:, 0, :],
-            tf_quat_end_effector=self._tf_end_effector.data.target_quat_w[:, 0, :],
-            tf_pos_obj=self._obj.data.root_pos_w,
-            tf_quat_obj=self._obj.data.root_quat_w,
-            # Velocities
-            vel_obj=self._obj.data.root_com_vel_w,
-            # Contacts
-            contact_forces_robot=self._contacts_robot.data.net_forces_w,  # type: ignore
-            contact_forces_end_effector=self._contacts_end_effector.data.net_forces_w
-            if isinstance(self._contacts_end_effector, ContactSensor)
-            else None,
-            contact_force_matrix_end_effector=self._contacts_end_effector.data.force_matrix_w
-            if isinstance(self._contacts_end_effector, ContactSensor)
-            else None,
-            # IMU
-            imu_lin_acc=self._imu_robot.data.lin_acc_b,
-            imu_ang_vel=self._imu_robot.data.ang_vel_b,
-            # Fuel
-            remaining_fuel=remaining_fuel,
+            else None
         )
-
-
-@torch.jit.script
-def _compute_step_return(
-    *,
-    ## Time
-    episode_length: torch.Tensor,
-    max_episode_length: int,
-    truncate_episodes: bool,
-    ## Actions
-    act_current: torch.Tensor,
-    act_previous: torch.Tensor,
-    ## States
-    # Root
-    tf_pos_robot: torch.Tensor,
-    tf_quat_robot: torch.Tensor,
-    vel_lin_robot: torch.Tensor,
-    vel_ang_robot: torch.Tensor,
-    # Joints
-    joint_pos_robot: torch.Tensor,
-    joint_pos_limits_robot: torch.Tensor | None,
-    joint_pos_end_effector: torch.Tensor | None,
-    joint_pos_limits_end_effector: torch.Tensor | None,
-    joint_acc_robot: torch.Tensor,
-    joint_applied_torque_robot: torch.Tensor,
-    # Kinematics
-    fk_pos_end_effector: torch.Tensor,
-    fk_quat_end_effector: torch.Tensor,
-    # Transforms (world frame)
-    tf_pos_end_effector: torch.Tensor,
-    tf_quat_end_effector: torch.Tensor,
-    tf_pos_obj: torch.Tensor,
-    tf_quat_obj: torch.Tensor,
-    # Velocities
-    vel_obj: torch.Tensor,
-    # Contacts
-    contact_forces_robot: torch.Tensor,
-    contact_forces_end_effector: torch.Tensor | None,
-    contact_force_matrix_end_effector: torch.Tensor | None,
-    # IMU
-    imu_lin_acc: torch.Tensor,
-    imu_ang_vel: torch.Tensor,
-    # Fuel
-    remaining_fuel: torch.Tensor | None,
-) -> StepReturn:
-    num_envs = episode_length.size(0)
-    dtype = episode_length.dtype
-    device = episode_length.device
-
-    ############
-    ## States ##
-    ############
-    ## Root
-    tf_rotmat_robot = matrix_from_quat(tf_quat_robot)
-    tf_rot6d_robot = rotmat_to_rot6d(tf_rotmat_robot)
-
-    ## Robot -> Object
-    tf_pos_robot_to_obj = tf_pos_obj - tf_pos_robot
-    vel_lin_robot_to_obj = vel_obj[:, :3] - vel_lin_robot
-    vel_ang_robot_to_obj = vel_obj[:, 3:] - vel_ang_robot
-
-    ## Joints
-    # Robot joints
-    joint_pos_robot_normalized = (
-        scale_transform(
-            joint_pos_robot,
-            joint_pos_limits_robot[:, :, 0],
-            joint_pos_limits_robot[:, :, 1],
-        )
-        if joint_pos_limits_robot is not None
-        else joint_pos_robot
-    )
-    # End-effector joints
-    joint_pos_end_effector_normalized = (
-        scale_transform(
-            joint_pos_end_effector,
-            joint_pos_limits_end_effector[:, :, 0],
-            joint_pos_limits_end_effector[:, :, 1],
-        )
-        if joint_pos_end_effector is not None
-        and joint_pos_limits_end_effector is not None
-        else (
-            joint_pos_end_effector
+        joint_pos_end_effector_normalized = (
+            normalize_joint_pos(
+                joint_pos_end_effector,
+                self._end_effector.data.soft_joint_pos_limits,
+            )
             if joint_pos_end_effector is not None
-            else torch.empty((num_envs, 0), dtype=dtype, device=device)
+            and isinstance(self._end_effector, Articulation)
+            else (
+                joint_pos_end_effector
+                if joint_pos_end_effector is not None
+                else torch.empty((num_envs, 0), dtype=torch.float32, device=self.device)
+            )
         )
-    )
 
-    ## Kinematics
-    fk_rotmat_end_effector = matrix_from_quat(fk_quat_end_effector)
-    fk_rot6d_end_effector = rotmat_to_rot6d(fk_rotmat_end_effector)
+        joint_acc_robot = self._manipulator.data.joint_acc
+        joint_applied_torque_robot = self._manipulator.data.applied_torque
 
-    ## Transforms (world frame)
-    # End-effector -> Object
-    tf_pos_end_effector_to_obj, tf_quat_end_effector_to_obj = subtract_frame_transforms(
-        t01=tf_pos_end_effector,
-        q01=tf_quat_end_effector,
-        t02=tf_pos_obj,
-        q02=tf_quat_obj,
-    )
-    tf_rotmat_end_effector_to_obj = matrix_from_quat(tf_quat_end_effector_to_obj)
-    tf_rot6d_end_effector_to_obj = rotmat_to_rot6d(tf_rotmat_end_effector_to_obj)
+        fk_pos_end_effector = self._tf_end_effector.data.target_pos_source[:, 0, :]
+        fk_quat_end_effector = self._tf_end_effector.data.target_quat_source[:, 0, :]
+        fk_rotmat_end_effector = matrix_from_quat(fk_quat_end_effector)
+        fk_rot6d_end_effector = rotmat_to_rot6d(fk_rotmat_end_effector)
 
-    ## Contacts
-    contact_forces_mean_robot = contact_forces_robot.mean(dim=1)
-    contact_forces_mean_end_effector = (
-        contact_forces_end_effector.mean(dim=1)
-        if contact_forces_end_effector is not None
-        else torch.empty((num_envs, 0), dtype=dtype, device=device)
-    )
-    contact_forces_end_effector = (
-        contact_forces_end_effector
-        if contact_forces_end_effector is not None
-        else torch.empty((num_envs, 0), dtype=dtype, device=device)
-    )
+        tf_pos_end_effector = self._tf_end_effector.data.target_pos_w[:, 0, :]
+        tf_quat_end_effector = self._tf_end_effector.data.target_quat_w[:, 0, :]
 
-    ## Fuel
-    remaining_fuel = (
-        remaining_fuel
-        if remaining_fuel is not None
-        else torch.ones((num_envs, 1), dtype=dtype, device=device)
-    )
-
-    #############
-    ## Rewards ##
-    #############
-    # Penalty: Action rate
-    WEIGHT_ACTION_RATE = -0.5
-    penalty_action_rate = WEIGHT_ACTION_RATE * torch.mean(
-        torch.square(act_current - act_previous), dim=1
-    )
-
-    # Penalty: Fuel consumption
-    WEIGHT_FUEL_CONSUMPTION = -2.0
-    penalty_fuel_consumption = WEIGHT_FUEL_CONSUMPTION * torch.square(
-        1.0 - remaining_fuel.squeeze(-1)
-    )
-
-    # Penalty: Angular velocity (robot)
-    WEIGHT_ANGULAR_VELOCITY = -0.05
-    MAX_ANGULAR_VELOCITY_PENALTY = -5.0
-    penalty_angular_velocity = torch.clamp_min(
-        WEIGHT_ANGULAR_VELOCITY * torch.sum(torch.square(vel_ang_robot), dim=1),
-        min=MAX_ANGULAR_VELOCITY_PENALTY,
-    )
-
-    # Penalty: Joint torque
-    WEIGHT_JOINT_TORQUE = -0.000025
-    MAX_JOINT_TORQUE_PENALTY = -4.0
-    penalty_joint_torque = torch.clamp_min(
-        WEIGHT_JOINT_TORQUE
-        * torch.sum(torch.square(joint_applied_torque_robot), dim=1),
-        min=MAX_JOINT_TORQUE_PENALTY,
-    )
-
-    # Penalty: Joint acceleration
-    WEIGHT_JOINT_ACCELERATION = -0.0005
-    MAX_JOINT_ACCELERATION_PENALTY = -4.0
-    penalty_joint_acceleration = torch.clamp_min(
-        WEIGHT_JOINT_ACCELERATION * torch.sum(torch.square(joint_acc_robot), dim=1),
-        min=MAX_JOINT_ACCELERATION_PENALTY,
-    )
-
-    # Reward: Distance | End-effector <--> Object
-    WEIGHT_DISTANCE_END_EFFECTOR_TO_OBJ = 16.0
-    TANH_STD_DISTANCE_END_EFFECTOR_TO_OBJ = 0.2
-    reward_distance_end_effector_to_obj = WEIGHT_DISTANCE_END_EFFECTOR_TO_OBJ * (
-        1.0
-        - torch.tanh(
-            torch.norm(tf_pos_end_effector_to_obj, dim=-1)
-            / TANH_STD_DISTANCE_END_EFFECTOR_TO_OBJ
+        tf_pos_ee_to_obj, tf_quat_ee_to_obj = subtract_frame_transforms(
+            t01=tf_pos_end_effector,
+            q01=tf_quat_end_effector,
+            t02=tf_pos_obj,
+            q02=tf_quat_obj,
         )
-    )
+        tf_rotmat_ee_to_obj = matrix_from_quat(tf_quat_ee_to_obj)
+        tf_rot6d_ee_to_obj = rotmat_to_rot6d(tf_rotmat_ee_to_obj)
 
-    # Reward: Grasp object
-    WEIGHT_GRASP = 32.0
-    THRESHOLD_GRASP = 5.0
-    reward_grasp = (
-        WEIGHT_GRASP
-        * (
-            torch.mean(
+        contact_forces_robot = self._contacts_robot.data.net_forces_w  # type: ignore[union-attr]
+        contact_forces_mean_robot = contact_forces_robot.mean(dim=1)
+
+        contact_forces_end_effector = (
+            self._contacts_end_effector.data.net_forces_w
+            if isinstance(self._contacts_end_effector, ContactSensor)
+            else None
+        )
+        contact_forces_mean_end_effector = (
+            contact_forces_end_effector.mean(dim=1)
+            if contact_forces_end_effector is not None
+            else torch.empty((num_envs, 0), dtype=torch.float32, device=self.device)
+        )
+        contact_forces_end_effector_obs = (
+            contact_forces_end_effector
+            if contact_forces_end_effector is not None
+            else torch.empty((num_envs, 0), dtype=torch.float32, device=self.device)
+        )
+
+        contact_force_matrix_end_effector = (
+            self._contacts_end_effector.data.force_matrix_w
+            if isinstance(self._contacts_end_effector, ContactSensor)
+            else None
+        )
+
+        imu_lin_acc = self._imu_robot.data.lin_acc_b
+        imu_ang_vel = self._imu_robot.data.ang_vel_b
+
+        reward: dict[str, torch.Tensor] = {}
+
+        _action_rate = torch.mean(
+            torch.square(self.action_manager.action - self.action_manager.prev_action),
+            dim=1,
+        )
+        reward["penalty_action_rate"] = rew.penalty_action_rate(_action_rate)
+
+        _fuel_used = torch.square(1.0 - remaining_fuel.squeeze(-1))
+        reward["penalty_fuel_consumption"] = rew.penalty_fuel_consumption(_fuel_used)
+
+        _ang_vel_sq = torch.sum(torch.square(vel_ang_robot), dim=1)
+        reward["penalty_angular_velocity"] = rew.penalty_angular_velocity(_ang_vel_sq)
+
+        _torque_sq = torch.sum(torch.square(joint_applied_torque_robot), dim=1)
+        reward["penalty_joint_torque"] = rew.penalty_joint_torque(_torque_sq)
+
+        _acc_sq = torch.sum(torch.square(joint_acc_robot), dim=1)
+        reward["penalty_joint_acceleration"] = rew.penalty_joint_acceleration(_acc_sq)
+
+        _dist_ee_to_obj = torch.norm(tf_pos_ee_to_obj, dim=-1)
+        reward["reward_distance_end_effector_to_obj"] = (
+            rew.reward_distance_end_effector_to_obj(_dist_ee_to_obj)
+        )
+
+        if contact_force_matrix_end_effector is not None:
+            _grasp_metric = torch.mean(
                 torch.max(
                     torch.norm(contact_force_matrix_end_effector, dim=-1), dim=-1
                 )[0],
                 dim=1,
             )
-            > THRESHOLD_GRASP
+            reward["reward_grasp"] = rew.reward_grasp(_grasp_metric)
+        else:
+            reward["reward_grasp"] = torch.zeros(
+                num_envs, dtype=torch.float32, device=self.device
+            )
+
+        _rel_lin_vel = torch.norm(vel_lin_robot_to_obj, dim=-1)
+        reward["reward_minimize_rel_lin_vel"] = rew.reward_minimize_rel_lin_vel(
+            _rel_lin_vel
         )
-        if contact_force_matrix_end_effector is not None
-        else torch.zeros(num_envs, dtype=dtype, device=device)
-    )
 
-    # Reward: Minimize relative linear velocity
-    WEIGHT_REL_LIN_VEL = 12.0
-    TANH_STD_REL_LIN_VEL = 0.01
-    reward_minimize_rel_lin_vel = WEIGHT_REL_LIN_VEL * (
-        1.0
-        - torch.tanh(torch.norm(vel_lin_robot_to_obj, dim=-1) / TANH_STD_REL_LIN_VEL)
-    )
+        _rel_ang_vel = torch.norm(vel_ang_robot_to_obj, dim=-1)
+        reward["reward_minimize_rel_ang_vel"] = rew.reward_minimize_rel_ang_vel(
+            _rel_ang_vel
+        )
 
-    # Reward: Minimize relative angular velocity
-    WEIGHT_REL_ANG_VEL = 24.0
-    TANH_STD_REL_ANG_VEL = 0.03
-    reward_minimize_rel_ang_vel = WEIGHT_REL_ANG_VEL * (
-        1.0
-        - torch.tanh(torch.norm(vel_ang_robot_to_obj, dim=-1) / TANH_STD_REL_ANG_VEL)
-    )
+        debris_too_far_metric = (
+            _dist_ee_to_obj > self.cfg.distance_debris_too_far
+        ).float()
+        reward["penalty_debris_too_far"] = rew.penalty_debris_too_far(
+            debris_too_far_metric
+        )
 
-    ##################
-    ## Terminations ##
-    ##################
-    # No termination condition
-    termination = torch.zeros(num_envs, dtype=torch.bool, device=device)
-    # Truncation
-    truncation = (
-        episode_length >= max_episode_length
-        if truncate_episodes
-        else torch.zeros(num_envs, dtype=torch.bool, device=device)
-    )
+        # Distance penalty replaces early termination.
+        termination = torch.zeros(num_envs, dtype=torch.bool, device=self.device)
+        truncation = (
+            self.episode_length_buf >= self.max_episode_length
+            if self.cfg.truncate_episodes
+            else torch.zeros(num_envs, dtype=torch.bool, device=self.device)
+        )
 
-    return StepReturn(
-        {
-            "state": {
-                "rot6d_robot": tf_rot6d_robot,
-                "vel_lin_robot": vel_lin_robot,
-                "vel_ang_robot": vel_ang_robot,
-                "tf_pos_robot_to_obj": tf_pos_robot_to_obj,
-                "tf_pos_end_effector_to_obj": tf_pos_end_effector_to_obj,
-                "tf_rot6d_end_effector_to_obj": tf_rot6d_end_effector_to_obj,
-                "vel_obj": vel_obj,
-                "vel_lin_robot_to_obj": vel_lin_robot_to_obj,
-                "vel_ang_robot_to_obj": vel_ang_robot_to_obj,
-                "contact_forces_mean_robot": contact_forces_mean_robot,
-                "contact_forces_mean_end_effector": contact_forces_mean_end_effector,
+        return StepReturn(
+            {
+                ObservationGroup.STATE: {
+                    "tf_rot6d_robot": tf_rot6d_robot,
+                    "vel_lin_robot": vel_lin_robot,
+                    "vel_ang_robot": vel_ang_robot,
+                    "tf_pos_robot_to_obj": tf_pos_robot_to_obj,
+                    "tf_pos_end_effector_to_obj": tf_pos_ee_to_obj,
+                    "tf_rot6d_end_effector_to_obj": tf_rot6d_ee_to_obj,
+                    "vel_lin_obj": vel_obj[:, :3],
+                    "vel_ang_obj": vel_obj[:, 3:],
+                    "vel_lin_robot_to_obj": vel_lin_robot_to_obj,
+                    "vel_ang_robot_to_obj": vel_ang_robot_to_obj,
+                    "contact_forces_mean_robot": contact_forces_mean_robot,
+                    "contact_forces_mean_end_effector": contact_forces_mean_end_effector,
+                },
+                ObservationGroup.STATE_DYN: {
+                    "contact_forces_robot": contact_forces_robot,
+                    "contact_forces_end_effector": contact_forces_end_effector_obs,
+                },
+                ObservationGroup.PROPRIO: {
+                    "fk_pos_end_effector": fk_pos_end_effector,
+                    "fk_rot6d_end_effector": fk_rot6d_end_effector,
+                    "imu_lin_acc": imu_lin_acc,
+                    "imu_ang_vel": imu_ang_vel,
+                    "remaining_fuel": remaining_fuel,
+                },
+                ObservationGroup.PROPRIO_DYN: {
+                    "joint_pos_robot_normalized": joint_pos_robot_normalized,
+                    "joint_pos_end_effector_normalized": joint_pos_end_effector_normalized,
+                    "joint_acc_robot": joint_acc_robot,
+                    "joint_applied_torque_robot": joint_applied_torque_robot,
+                },
             },
-            "state_dyn": {
-                "contact_forces_robot": contact_forces_robot,
-                "contact_forces_end_effector": contact_forces_end_effector,
-            },
-            "proprio": {
-                "fk_pos_end_effector": fk_pos_end_effector,
-                "fk_rot6d_end_effector": fk_rot6d_end_effector,
-                "imu_lin_acc": imu_lin_acc,
-                "imu_ang_vel": imu_ang_vel,
-                "remaining_fuel": remaining_fuel,
-            },
-            "proprio_dyn": {
-                "joint_pos_robot_normalized": joint_pos_robot_normalized,
-                "joint_pos_end_effector_normalized": joint_pos_end_effector_normalized,
-                "joint_acc_robot": joint_acc_robot,
-                "joint_applied_torque_robot": joint_applied_torque_robot,
-            },
-        },
-        {
-            "penalty_action_rate": penalty_action_rate,
-            "penalty_fuel_consumption": penalty_fuel_consumption,
-            "penalty_angular_velocity": penalty_angular_velocity,
-            "penalty_joint_torque": penalty_joint_torque,
-            "penalty_joint_acceleration": penalty_joint_acceleration,
-            "reward_distance_end_effector_to_obj": reward_distance_end_effector_to_obj,
-            "reward_grasp": reward_grasp,
-            "reward_minimize_rel_lin_vel": reward_minimize_rel_lin_vel,
-            "reward_minimize_rel_ang_vel": reward_minimize_rel_ang_vel,
-        },
-        termination,
-        truncation,
-    )
+            reward,
+            termination,
+            truncation,
+        )

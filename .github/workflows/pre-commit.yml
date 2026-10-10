@@ -3,6 +3,7 @@ name: pre-commit
 on:
   push:
     branches:
+      - dev
       - main
   pull_request:
   workflow_dispatch:
@@ -11,22 +12,29 @@ concurrency:
   group: "${{ github.workflow }} @ ${{ github.event.pull_request.head.label || github.head_ref || github.ref }}"
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 env:
-  PYTHON_VERSION: "3.11"
-  SKIP: cargo-fmt,cargo-update,cargo-clippy,cargo-check,cargo-test,cargo-test-doc,cargo-doc,cargo-miri-test,cargo-miri-run,cargo-deny-check
+  PYTHON_VERSION: "3.12"
+  SKIP: cargo-fmt
 
 jobs:
   pre-commit:
-    runs-on: ubuntu-latest
+    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+    runs-on: [self-hosted, Linux, X64, ubuntu-latest]
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - name: Reclaim workspace ownership
+        run: sudo --non-interactive chown -R "$(id -u):$(id -g)" "${GITHUB_WORKSPACE}"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      ## Run pre-commit and try to apply fixes
       - name: Run pre-commit
-        uses: pre-commit/action@v3.0.1
+        uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd
       - name: Apply fixes from pre-commit
-        uses: pre-commit-ci/lite-action@v1.1.0
+        uses: pre-commit-ci/lite-action@5d6cc0eb514c891a40562a58a8e71576c5c7fb43
         if: always()

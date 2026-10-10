@@ -5,7 +5,47 @@ updates:
     schedule:
       interval: "weekly"
 
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    ignore:
+      - dependency-name: "torch"
+      - dependency-name: "torchvision"
+      - dependency-name: "tensordict"
+      - dependency-name: "torchrl"
+      - dependency-name: "skrl"
+      - dependency-name: "usd-core"
+      - dependency-name: "rsl-rl-lib"
+      - dependency-name: "oxidasim"
+      - dependency-name: "simforge"
+      - dependency-name: "simforge-foundry"
+      - dependency-name: "numpy"
+        update-types:
+          - "version-update:semver-major"
+
   - package-ecosystem: "cargo"
     directory: "/"
     schedule:
       interval: "weekly"
+    ignore:
+      - dependency-name: "eframe"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-major"
+      - dependency-name: "egui"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-major"
+      - dependency-name: "egui_commonmark"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-major"
+      - dependency-name: "egui_extras"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-major"
+      - dependency-name: "egui_plot"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-major"

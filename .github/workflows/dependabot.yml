@@ -1,25 +1,34 @@
 name: Dependabot automation
 on: pull_request
 
-permissions:
-  contents: write
-  pull-requests: write
+permissions: {}
 
 jobs:
   dependabot_automation:
-    runs-on: ubuntu-latest
-    if: ${{ github.actor == 'dependabot[bot]' }}
+    runs-on: [self-hosted, Linux, X64, ubuntu-latest]
+    permissions:
+      contents: write
+      pull-requests: write
+    if: ${{ github.event.pull_request.user.login == 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository }}
     env:
       GH_TOKEN: ${{secrets.GITHUB_TOKEN}}
       PR_URL: ${{github.event.pull_request.html_url}}
     steps:
+      - name: Check the runner provides the GitHub CLI
+        run: |
+          if ! command -v gh >/dev/null 2>&1; then
+            echo "::error::the GitHub CLI (gh) is not installed on this runner; Dependabot auto-approval and auto-merge cannot run. Install it (https://github.com/cli/cli#installation) on the self-hosted runners."
+            exit 1
+          fi
+          gh --version
       - name: Fetch metadata
         id: metadata
-        uses: dependabot/fetch-metadata@v2
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98
         with:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
       - name: Approve the PR
+        if: ${{ steps.metadata.outputs.update-type == 'version-update:semver-patch' || steps.metadata.outputs.update-type == 'version-update:semver-minor' }}
         run: gh pr review --approve "$PR_URL"
-        continue-on-error: true
       - name: Enable auto-merge for the PR
+        if: ${{ steps.metadata.outputs.update-type == 'version-update:semver-patch' || steps.metadata.outputs.update-type == 'version-update:semver-minor' }}
         run: gh pr merge --auto --squash "$PR_URL"

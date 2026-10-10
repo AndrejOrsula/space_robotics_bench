@@ -1,6 +1,6 @@
 # `srb agent rand` — Random Agent
 
-The `srb agent rand` command runs an environment with randomly sampled actions. This is useful for testing the environment's response to diverse inputs, identifying edge cases, and ensuring robustness in the environment implementation.
+Run an environment with randomly sampled actions to exercise its response to varied inputs.
 
 ## Usage
 
@@ -14,11 +14,11 @@ No additional options are available for this subcommand.
 
 ## Example
 
-Run random agent in the `_aerial` template environment:
+Run the random agent in the `_aerial` template environment:
 
-- Hide the simulation UI
-- Use the `body_acceleration` action group
+- Hide most of the simulation UI
+- Use the `body_acc` action mode (default for the Ingenuity rotorcraft)
 
 ```bash
-srb agent rand -e _aerial --hide_ui env.robot.actions=body_acceleration
+srb agent rand -e _aerial --hide_ui env.robot.action_mode=body_acc
 ```

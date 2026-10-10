@@ -1,6 +1,6 @@
 # `srb agent zero` — Zero Agent
 
-The `srb agent zero` command runs an environment with zero-valued actions. For action spaces with equilibrium at zero, the environment will evolve solely based on its internal dynamics. This is useful for testing the environment and observing the behavior of the agent without any control input.
+Run an environment with zero-valued actions. If zero is the equilibrium action, internal dynamics alone drive the environment.
 
 ## Usage
 
@@ -14,7 +14,7 @@ No additional options are available for this subcommand.
 
 ## Example
 
-Run zero agent in the `_ground` template environment:
+Run the zero agent in the `_ground` template environment:
 
 - Create 4 parallel environment instances
 - Use the Cassie bipedal robot

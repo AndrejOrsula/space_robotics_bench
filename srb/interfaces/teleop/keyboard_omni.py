@@ -1,9 +1,8 @@
 import weakref
 from collections.abc import Callable
-from typing import Tuple
 
 import carb
-import numpy
+import numpy as np
 import omni
 from isaaclab.devices import Se3Keyboard as __Se3Keyboard
 from isaaclab.devices import Se3KeyboardCfg
@@ -22,9 +21,13 @@ class OmniKeyboardTeleopInterface(__Se3Keyboard):
             )
         )
 
-    def advance(self) -> Tuple[numpy.ndarray, bool]:
+    def advance(self) -> tuple[np.ndarray, bool]:
         command = super().advance()
-        return command[:6].cpu().numpy(), command[6].item() < 0.0
+        pose = command[:6].cpu().numpy().copy()
+        # The base returns an axis-angle rotvec, but SRB consumers expect Euler
+        # angles; _delta_rot retains the accumulated roll, pitch, and yaw.
+        pose[3:6] = np.asarray(self._delta_rot, dtype=pose.dtype)
+        return pose, command[6].item() < 0.0
 
     def __str__(self) -> str:
         msg = super().__str__()
@@ -38,7 +41,7 @@ class OmniKeyboardTeleopInterface(__Se3Keyboard):
     def _on_keyboard_event(self, event, *args, **kwargs) -> bool:
         ret = super()._on_keyboard_event(event, *args, **kwargs)
 
-        if event.type == carb.input.KeyboardEventType.KEY_PRESS:  # type: ignore
+        if event.type == carb.input.KeyboardEventType.KEY_PRESS:  # type: ignore[attr-defined]
             if event.input.name == "R":
                 self._close_gripper = not self._close_gripper
 
@@ -46,13 +49,16 @@ class OmniKeyboardTeleopInterface(__Se3Keyboard):
 
 
 class EventOmniKeyboardTeleopInterface:
-    def __init__(self, callbacks: dict[str, Callable] = {}):
-        self._appwindow = omni.appwindow.get_default_app_window()  # type: ignore
-        self._input = carb.input.acquire_input_interface()  # type: ignore
+    def __init__(self, callbacks: dict[str, Callable] | None = None):
+        if callbacks is None:
+            callbacks = {}
+        self._appwindow = omni.appwindow.get_default_app_window()  # type: ignore[attr-defined]
+        self._input = carb.input.acquire_input_interface()  # type: ignore[attr-defined]
         self._keyboard = self._appwindow.get_keyboard()
         self._keyboard_sub = self._input.subscribe_to_keyboard_events(
             self._keyboard,
-            lambda event, *args, obj=weakref.proxy(self): obj._on_keyboard_event(
+            # Bind a weak proxy now; capturing ``self`` would create a cycle.
+            lambda event, *args, obj=weakref.proxy(self): obj._on_keyboard_event(  # noqa: B008
                 event, *args
             ),
         )
@@ -66,7 +72,7 @@ class EventOmniKeyboardTeleopInterface:
         self._additional_callbacks[key] = func
 
     def _on_keyboard_event(self, event, *args, **kwargs):
-        if event.type == carb.input.KeyboardEventType.KEY_PRESS:  # type: ignore
+        if event.type == carb.input.KeyboardEventType.KEY_PRESS:  # type: ignore[attr-defined]
             if event.input.name in self._additional_callbacks:
                 self._additional_callbacks[event.input.name]()
         return True

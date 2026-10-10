@@ -1,0 +1,94 @@
+# Asset metadata not derivable from code.
+# schema_version 1: other top-level keys are asset tables named by registered
+# asset name; `[<asset>.attribution]` is the only nested table.
+schema_version = 1
+# tagline = one-liner under the entry heading (no docstring fallback)
+# notes   = markdown appended to the entry
+# [name.attribution] = source/license/author for the attribution matrix;
+#                      `source` also fills the entry's Source row
+
+## Manipulators
+
+[canadarm3]
+tagline = "Large-scale space manipulator for the Lunar Gateway station"
+
+[canadarm3.attribution]
+source = "SRB"
+author = "SRB Contributors"
+
+[vispa]
+tagline = "Space manipulator designed for planetary surface operations"
+
+[vispa.attribution]
+source = "SRB"
+author = "SRB Contributors"
+
+[franka]
+tagline = "7-DoF torque-controlled research arm from Franka Robotics"
+
+[franka.attribution]
+source = "SRB"
+author = "SRB Contributors"
+
+[ur3]
+tagline = "Compact collaborative robot arm from Universal Robots"
+
+[ur3.attribution]
+source = "Isaac Sim"
+license = "NVIDIA"
+author = "NVIDIA"
+
+[ur5]
+tagline = "Versatile mid-range collaborative arm from Universal Robots"
+
+[ur5.attribution]
+source = "Isaac Sim"
+license = "NVIDIA"
+author = "NVIDIA"
+
+[ur10]
+tagline = "Heavy-duty collaborative arm from Universal Robots"
+
+[ur10.attribution]
+source = "Isaac Lab"
+license = "NVIDIA"
+author = "NVIDIA"
+
+[kinova_gen3n7]
+tagline = "7-DoF lightweight research arm from Kinova Robotics"
+
+[kinova_gen3n7.attribution]
+source = "Isaac Lab"
+license = "NVIDIA"
+author = "NVIDIA"
+
+[unitree_z1]
+tagline = "Compact lightweight arm from Unitree Robotics"
+
+[unitree_z1.attribution]
+source = "Isaac Lab"
+license = "NVIDIA"
+author = "NVIDIA"
+
+[so_arm100_d5]
+tagline = "5-DoF low-cost open-source motor-driven arm"
+
+[so_arm100_d5.attribution]
+source = "SRB"
+author = "SRB Contributors"
+
+[so_arm100_d7]
+tagline = "7-DoF low-cost open-source motor-driven arm"
+
+[so_arm100_d7.attribution]
+source = "SRB"
+author = "SRB Contributors"
+
+[zeroglab_arms]
+notes = "Two arms (ceiling and wall) share this configuration, each with a `rail_joint` and six arm joints. DoF, actuators, and initial joints are per arm; `dual_arm_osc` drives both arms with 12 dimensions each."
+
+[unitree_g1]
+notes = "The DoF and `joint_pos` action dimensions are runtime-resolved from the Unitree G1 USD articulation. The actuator configuration includes shoulder, elbow, ankle, and hand-like `zero` through `six` joint patterns."
+
+[iss_gateway_scenery]
+notes = "Set `station_template_usd_path` on `ISSGatewayScenery` to use a single static station USD while retaining static collision geometry for stable benchmark scenes. Align segment handrails with benchmark waypoint paths using `handrail_segment_specs`; `handrail_specs` is shorthand for X-axis rails."

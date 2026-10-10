@@ -1,0 +1,259 @@
+# Task metadata not derivable from code.
+# schema_version 1: other top-level keys are task tables named by short task
+# id; `[<task>.gui]` is the only nested table.
+# `success_signal` declares how a paper task reports success for bounded
+# evaluation: "episode_info" when it publishes `success` in episode info;
+# "return_only" when only the return is reported. Required on every paper task
+# and must agree with its source.
+schema_version = 1
+
+## Templates
+
+[_manipulation]
+tagline = "Template environment for fixed-base manipulation tasks. Configure via `env.robot=<manipulator>`."
+video_id = ""
+
+[_aerial]
+tagline = "Template environment for aerial mobile robots. Configure via `env.robot=<aerial_robot>`."
+video_id = ""
+
+[_aerial.gui]
+featured = true
+rank = 80
+theme = "dark"
+
+[_ground]
+tagline = "Template environment for ground mobile robots. Configure via `env.robot=<ground_robot>`."
+video_id = ""
+
+[_orbital]
+tagline = "Template environment for orbital mobile robots. Configure via `env.robot=<orbital_robot>`."
+video_id = ""
+
+[_aerial_manipulation]
+tagline = "Template environment for aerial mobile manipulators. Configure via `env.robot.mobile_base=<aerial_robot>` and `env.robot.manipulator=<manipulator>`."
+video_id = ""
+
+[_ground_manipulation]
+tagline = "Template environment for ground mobile manipulators. Configure via `env.robot.mobile_base=<ground_robot>` and `env.robot.manipulator=<manipulator>`."
+video_id = ""
+
+[_orbital_manipulation]
+tagline = "Template environment for orbital mobile manipulators. Configure via `env.robot.mobile_base=<orbital_robot>` and `env.robot.manipulator=<manipulator>`."
+video_id = ""
+
+[_orbital_manipulation.gui]
+featured = true
+rank = 90
+theme = "light"
+
+## Manipulation (Static)
+
+[sample_collection]
+tagline = "Grasping and collection of samples on planetary surfaces"
+video_id = "1NYquT2EZdo"
+success_signal = "return_only"
+
+[sample_collection.gui]
+featured = true
+rank = 10
+theme = "dark"
+
+[multi_sample_collection]
+tagline = "A variation of sample collection with multiple samples"
+video_id = "CyPJr6LSUac"
+
+[excavation]
+tagline = "Extraction of granular material (regolith)"
+video_id = "XIJhFsaT1Ls"
+success_signal = "episode_info"
+
+[excavation_demo]
+tagline = "Manual excavation demo with presentation-oriented lunar regolith defaults"
+video_id = ""
+
+[excavation_demo.gui]
+featured = true
+rank = 60
+theme = "dark"
+
+[debris_capture]
+tagline = "Capture and securement of floating debris in microgravity with a fixed-base manipulator"
+video_id = "3zog4qGHg6A"
+success_signal = "return_only"
+
+[debris_capture.gui]
+featured = true
+rank = 20
+theme = "light"
+
+[peg_in_hole]
+tagline = "Precision assembly task requiring the robot to insert a peg into a hole"
+video_id = "C8xhE6hHG9I"
+success_signal = "return_only"
+
+[peg_in_hole.gui]
+featured = true
+rank = 30
+theme = "dark"
+
+[multi_peg_in_hole]
+tagline = "A variation of peg-in-hole assembly with multiple pegs and holes"
+video_id = "50nKU-myKbM"
+
+[screwdriving]
+tagline = "Fastening of a pre-inserted bolt"
+video_id = "w25DwrgeG2M"
+success_signal = "return_only"
+
+[screwdriving.gui]
+featured = true
+rank = 50
+theme = "dark"
+
+[modular_assembly]
+tagline = "Pick-and-place modular elements into an assembly configuration"
+video_id = ""
+success_signal = "episode_info"
+
+[solar_panel_assembly]
+tagline = "Complex assembly sequence involving solar panel components"
+video_id = "tY5XDuhdzOc"
+success_signal = "return_only"
+
+## Mobile Robotics
+
+[velocity_tracking]
+tagline = "Basic tracking of desired velocity commands"
+video_id = "pP5C_oRZ8d8"
+success_signal = "return_only"
+
+[locomotion_velocity_tracking]
+tagline = "Locomotion with legged robots and humanoids while tracking desired velocity commands"
+video_id = "aNYNWzyHPqM"
+success_signal = "return_only"
+
+[waypoint_navigation]
+tagline = "Navigation to a dynamic waypoint"
+video_id = "fXtG5wGvWt0"
+success_signal = "return_only"
+
+[waypoint_navigation.gui]
+featured = true
+rank = 40
+theme = "dark"
+
+[locomotion_waypoint_navigation]
+tagline = "Navigation to a dynamic waypoint with legged robots and humanoids"
+video_id = "Pap-QDMsHk4"
+success_signal = "return_only"
+
+[aerial_navigation]
+tagline = "Aerial navigation to a dynamic waypoint with terrain-clearance tracking"
+video_id = ""
+success_signal = "return_only"
+
+[landing]
+tagline = "Landing of spacecraft on planetary surfaces with varying terrain and obstacles"
+video_id = "BLe6AtlZk6g"
+success_signal = "return_only"
+
+[flight]
+tagline = "Generic powered aerial flight profile with takeoff, transfer, and final landing"
+video_id = ""
+success_signal = "episode_info"
+
+[moonfall]
+tagline = "Heavy-weight lunar descent with deployment stage and multi-stage landing phases"
+video_id = ""
+success_signal = "return_only"
+
+[rendezvous]
+tagline = "Maneuvering of spacecraft in microgravity to rendezvous with an uncooperative target"
+video_id = "61akiT5GRJY"
+success_signal = "return_only"
+
+[formation_following]
+tagline = "Multi-robot formation tracking behind a moving formation center"
+video_id = ""
+success_signal = "episode_info"
+
+[formation_following_decentralized]
+tagline = "Single-rover policy view for decentralized formation following"
+video_id = ""
+
+[beam_transport]
+tagline = "Two-robot collaborative transport of a rigid beam payload to a target point"
+video_id = ""
+success_signal = "episode_info"
+
+[formation_following_orbital]
+tagline = "Orbital formation tracking in microgravity"
+video_id = ""
+
+[orbital_evasion]
+tagline = "Navigation of spacecraft in microgravity while avoiding obstacles"
+video_id = "_qWqQ1CkqwA"
+success_signal = "return_only"
+
+[orbital_waypoint_navigation]
+tagline = "Navigation to a dynamic waypoint in orbital microgravity"
+video_id = ""
+success_signal = "return_only"
+
+[terrain_landscaping]
+tagline = "Terrain landscaping with a ground mobile robot reshaping a particle bed"
+video_id = ""
+success_signal = "episode_info"
+
+[terrain_landscaping.gui]
+featured = true
+rank = 70
+theme = "dark"
+
+[terrain_landscaping_crater]
+tagline = "Separate deterministic baseline: fill one shallow crater from a nearby regolith pile"
+video_id = ""
+
+[terrain_landscaping_mound]
+tagline = "Separate deterministic baseline: level one regolith mound on a flat bed, graded by excess volume"
+video_id = ""
+
+[traversal]
+tagline = "Straight-line path following at a target velocity"
+video_id = ""
+success_signal = "return_only"
+
+## Mobile Manipulation
+
+[mobile_debris_capture]
+tagline = "Capture of floating debris in microgravity with a floating-base mobile manipulator"
+video_id = "kZIWWPn2EQQ"
+success_signal = "return_only"
+
+[spacewalk]
+tagline = "Humanoid spacewalk: rail-aligned waypoint traversal near spacecraft structure"
+video_id = ""
+
+[spacewalk_eva]
+tagline = "Humanoid EVA traversal along exterior spacecraft handrails"
+video_id = ""
+success_signal = "episode_info"
+
+[spacewalk_iva]
+tagline = "Humanoid IVA traversal inside the Kibou module"
+video_id = ""
+
+## Digital Twin
+
+[lunalab]
+tagline = "Digital twin of the LunaLab planetary analogue testbed"
+video_id = ""
+
+[orbital_lunalab]
+tagline = "Floating platform hovering over the LunaLab regolith"
+video_id = ""
+
+[zerog_lab]
+tagline = "Digital twin of a zero-gravity laboratory testbed"
+video_id = ""

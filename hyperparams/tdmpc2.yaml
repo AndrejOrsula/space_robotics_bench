@@ -1,0 +1,57 @@
+steps: 10_000_000
+batch_size: 256
+buffer_size: 1_000_000
+eval_freq: 50000
+eval_episodes: 10
+
+mpc: true
+iterations: 6
+num_samples: 512
+num_elites: 64
+num_pi_trajs: 24
+horizon: 3
+min_std: 0.05
+max_std: 2
+temperature: 0.5
+
+model_size: 5
+
+lr: 3.0e-4
+enc_lr_scale: 0.3
+grad_clip_norm: 20
+tau: 0.01
+
+reward_coef: 0.1
+value_coef: 0.1
+consistency_coef: 20
+termination_coef: 1
+rho: 0.5
+
+discount_denom: 5
+discount_min: 0.95
+discount_max: 0.995
+
+log_std_min: -10
+log_std_max: 2
+entropy_coef: 1.0e-4
+
+num_bins: 101
+vmin: -10
+vmax: 10
+
+num_enc_layers: 2
+enc_dim: 256
+num_channels: 32
+mlp_dim: 512
+latent_dim: 512
+num_q: 5
+dropout: 0.01
+simnorm_dim: 8
+
+compile: true
+episodic: true
+save_video: false
+save_agent: true
+save_csv: true
+enable_wandb: false
+exp_name: default

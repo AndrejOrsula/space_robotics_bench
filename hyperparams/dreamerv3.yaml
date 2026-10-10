@@ -1,12 +1,11 @@
-### Training ###
 run:
-  steps: 100000000
+  steps: 1000000000
   train_ratio: 32.0
 replay:
-  size: 2500000
+  size: 2560000
   online: True
-  fracs: { uniform: 0.0, priority: 0.5, recency: 0.5 }
-  chunksize: 1024
+  fracs: { uniform: 0.2, priority: 0.5, recency: 0.3 }
+  chunksize: 2048
   save: False
 jax:
   platform: cuda
@@ -14,7 +13,6 @@ jax:
   prealloc: False
   jit: True
 
-### Logging ###
 logger:
   outputs: [
       # jsonl,
@@ -33,50 +31,9 @@ run.usage:
 run.debug: False
 jax.debug: False
 
-### Model ###
-##   Debug
-# batch_size: 8
-# batch_length: 10
-# report_length: 5
-# replay.size: 1e4
-# agent:
-#   .*\.bins: 5
-#   .*\.layers: 1
-#   .*\.units: 8
-#   .*\.stoch: 2
-#   .*\.classes: 4
-#   .*\.deter: 8
-#   .*\.hidden: 3
-#   .*\.blocks: 4
-#   .*\.depth: 2
-##   1M
-# .*\.rssm: { deter: 512, hidden: 64, classes: 4 }
-# .*\.depth: 4
-# .*\.units: 64
-##  12M
-# .*\.rssm: { deter: 2048, hidden: 256, classes: 16 }
-# .*\.depth: 16
-# .*\.units: 256
-##  25M
-.*\.rssm: { deter: 3072, hidden: 384, classes: 24 }
-.*\.depth: 24
-.*\.units: 384
-##  50M
-# .*\.rssm: { deter: 4096, hidden: 512, classes: 32 }
-# .*\.depth: 32
-# .*\.units: 512
-## 100M
-# .*\.rssm: { deter: 6144, hidden: 768, classes: 48 }
-# .*\.depth: 48
-# .*\.units: 768
-## 200M
-# .*\.rssm: { deter: 8192, hidden: 1024, classes: 64 }
-# .*\.depth: 64
-# .*\.units: 1024
-## 400M
-# .*\.rssm: { deter: 12288, hidden: 1536, classes: 96 }
-# .*\.depth: 96
-# .*\.units: 1536
+## 200M; other sizes: `size*` presets in upstream dreamerv3/configs.yaml
+.*\.rssm: { deter: 8192, hidden: 1024, classes: 64 }
+.*\.depth: 64
+.*\.units: 1024
 
-### Architecture ###
-# agent.conhead.units: 1
+## Task-specific profiles live in hyperparams/task/<task>/dreamerv3.yaml.

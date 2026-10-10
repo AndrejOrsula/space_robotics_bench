@@ -1,0 +1,18 @@
+# Task-specific Dreamer profile; replaces the global one (applied over upstream defaults).
+run:
+  steps: 10000
+  train_ratio: 512.0
+replay:
+  size: 50000
+  chunksize: 256
+  save: true
+  save_wait: true
+batch_size: 8
+batch_length: 32
+report_length: 32
+jax:
+  platform: cuda
+  prealloc: false
+'.*\.rssm': {deter: 512, hidden: 64, classes: 4}
+'.*\.depth': 4
+'.*\.units': 64

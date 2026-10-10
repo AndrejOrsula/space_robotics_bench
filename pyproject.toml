@@ -2,9 +2,145 @@
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.uv]
+override-dependencies = ["diffusers>=0.31,<0.32"]
+
+[dependency-groups]
+image-runtime = [
+  "anyio==4.13.0",
+  "fastapi==0.141.1",
+  "google-api-core==2.31.0",
+  "proto-plus==1.28.2",
+  "urllib3==2.7.0",
+]
+source-robomimic = [
+  "robomimic @ git+https://github.com/ARISE-Initiative/robomimic.git@e10526b9a40c78b41f1e37e60041dc0ec0a5f60f",
+]
+source-event-v2e = [
+  "v2e @ git+https://github.com/SensorsINI/v2e.git@cac638444557a224ba6ee5c29260916f152c00bd",
+]
+source-event-reconstruction = [
+  "e2vid @ git+https://github.com/uzh-rpg/e2calib.git@f35317a47809688ad140a67d50a23654c98612ea#subdirectory=python",
+]
+vcs-sources = [
+  { include-group = "source-robomimic" },
+  { include-group = "source-event-v2e" },
+  { include-group = "source-event-reconstruction" },
+]
+
+[tool.hatch.metadata]
+allow-direct-references = false
+
+[tool.hatch.build.targets.sdist]
+only-include = [
+  "srb",
+  "tests/cli_agent_test.py",
+  "tests/cli_ls_test.py",
+  "tests/import_test.py",
+  "docs",
+  "pyproject.toml",
+  "README.md",
+  "LICENSE-MIT",
+  "LICENSE-APACHE",
+  "CITATION.cff",
+  "CHANGELOG.md",
+  "uv.lock",
+  "package.xml",
+]
+force-include = { "apps" = "apps", "hyperparams" = "hyperparams" }
+exclude = [
+  "**/__pycache__",
+  "**/*.py[cod]",
+  "**/.pytest_cache",
+  "docs/book",
+  "docs/src/_graphics/.github",
+  "docs/src/_graphics/.pre-commit-config.yaml",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["srb"]
+include = [
+  "srb/core/sensor/event_camera/backends/v2e_pin.toml",
+  "srb/core/sensor/event_camera/backends/patches/*.patch",
+]
+force-include = { "apps" = "srb/_resources/apps", "hyperparams" = "srb/_resources/hyperparams", "docs/data/tasks.toml" = "srb/_resources/docs/data/tasks.toml", "docs/theme/favicon.png" = "srb/_resources/docs/theme/favicon.png" }
+exclude = ["**/__pycache__", "**/*.py[cod]"]
+
 [tool.mypy]
 plugins = ["pydantic.mypy"]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+  "srb.composition",
+  "srb.core.default_assets",
+  "srb.core.terrain_metadata",
+  "srb.utils.artifact_identity",
+  "srb.utils.model_artifacts",
+  "srb.utils.artifact_cards",
+  "srb.utils.dataset_manifest",
+  "srb.integrations.policy_contract",
+  "srb.utils.validation_contract",
+  "srb.core.env.runtime.validation",
+  "srb.datasets.metadata_validation",
+  "srb.experiments.policy_contract",
+  "srb.utils.simforge_cache",
+  "srb.utils.json_types",
+  "srb.utils.failures",
+  "srb.experiments.artifacts",
+  "srb.core.ephemeris.products",
+  "srb.terrain.ingest.dem",
+  "srb.terrain.fusion.engine",
+  "srb.datasets.jsonl",
+  "srb.datasets.manifest",
+  "srb.interfaces.sim_to_real.core.task_evaluator",
+  "srb.interfaces.sim_to_real.core.hardware_mapping",
+  "srb.interfaces.sim_to_real.validation.criteria",
+  "srb.interfaces.sim_to_real.validation.result",
+  "srb.interfaces.sim_to_real.validation.outcome",
+  "srb.interfaces.sim_to_real.validation.report_payload",
+  "srb.core.sensor.event_camera.storage_validation",
+  "srb.core.env.runtime.lifecycle",
+  "srb.core.env.introspect",
+  "srb.core.env.runtime.action_layout",
+  "srb.core.env.runtime.observation_layout",
+  "srb.core.env.runtime.action_space",
+  "srb.utils.rates",
+  "srb.utils.process_supervisor",
+  "srb.tuning.trial_plan",
+]
+strict = true
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+norecursedirs = [
+  "*.egg",
+  ".*",
+  "_darcs",
+  "build",
+  "CVS",
+  "dist",
+  "node_modules",
+  "venv",
+  "{arch}",
+  "assets",
+]
+addopts = "-p no:launch_testing -p no:launch_ros -p no:logfire --strict-markers -m 'not long_training'"
+xfail_strict = true
+markers = [
+  "order: pytest-order mark",
+  "long_training: end-to-end agent training matrices (minutes per case; run: -m long_training)",
+]
+
+[tool.ruff.lint]
+extend-select = ["I"]
+
+[tool.ruff.lint.per-file-ignores]
+"**/__init__.py" = ["E402", "F401", "F403", "F405"]
+"srb/utils/math.py" = ["F405"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["srb"]
 
 [project]
 name = "srb"
@@ -15,32 +151,53 @@ maintainers = [{ name = "Andrej Orsula", email = "orsula.andrej@gmail.com" }]
 urls = { Repository = "https://github.com/AndrejOrsula/space_robotics_bench", Documentation = "https://AndrejOrsula.github.io/space_robotics_bench" }
 classifiers = [
   "Programming Language :: Python",
+  "Programming Language :: Python :: 3.12",
   "Programming Language :: Rust",
   "License :: OSI Approved :: MIT License",
   "License :: OSI Approved :: Apache Software License",
-  "Framework :: Robot Framework",
+  "Operating System :: POSIX :: Linux",
 ]
 keywords = ["benchmark", "robotics", "simulation", "space"]
 readme = "README.md"
 license = { text = "MIT OR Apache-2.0" }
-requires-python = "==3.11.*"
+requires-python = "==3.12.*"
 dependencies = [
   ## Core
-  "gymnasium~=0.29",
-  # "isaaclab~=2.0",
-  "oxidasim~=0.1",
+  "gymnasium~=1.2",
+  "oxidasim==0.1.0",
   ## Assets
-  "simforge[assets]~=0.2",
+  "simforge[assets]==0.4.0",
+  ## Terrain pipeline
+  "rasterio>=1.3,<2.0",
+  "pyproj>=3.6,<4.0",
+  "trimesh>=4.0,<5.0",
+  "fast-simplification>=0.1,<1.0",
+  "Pillow>=10.0,<12.0",
+  "imageio>=2.30",
+  "filelock>=3.13,<4.0",
+  "usd-core>=24.0,<27.0",
+  "pyyaml~=6.0",
+  "requests>=2.31,<3.0",
+  "numpy>=1.26,<3.0",
+  "scipy>=1.10,<2.0",
   ## Typing
   "pydantic~=2.0",
   ## Serialization
   "orjson~=3.10",
+  ## Process resource accounting
+  "psutil>=5.9,<8.0",
+  "setproctitle>=1.3,<2",
+  "jinja2>=3.1",
+  "rerun-sdk>=0.20,<1.0",
 ]
 
 [project.optional-dependencies]
+onnx = ["onnx>=1.16,<2.0"]
 all = [
   ## Algorithms
   "srb[algo]",
+  ## Data
+  "srb[data]",
   ## Hardware
   "srb[hw]",
   ## Logging
@@ -48,116 +205,126 @@ all = [
   ## Utils
   "srb[cli]",
   "srb[dev]",
+  ## Hyperparameter tuning
+  "srb[tune]",
+  ## Ephemeris
+  "srb[spice]",
 ]
 ## Algorithms
 algo = [
-  #
   "srb[dreamer]",
+  "srb[rsl_rl]",
+  "srb[tdmpc2]",
   "srb[sb3]",
   "srb[sbx]",
   "srb[skrl]",
   "srb[robomimic]",
 ]
-dreamer = [
-  #
-  # Note: Only editable install of dreamer works for now (circular import of  partially initialized module included with sys.path)
-  # TODO[mid]: Fix Dreamer install (fork and fix recursive import)
-  # "dreamer@git+https://github.com/AndrejOrsula/dreamerv3.git@4049794d4135e41c691f18da38a9af7541b01553",
-  # Note: jax==0.5.1 causes issues
-  "jax~=0.4,<0.5.1",
+dreamer = ["jax~=0.4,<0.5.1"]
+rsl_rl = ["rsl-rl-lib==5.5.1"]
+tdmpc2 = [
+  "torch==2.12.0",
+  "tensordict==0.14.2",
+  "torchrl==0.14.0",
+  "termcolor",
+  "pandas",
 ]
-sb3 = [
-  #
-  "stable-baselines3~=2.4",
-  "sb3-contrib~=2.4",
-  # Note: The fork relaxes the dependency for gymnasium (shimmy requires gymnasium>=1.0)
-  # "rl_zoo3@git+https://github.com/AndrejOrsula/rl-baselines3-zoo.git@e04921b4ccbadbc9f6bcc46cc1787ffc1d2c8963",
+sb3 = ["stable-baselines3~=2.9", "sb3-contrib~=2.9", "rl_zoo3~=2.9"]
+sbx = ["sbx-rl~=0.28", "tf_keras~=2.0"]
+skrl = ["skrl~=2.1"]
+robomimic = []
+## Hyperparameter tuning
+tune = ["optuna>=4.6,<5"]
+tune-rdb = ["optuna>=4.6,<5", "psycopg2-binary>=2.9,<3"]
+## Data
+data = [
+  "h5py>=3.10,<4.0",
+  "pandas>=2.0,<3.0",
+  "pyarrow>=15.0,<30.0",
+  "huggingface_hub>=0.23.4,<2.0",
 ]
-sbx = [
-  #
-  "sbx-rl~=0.19",
-  "tf_keras~=2.0",
+## Event camera
+event-hdf5-blosc = ["hdf5plugin>=4.4,<7.0"]
+event-v2e = ["h5py>=3.10,<4.0"]
+event-metavision = ["h5py>=3.10,<4.0"]
+event-v2ce = [
+  "h5py>=3.10,<4.0",
+  "torch",
+  "opencv-python-headless>=4.8,<5.0",
+  "einops>=0.6,<1.0",
 ]
-skrl = [
-  #
-  "skrl~=1.0",
-]
-robomimic = [
-  #
-  # "robomimic@git+https://github.com/ARISE-Initiative/robomimic.git@TODO",
+event-ros = ["h5py>=3.10,<4.0"]
+event-reconstruction = [
+  "h5py>=3.10,<4.0",
+  "torch",
+  "opencv-python-headless>=4.8,<5.0",
+  "scipy>=1.10,<2.0",
+  "lpips>=0.1.4,<1.0",
 ]
 ## Hardware
-hw = [
-  #
-  "srb[spacemouse]",
-]
-spacemouse = [
-  #
-  "pyspacemouse~=1.0",
-]
+hw = ["srb[spacemouse]"]
+spacemouse = ["pyspacemouse~=1.0"]
 ## Logging
-logging = [
-  #
-  "srb[wandb]",
-  "srb[tensorboard]",
-]
-wandb = [
-  #
-  "wandb~=0.19",
-]
-tensorboard = [
-  #
-  "tensorboard~=2.0",
-  "tensorflow~=2.0",
-]
+logging = ["srb[wandb]", "srb[tensorboard]"]
+wandb = ["wandb==0.28.1"]
+tensorboard = ["tensorboard~=2.0"]
 ## Utils
 cli = [
-  #
   "srb[rich]",
   "srb[repl]",
   "argcomplete~=3.0",
   "hydra-core~=1.0",
+  "moviepy>=2.0,<3.0",
   "omegaconf~=2.0",
 ]
-dev = [
-  #
-  "srb[test]",
-  "srb[tracing]",
-  "srb[typing]",
-  "srb[plots]",
-]
-rich = [
-  #
-  "rich~=14.0",
-]
+dev = ["srb[lint]", "srb[test]", "srb[tracing]", "srb[typing]", "srb[plots]"]
+lint = ["ruff==0.15.4"]
+rich = ["rich~=14.0"]
 test = [
-  #
-  "pytest~=8.0",
+  "pytest~=9.0",
   "pytest-order~=1.0",
   "pytest-sugar~=1.0",
+  "hypothesis>=6.0",
+  "requests-mock~=1.12",
 ]
-tracing = [
-  #
-  "srb[rich]",
-  "logfire~=4.0",
-]
+tracing = ["srb[rich]", "logfire~=4.0"]
 typing = [
-  #
   "mypy~=1.0",
   "types-psutil~=7.0",
   "types-PyYAML~=6.0",
-  "types-toml~=0.10",
+  "types-requests~=2.31",
 ]
-repl = [
-  #
-  "ptpython~=3.0",
+repl = ["ptpython~=3.0"]
+plots = ["matplotlib~=3.10", "seaborn~=0.13", "torch==2.12.0"]
+terrain-extras = [
+  "pdr>=1.0,<2.0",
+  "imageio[freeimage]>=2.30",
+  "rtree>=1.3,<2.0",
 ]
-plots = [
-  #
-  "seaborn~=0.13",
-]
+## NAIF SPICE sun/planet geometry; ~43 MB kernels download on first use.
+spice = ["spiceypy>=6,<9", "zarr>=2.16,<4", "numcodecs"]
 
 
 [project.scripts]
-space_robotics_bench = "srb.__main__:main"
 srb = "srb.__main__:main"
+space_robotics_bench = "srb.__main__:main"
+
+[tool.srb.logging]
+wandb_replacement = "local-artifacts+tensorboard"
+wandb_mode = "explicit-opt-in"
+
+[tool.srb.platform]
+declared_target = "linux/amd64+nvidia-rtx"
+arm64_status = "source-present-unverified"
+
+[tool.srb.ownership.cli-executable-bindings]
+simforge = "distribution:simforge"
+srb = "project-script:srb"
+space_robotics_bench = "project-script:space_robotics_bench"
+
+[tool.srb.ownership.extra-runtime-providers]
+event-metavision = ["metavision_core_ml"]
+event-reconstruction = ["e2vid", "lpips"]
+event-v2ce = ["v2ce"]
+event-v2e = ["v2ecore"]
+robomimic = ["robomimic"]

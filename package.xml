@@ -5,7 +5,8 @@
     <version>0.0.6</version>
     <description>Robot Learning Beyond Earth</description>
     <maintainer email="orsula.andrej@gmail.com">Andrej Orsula</maintainer>
-    <license>MIT OR Apache-2.0</license>
+    <license>MIT</license>
+    <license>Apache-2.0</license>
     <url type="repository">
         https://github.com/AndrejOrsula/space_robotics_bench
     </url>
@@ -17,6 +18,16 @@
     <exec_depend>rviz2</exec_depend>
     <exec_depend>teleop_twist_keyboard</exec_depend>
     <exec_depend>xterm</exec_depend>
+
+    <exec_depend>rclpy</exec_depend>
+    <exec_depend>builtin_interfaces</exec_depend>
+    <exec_depend>geometry_msgs</exec_depend>
+    <exec_depend>nav_msgs</exec_depend>
+    <exec_depend>rosgraph_msgs</exec_depend>
+    <exec_depend>sensor_msgs</exec_depend>
+    <exec_depend>std_msgs</exec_depend>
+    <exec_depend>std_srvs</exec_depend>
+    <exec_depend>tf2_ros</exec_depend>
 
     <export>
         <build_type>ament_cmake</build_type>

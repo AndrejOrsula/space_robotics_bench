@@ -2,3 +2,9 @@
 	path = assets/srb_assets
 	url = https://github.com/AndrejOrsula/srb_assets
 	branch = main
+
+[submodule "docs/src/_graphics"]
+	path = docs/src/_graphics
+	url = https://github.com/AndrejOrsula/srb_graphics.git
+	branch = main
+	shallow = true

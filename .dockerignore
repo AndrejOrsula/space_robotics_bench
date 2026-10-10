@@ -1,13 +1,18 @@
 ## Python
-__pycache__/
-*.py[oc]
+**/__pycache__/
+**/*.py[oc]
+**/.pytest_cache/
+**/.ruff_cache/
+**/.mypy_cache/
+**/.hypothesis/
 build/
 dist/
 wheels/
 *.egg-info
 
 ## Virtual environments
-.venv
+**/.venv/
+**/.worktrees/
 
 ## Rust
 debug/
@@ -30,14 +35,32 @@ docs/index.html
 ## Logs
 *.log
 logs/
+
+# colcon / ROS build log root
+log/
 outputs/
 wandb/
 
 ## Offline SRB cache
-.cache
+.cache/
+
+## NVIDIA/Omniverse runtime shader cache
+nv_shadercache/
+
+## Raw assets
+assets/**/*_raw/
 
 ## Dump files
 **/core.*
+
+## Misc
+srb/core/reward/scripts/reward_terms.pdf
+srb/core/reward/scripts/penalty_terms.pdf
+nv_shadercache/
+.*.gen_check_*.py
+.*.publication.lock
+.*.stage
+.coverage
 
 ## Dev Container
 .devcontainer/
@@ -45,15 +68,29 @@ wandb/
 ## Docker
 Dockerfile*
 .docker/
+!.docker/assets/
+!.docker/config/
+!.docker/helpers/isaaclab_root_requirements.py
+!.docker/install/patch_simforge_isaaclab.bash
 .dockerignore
 
 ## Git
 .git/
 .gitignore
+.gitmodules
 
 ## GitHub
 .github/
 
+## VS Code
+.vscode/
+
 ## Pre-commit
 .git_hooks/
 .pre-commit-config.yaml
+
+## Changelog
+CHANGELOG.md
+
+## Citation
+CITATION.cff

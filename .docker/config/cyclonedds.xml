@@ -1,0 +1,16 @@
+<CycloneDDS>
+    <Domain>
+        <General>
+            <Interfaces>
+                <NetworkInterface address="127.0.0.1" />
+                <NetworkInterface name="NETWORK_INTERFACE_NAME" />
+            </Interfaces>
+            <AllowMulticast>spdp</AllowMulticast>
+            <DontRoute>true</DontRoute>
+        </General>
+        <Discovery>
+            <LeaseDuration>1hr</LeaseDuration>
+            <SPDPInterval>1s</SPDPInterval>
+        </Discovery>
+    </Domain>
+</CycloneDDS>

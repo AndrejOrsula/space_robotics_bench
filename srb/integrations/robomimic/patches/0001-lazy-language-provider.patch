@@ -1,0 +1,97 @@
+From c00fd44abf15ea51713d1c14acfa43c0d5af8b6f Mon Sep 17 00:00:00 2001
+From: Space Robotics Bench <srb@localhost>
+Date: Sat, 12 Sep 2026 19:12:21 +0200
+Subject: [PATCH] Defer robomimic language provider initialization until use
+
+---
+diff --git a/robomimic/utils/lang_utils.py b/robomimic/utils/lang_utils.py
+index bbb3bbe..f65bb12 100644
+--- a/robomimic/utils/lang_utils.py
++++ b/robomimic/utils/lang_utils.py
+@@ -1,13 +1,56 @@
+ import os
++import threading
+ from transformers import AutoModel, pipeline, AutoTokenizer, CLIPTextModelWithProjection
+
+ os.environ["TOKENIZERS_PARALLELISM"] = "true" # needed to suppress warning about potential deadlock
+ tokenizer = "openai/clip-vit-large-patch14" #"openai/clip-vit-base-patch32"
+-lang_emb_model = CLIPTextModelWithProjection.from_pretrained(
+-    tokenizer,
+-    cache_dir=os.path.expanduser(os.path.join(os.environ.get("HF_HOME", "~/tmp"), "clip"))
+-).eval()
+-tz = AutoTokenizer.from_pretrained(tokenizer, TOKENIZERS_PARALLELISM=True)
++
++# Loading the language provider is intentionally deferred until a language
++# observation is requested.  Low-dimensional datasets import this module for
++# ``LANG_EMB_OBS_KEY`` but do not need a model or tokenizer.
++_LANG_PROVIDER_LOCK = threading.Lock()
++_LANG_PROVIDER = None
++lang_emb_model = None
++tz = None
++
++
++def _reset_lang_provider_after_fork():
++    """Drop inherited lazy-provider state and locks in a forked child."""
++    global _LANG_PROVIDER_LOCK, _LANG_PROVIDER, lang_emb_model, tz
++
++    _LANG_PROVIDER_LOCK = threading.Lock()
++    _LANG_PROVIDER = None
++    lang_emb_model = None
++    tz = None
++
++
++os.register_at_fork(after_in_child=_reset_lang_provider_after_fork)
++
++
++def _get_lang_provider():
++    """Return one initialized model/tokenizer pair for this process."""
++    global _LANG_PROVIDER, lang_emb_model, tz
++
++    provider = _LANG_PROVIDER
++    if provider is None:
++        with _LANG_PROVIDER_LOCK:
++            provider = _LANG_PROVIDER
++            if provider is None:
++                model = CLIPTextModelWithProjection.from_pretrained(
++                    tokenizer,
++                    cache_dir=os.path.expanduser(
++                        os.path.join(os.environ.get("HF_HOME", "~/tmp"), "clip")
++                    ),
++                ).eval()
++                tokenizer_impl = AutoTokenizer.from_pretrained(
++                    tokenizer, TOKENIZERS_PARALLELISM=True
++                )
++                # Publish only after both providers have initialized.  If
++                # either factory raises, a later call can retry cleanly.
++                provider = (model, tokenizer_impl)
++                lang_emb_model, tz = provider
++                _LANG_PROVIDER = provider
++    return provider
+
+ LANG_EMB_OBS_KEY = "lang_emb"
+
+@@ -15,7 +58,8 @@ def get_lang_emb(lang):
+     if lang is None:
+         return None
+
+-    tokens = tz(
++    model, tokenizer_impl = _get_lang_provider()
++    tokens = tokenizer_impl(
+         text=lang,                   # the sentence to be encoded
+         add_special_tokens=True,             # Add [CLS] and [SEP]
+         max_length=25,  # maximum length of a sentence
+@@ -23,9 +67,9 @@ def get_lang_emb(lang):
+         return_attention_mask=True,        # Generate the attention mask
+         return_tensors="pt",               # ask the function to return PyTorch tensors
+     )
+-    lang_emb = lang_emb_model(**tokens)['text_embeds'].detach()[0]
++    lang_emb = model(**tokens)['text_embeds'].detach()[0]
+
+     return lang_emb
+
+ def get_lang_emb_shape():
+-    return list(get_lang_emb('dummy').shape)
+\ No newline at end of file
++    return list(get_lang_emb('dummy').shape)
+--
+2.34.1

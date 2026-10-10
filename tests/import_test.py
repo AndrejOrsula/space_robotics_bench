@@ -3,4 +3,6 @@ import pytest
 
 @pytest.mark.order(1)
 def test_import():
-    import srb  # noqa: F401
+    import srb
+
+    assert srb.__name__ == "srb"

@@ -13,7 +13,7 @@ pub fn styles() -> std::collections::BTreeMap<TextStyle, FontId> {
         (TextStyle::Body, FontId::new(18.0, FontFamily::Proportional)),
         (
             TextStyle::Button,
-            FontId::new(20.0, FontFamily::Proportional),
+            FontId::new(18.0, FontFamily::Proportional),
         ),
         (
             TextStyle::Heading,

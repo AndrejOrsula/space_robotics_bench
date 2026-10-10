@@ -1,9 +1,3 @@
-//! Global visual settings for the UI.
-//!
-//! The color themes are inspired by [Catppuccin](https://catppuccin.com).
-//! - Mocha palette for dark mode
-//! - Latte palette for light mode
-
 use std::sync::OnceLock;
 
 use egui::{
@@ -25,47 +19,47 @@ fn dark_theme() -> Visuals {
             noninteractive: WidgetVisuals {
                 weak_bg_fill: Color32::from_rgb(30, 30, 46).gamma_multiply(0.75),
                 bg_fill: Color32::from_rgb(30, 30, 46),
-                bg_stroke: Stroke::new(1.0, Color32::from_rgb(127, 132, 156)),
-                fg_stroke: Stroke::new(1.0, Color32::from_rgb(138, 143, 163)),
+                bg_stroke: Stroke::new(1.0_f32, Color32::from_rgb(127, 132, 156)),
+                fg_stroke: Stroke::new(1.0_f32, Color32::from_rgb(138, 143, 163)),
                 corner_radius: CornerRadius::same(2),
                 expansion: 0.0,
             },
             inactive: WidgetVisuals {
                 weak_bg_fill: Color32::from_rgb(49, 50, 68).gamma_multiply(0.75),
                 bg_fill: Color32::from_rgb(49, 50, 68),
-                bg_stroke: Stroke::new(1.0, Color32::from_rgb(127, 132, 156)),
-                fg_stroke: Stroke::new(1.0, Color32::from_rgb(138, 143, 163)),
+                bg_stroke: Stroke::new(1.0_f32, Color32::from_rgb(127, 132, 156)),
+                fg_stroke: Stroke::new(1.0_f32, Color32::from_rgb(138, 143, 163)),
                 corner_radius: CornerRadius::same(2),
                 expansion: 0.0,
             },
             hovered: WidgetVisuals {
                 weak_bg_fill: Color32::from_rgb(88, 91, 112).gamma_multiply(0.75),
                 bg_fill: Color32::from_rgb(88, 91, 112),
-                bg_stroke: Stroke::new(1.0, Color32::from_rgb(127, 132, 156)),
-                fg_stroke: Stroke::new(1.5, Color32::from_rgb(205, 214, 244)),
+                bg_stroke: Stroke::new(1.0_f32, Color32::from_rgb(127, 132, 156)),
+                fg_stroke: Stroke::new(1.5_f32, Color32::from_rgb(205, 214, 244)),
                 corner_radius: CornerRadius::same(3),
                 expansion: 1.0,
             },
             active: WidgetVisuals {
                 weak_bg_fill: Color32::from_rgb(69, 71, 90).gamma_multiply(0.75),
                 bg_fill: Color32::from_rgb(69, 71, 90),
-                bg_stroke: Stroke::new(1.0, Color32::from_rgb(127, 132, 156)),
-                fg_stroke: Stroke::new(2.0, Color32::from_rgb(205, 214, 244)),
+                bg_stroke: Stroke::new(1.0_f32, Color32::from_rgb(127, 132, 156)),
+                fg_stroke: Stroke::new(2.0_f32, Color32::from_rgb(205, 214, 244)),
                 corner_radius: CornerRadius::same(2),
                 expansion: 1.0,
             },
             open: WidgetVisuals {
                 weak_bg_fill: Color32::from_rgb(49, 50, 68).gamma_multiply(0.75),
                 bg_fill: Color32::from_rgb(49, 50, 68),
-                bg_stroke: Stroke::new(1.0, Color32::from_rgb(127, 132, 156)),
-                fg_stroke: Stroke::new(1.0, Color32::from_rgb(205, 214, 244)),
+                bg_stroke: Stroke::new(1.0_f32, Color32::from_rgb(127, 132, 156)),
+                fg_stroke: Stroke::new(1.0_f32, Color32::from_rgb(205, 214, 244)),
                 corner_radius: CornerRadius::same(2),
                 expansion: 0.0,
             },
         },
         selection: Selection {
             bg_fill: Color32::from_rgb(137, 180, 250).gamma_multiply(0.25),
-            stroke: Stroke::new(1.0, Color32::from_rgb(127, 132, 156)),
+            stroke: Stroke::new(1.0_f32, Color32::from_rgb(127, 132, 156)),
         },
         hyperlink_color: Color32::from_rgb(245, 224, 220),
         faint_bg_color: Color32::from_rgb(49, 50, 68),
@@ -81,7 +75,7 @@ fn dark_theme() -> Visuals {
             color: Color32::from_rgb(30, 30, 46),
         },
         window_fill: Color32::from_rgb(30, 30, 46),
-        window_stroke: Stroke::new(1.0, Color32::from_rgb(127, 132, 156)),
+        window_stroke: Stroke::new(1.0_f32, Color32::from_rgb(127, 132, 156)),
         window_highlight_topmost: true,
         menu_corner_radius: CornerRadius::same(6),
         panel_fill: Color32::from_rgb(30, 30, 46),
@@ -93,7 +87,7 @@ fn dark_theme() -> Visuals {
         },
         resize_corner_size: 12.0,
         text_cursor: TextCursorStyle {
-            stroke: Stroke::new(2.0, Color32::from_rgb(210, 219, 250)),
+            stroke: Stroke::new(2.0_f32, Color32::from_rgb(210, 219, 250)),
             ..Default::default()
         },
         clip_rect_margin: 3.0,
@@ -123,47 +117,47 @@ fn light_theme() -> Visuals {
             noninteractive: WidgetVisuals {
                 weak_bg_fill: Color32::from_rgb(239, 241, 245).gamma_multiply(0.75),
                 bg_fill: Color32::from_rgb(239, 241, 245),
-                bg_stroke: Stroke::new(1.0, Color32::from_rgb(140, 143, 161)),
-                fg_stroke: Stroke::new(1.0, Color32::from_rgb(76, 79, 105)),
+                bg_stroke: Stroke::new(1.0_f32, Color32::from_rgb(140, 143, 161)),
+                fg_stroke: Stroke::new(1.0_f32, Color32::from_rgb(76, 79, 105)),
                 corner_radius: CornerRadius::same(2),
                 expansion: 0.0,
             },
             inactive: WidgetVisuals {
                 weak_bg_fill: Color32::from_rgb(204, 208, 218).gamma_multiply(0.75),
                 bg_fill: Color32::from_rgb(204, 208, 218),
-                bg_stroke: Stroke::new(1.0, Color32::from_rgb(140, 143, 161)),
-                fg_stroke: Stroke::new(1.0, Color32::from_rgb(76, 79, 105)),
+                bg_stroke: Stroke::new(1.0_f32, Color32::from_rgb(140, 143, 161)),
+                fg_stroke: Stroke::new(1.0_f32, Color32::from_rgb(76, 79, 105)),
                 corner_radius: CornerRadius::same(2),
                 expansion: 0.0,
             },
             hovered: WidgetVisuals {
                 weak_bg_fill: Color32::from_rgb(172, 176, 190).gamma_multiply(0.75),
                 bg_fill: Color32::from_rgb(172, 176, 190),
-                bg_stroke: Stroke::new(1.0, Color32::from_rgb(140, 143, 161)),
-                fg_stroke: Stroke::new(1.5, Color32::from_rgb(11, 12, 16)),
+                bg_stroke: Stroke::new(1.0_f32, Color32::from_rgb(140, 143, 161)),
+                fg_stroke: Stroke::new(1.5_f32, Color32::from_rgb(11, 12, 16)),
                 corner_radius: CornerRadius::same(3),
                 expansion: 1.0,
             },
             active: WidgetVisuals {
                 weak_bg_fill: Color32::from_rgb(188, 192, 204).gamma_multiply(0.75),
                 bg_fill: Color32::from_rgb(188, 192, 204),
-                bg_stroke: Stroke::new(1.0, Color32::from_rgb(140, 143, 161)),
-                fg_stroke: Stroke::new(2.0, Color32::from_rgb(11, 12, 16)),
+                bg_stroke: Stroke::new(1.0_f32, Color32::from_rgb(140, 143, 161)),
+                fg_stroke: Stroke::new(2.0_f32, Color32::from_rgb(11, 12, 16)),
                 corner_radius: CornerRadius::same(2),
                 expansion: 1.0,
             },
             open: WidgetVisuals {
                 weak_bg_fill: Color32::from_rgb(204, 208, 218).gamma_multiply(0.75),
                 bg_fill: Color32::from_rgb(204, 208, 218),
-                bg_stroke: Stroke::new(1.0, Color32::from_rgb(140, 143, 161)),
-                fg_stroke: Stroke::new(1.0, Color32::from_rgb(11, 12, 16)),
+                bg_stroke: Stroke::new(1.0_f32, Color32::from_rgb(140, 143, 161)),
+                fg_stroke: Stroke::new(1.0_f32, Color32::from_rgb(11, 12, 16)),
                 corner_radius: CornerRadius::same(2),
                 expansion: 0.0,
             },
         },
         selection: Selection {
             bg_fill: Color32::from_rgb(30, 102, 245).gamma_multiply(0.25),
-            stroke: Stroke::new(1.0, Color32::from_rgb(140, 143, 128)),
+            stroke: Stroke::new(1.0_f32, Color32::from_rgb(140, 143, 161)),
         },
         hyperlink_color: Color32::from_rgb(220, 138, 120),
         faint_bg_color: Color32::from_rgb(204, 208, 218),
@@ -181,7 +175,7 @@ fn light_theme() -> Visuals {
             color: Color32::from_rgb(239, 241, 245),
         },
         window_fill: Color32::from_rgb(239, 241, 245),
-        window_stroke: Stroke::new(1.0, Color32::from_rgb(140, 143, 161)),
+        window_stroke: Stroke::new(1.0_f32, Color32::from_rgb(140, 143, 161)),
         panel_fill: Color32::from_rgb(239, 241, 245),
         popup_shadow: Shadow {
             offset: [6, 10],
@@ -191,7 +185,7 @@ fn light_theme() -> Visuals {
         },
         resize_corner_size: 12.0,
         text_cursor: TextCursorStyle {
-            stroke: Stroke::new(2.0, Color32::from_rgb(63, 65, 87)),
+            stroke: Stroke::new(2.0_f32, Color32::from_rgb(63, 65, 87)),
             ..Default::default()
         },
         clip_rect_margin: 3.0,

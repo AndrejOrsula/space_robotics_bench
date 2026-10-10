@@ -1,9 +1,14 @@
 # Workflows
 
-The Space Robotics Bench provides a variety of workflows that streamline the interaction with the simulation environments to accomplish specific goals like algorithm development, validation, or synthetic data generation.
+Develop and validate algorithms, and generate synthetic data.
 
 ## Available Workflows
 
-- **[ROS 2](ros2.md)** - Interface with the wide ecosystem of robotics tools and libraries
-- **[Reinforcement Learning](reinforcement_learning.md)** - Train and evaluate policies using popular RL algorithms
-- **[Sim-to-Real Transfer](sim_to_real.md)** - Deploy policies trained in simulation onto real hardware
+- **[ROS 2](ros2.md)** - Connect robotics tools and libraries.
+- **[Reinforcement Learning](reinforcement_learning.md)** - Train and evaluate policies.
+- **[Hyperparameter Tuning](hyperparameter_tuning.md)** - Tune hyperparameters: `srb agent tune`.
+- **[Imitation Learning](imitation_learning.md)** - Collect demonstrations; train offline.
+- **[Sim-to-Real Transfer](sim_to_real.md)** - Prepare simulation-trained policies for hardware; operation is unvalidated.
+- **[Terrain Landscaping Training](terrain_landscaping_training.md)** - Train three landscaping tasks; review limitations.
+
+Next: [ROS 2 Workflow](ros2.md)

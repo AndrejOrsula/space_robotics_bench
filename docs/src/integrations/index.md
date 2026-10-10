@@ -1,8 +1,10 @@
 # Integrations & Interfaces
 
-The Space Robotics Bench has a modular design that supports integrations & interfaces with external frameworks and tools. This enables researchers and developers to leverage the high-fidelity environments while using their preferred toolchains for research, development, and validation.
+Choose an integration to connect SRB to a framework or tool:
 
-At the moment, SRB natively supports the following categories of integrations/interfaces:
+- [**ROS 2 & Space ROS**](ros2.md) - Connect with robotics tools and libraries.
+- [**Reinforcement Learning (RL)**](reinforcement_learning.md) - Train and evaluate policies with popular RL algorithms.
+- [**Imitation Learning (IL)**](imitation_learning.md) - Learn policies from demonstrations.
+- [**Extended Reality (XR)**](extended_reality.md) - Launch and render XR; headset use is not tested.
 
-- [**ROS 2 & Space ROS**](ros2.md) - Interface with the wide ecosystem of robotics tools and libraries
-- [**Reinforcement Learning (RL)**](reinforcement_learning.md) - Train and evaluate policies using popular RL algorithms
+Next: [Reinforcement Learning](reinforcement_learning.md)

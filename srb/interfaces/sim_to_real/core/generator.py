@@ -1,73 +1,102 @@
+import ast
+import difflib
+import os
 import shutil
-import subprocess
+import stat
+import sys
+import tempfile
+from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    ClassVar,
-    Dict,
-    Iterable,
-    List,
-    Sequence,
-    Tuple,
-    Type,
-)
+from typing import TYPE_CHECKING
 
 import gymnasium
 import gymnasium.envs.registration
-import numpy
-import torch
-from pydantic import BaseModel
 
-from srb.interfaces.sim_to_real.core.env import RealEnv
 from srb.interfaces.sim_to_real.core.hardware import HardwareInterfaceRegistry
-from srb.utils.path import SRB_DIR, SRB_HYPERPARAMS_DIR
+from srb.interfaces.sim_to_real.deploy_profiles.generation import (
+    canonical_generation_policy_for_env_spec_id,
+    deploy_profile_for_env_spec_id,
+)
+from srb.utils.process_supervisor import (
+    ProcessKind,
+    ProcessPlatformError,
+    ProcessSpawnError,
+    ProcessStatus,
+    run_owned,
+)
+
+from .generator_extract import EnvInfoExtractor
+from .generator_kwargs import RegistrationKwargsRewriter
+from .generator_render import RealEnvModuleRenderer, SpaceFormatter
 
 if TYPE_CHECKING:
-    from srb._typing import AnyEnv, AnyEnvCfg
-    from srb.core.action import ActionTermCfg
+    from srb._typing import AnyEnv
 
 
-class EnvInfo(BaseModel, arbitrary_types_allowed=True):
-    single_action_space: gymnasium.Space
-    detailed_action_space: gymnasium.spaces.Dict
-    action_ordering: Dict[str, slice]
-    action_rate: float
-    action_scale: dict[str, float] = {}
+def _existing_hardware(module: Path) -> tuple[str, ...]:
+    """Return the `HARDWARE` tuple of an existing generated module, if any."""
+    try:
+        tree = ast.parse(module.read_text(encoding="utf-8"))
+    except (OSError, SyntaxError, ValueError):
+        return ()
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.AnnAssign)
+            and isinstance(node.target, ast.Name)
+            and node.target.id == "HARDWARE"
+            and node.value is not None
+        ):
+            try:
+                value = ast.literal_eval(node.value)
+            except ValueError:
+                return ()
+            if isinstance(value, tuple) and all(isinstance(v, str) for v in value):
+                return value
+    return ()
 
-    single_observation_space: gymnasium.Space
-    detailed_observation_space: gymnasium.spaces.Dict
 
-    robot: str
+class GenerationCheckError(RuntimeError):
+    """``srb real_agent gen --check`` could not certify the checked-in module."""
+
+
+class GeneratedModuleDriftError(GenerationCheckError):
+    """The checked-in generated module differs from a fresh deterministic render."""
+
+
+class FormatterUnavailableError(GenerationCheckError):
+    """No formatter is available to format candidates for ``--check``.
+
+    Comparing unformatted candidates with Ruff-formatted modules would report
+    false drift. This error means no formatter was found on ``PATH``;
+    :class:`FormatterFailedError` covers a formatter that ran and failed.
+    """
+
+
+class FormatterFailedError(GenerationCheckError):
+    """A formatter on ``PATH`` failed; captured stderr carries its diagnostic."""
+
+
+class GeneratedModuleSyntaxError(GenerationCheckError):
+    """The formatted candidate failed Python parsing before replacing output."""
+
+
+@dataclass(frozen=True)
+class FormatOutcome:
+    """Formatting result; ``attempted`` distinguishes missing from failed tools."""
+
+    ok: bool
+    attempted: bool
+    formatter: str = ""
+    stderr: str = ""
 
 
 class RealEnvGenerator:
-    def generate_online(self, env: "AnyEnv") -> Type[RealEnv]:
-        # Extract environment information
-        env_info = self._extract_env_info(env)
-
-        # Generate the environment class
-        class Env(RealEnv):
-            SINGLE_ACTION_SPACE: ClassVar[gymnasium.Space] = (
-                env_info.single_action_space
-            )
-            DETAILED_ACTION_SPACE: ClassVar[gymnasium.spaces.Dict] = (
-                env_info.detailed_action_space
-            )
-            ACTION_ORDERING: ClassVar[Dict[str, slice]] = env_info.action_ordering
-            ACTION_RATE: ClassVar[float] = env_info.action_rate
-            ACTION_SCALE: ClassVar[Dict[str, float]] = env_info.action_scale
-
-            SINGLE_OBSERVATION_SPACE: ClassVar[gymnasium.Space] = (
-                env_info.single_observation_space
-            )
-            DETAILED_OBSERVATION_SPACE: ClassVar[gymnasium.spaces.Dict] = (
-                env_info.detailed_observation_space
-            )
-
-            ROBOT: ClassVar[str] = env_info.robot
-
-        return Env
+    def __init__(self):
+        self._extractor = EnvInfoExtractor()
+        self._kwargs_rewriter = RegistrationKwargsRewriter()
+        self._spaces = SpaceFormatter()
+        self._renderer = RealEnvModuleRenderer(space_formatter=self._spaces)
 
     def generate_offline(
         self,
@@ -75,310 +104,224 @@ class RealEnvGenerator:
         env_spec: gymnasium.envs.registration.EnvSpec,
         output: Path | str,
         hardware: Sequence[str] = (),
-    ):
+        *,
+        check: bool = False,
+    ) -> None:
+        """Render a RealEnv module, or check its deterministic freshness.
+
+        ``check=True`` formats a temporary candidate, compares bytes, and
+        reports drift without writing. Normal generation atomically replaces
+        output only after formatting and parsing succeed.
+        """
         output = Path(output).resolve()
 
-        # Extract environment information
-        env_info = self._extract_env_info(env)
-
-        # Pre-process registration kwargs
-        registration_kwargs = env_spec.kwargs.copy()
-        registration_kwargs.pop("task_cfg", None)
-        used_srb_paths = set()
-        for key, value in registration_kwargs.items():
-            maybe_path = Path(value).resolve()
-            if maybe_path.exists():
-                for srb_path_var_name, srb_path in {
-                    "SRB_HYPERPARAMS_DIR": SRB_HYPERPARAMS_DIR,
-                    "SRB_DIR": SRB_DIR,
-                }.items():
-                    try:
-                        registration_kwargs[key] = (
-                            f'__NO_STR__{srb_path_var_name}.joinpath("{maybe_path.relative_to(srb_path).as_posix()}").as_posix()__NO_STR__'
-                        )
-                        used_srb_paths.add(srb_path_var_name)
-                        break
-                    except ValueError:
-                        continue
-        registration_kwargs = (
-            repr(registration_kwargs)
-            .replace("'", '"')
-            .replace('"__NO_STR__', "")
-            .replace('__NO_STR__"', "")
+        env_info = self._extractor.extract(
+            env,
+            canonical_policy=canonical_generation_policy_for_env_spec_id(env_spec.id),
+        )
+        registration_kwargs, used_srb_paths = self._kwargs_rewriter.rewrite(
+            env_spec.kwargs
         )
 
+        # Without `--hardware`, keep the module's current selection.
+        if not hardware:
+            hardware = _existing_hardware(output)
         # Ensure all hardware interfaces are registered and unique
-        for hw in set(hardware):
+        for hw in dict.fromkeys(hardware):
             if HardwareInterfaceRegistry.get_by_name(hw) is None:
                 raise ValueError(f"Hardware interface '{hw}' is not registered")
 
-        # Generate the content of the file
-        content = f"""\
-## Note: This file is auto-generated by the SRB RealEnvGenerator.
-##       Manual edits are highly discouraged!
+        content = self._renderer.render_offline_module(
+            env_info=env_info,
+            env_spec_id=env_spec.id,
+            registration_kwargs=registration_kwargs,
+            used_srb_paths=used_srb_paths,
+            hardware=hardware,
+            deploy_profile=deploy_profile_for_env_spec_id(env_spec.id),
+        )
 
-from typing import ClassVar, Dict, Sequence
+        if check:
+            self._check_against_existing(content=content, output=output)
+            return
 
-import gymnasium
-import numpy
-
-from srb.interfaces.sim_to_real import RealEnv
-{
-            (
-                "from srb.utils.path import " + ", ".join(sorted(used_srb_paths))
-                if used_srb_paths
-                else ""
-            )
-        }
-
-
-class Env(RealEnv):
-    SINGLE_ACTION_SPACE: ClassVar[gymnasium.Space] = {
-            self._format_space(env_info.single_action_space)
-        }
-    DETAILED_ACTION_SPACE: ClassVar[gymnasium.spaces.Dict] = {
-            self._format_space(env_info.detailed_action_space)
-        }
-    ACTION_ORDERING: ClassVar[Dict[str, slice]] = {env_info.action_ordering}
-    ACTION_RATE: ClassVar[float] = {env_info.action_rate}
-    ACTION_SCALE: ClassVar[Dict[str, float]] = {env_info.action_scale}
-
-    SINGLE_OBSERVATION_SPACE: ClassVar[gymnasium.Space] = {
-            self._format_space(env_info.single_observation_space)
-        }
-    DETAILED_OBSERVATION_SPACE: ClassVar[gymnasium.spaces.Dict] = {
-            self._format_space(env_info.detailed_observation_space)
-        }
-
-    SIM_ROBOT: ClassVar[str] = {repr(env_info.robot)}
-    HARDWARE: ClassVar[Sequence[str]] = ({
-            ", ".join(f'"{hw}"' for hw in sorted(set(hardware)))
-        }{"," if hardware else ""})
-
-gymnasium.register(
-    id="srb_real/{env_spec.id.rsplit("/", 1)[-1]}",
-    entry_point=f"{{Env.__module__}}:{{Env.__name__}}",
-    kwargs={registration_kwargs},
-)
-"""
-
-        # Write to file
         output.parent.mkdir(parents=True, exist_ok=True)
-        with open(output, "w") as file:
-            file.write(content)
+        self._write_atomically(content=content, output=output)
 
-        # Format the generated file
-        self._format_python_file(output)
-
-    def _extract_env_info(self, env: "AnyEnv") -> EnvInfo:
-        env_cfg: "AnyEnvCfg" = env.cfg
-
-        # Extract actions from action manager
-        action_space_dict = {}
-        action_scale = {}
-        action_ordering = {}
-        action_index = 0
-        for action_key, action_term in env.action_manager._terms.items():
-            # Create action space
-            action_space_dict[action_key] = gymnasium.spaces.Box(
-                low=-1.0, high=1.0, shape=(action_term.action_dim,), dtype=numpy.float32
-            )
-
-            # Extract scale from different action term types
-            action_term_cfg: "ActionTermCfg" = action_term.cfg  # type: ignore
-            if hasattr(action_term_cfg, "scale"):
-                action_scale[action_key] = action_term_cfg.scale  # type: ignore
-            if hasattr(action_term_cfg, "scale_linear"):
-                action_scale[f"{action_key}_linear"] = action_term_cfg.scale_linear  # type: ignore
-                action_scale[f"{action_key}_angular"] = action_term_cfg.scale_angular  # type: ignore
-            if hasattr(action_term_cfg, "position_scale"):
-                action_scale[f"{action_key}_position"] = action_term_cfg.position_scale  # type: ignore
-                action_scale[f"{action_key}_orientation"] = (
-                    action_term_cfg.orientation_scale  # type: ignore
+    def _write_atomically(self, *, content: str, output: Path) -> None:
+        """Format and parse a sibling candidate before atomically replacing output."""
+        candidate: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                dir=output.parent,
+                prefix=f".{output.stem}.gen_write_",
+                suffix=".py",
+                mode="w",
+                delete=False,
+            ) as handle:
+                candidate = Path(handle.name)
+                handle.write(content)
+            outcome = self._format_python_file(candidate)
+            if not outcome.ok:
+                if outcome.attempted:
+                    raise FormatterFailedError(
+                        f"cannot write {output}: formatting the fresh render "
+                        f"with {outcome.formatter} failed, so the previous "
+                        "module (if any) was left untouched. This usually "
+                        "means the generator rendered invalid Python, not that "
+                        f"a formatter is missing — {outcome.formatter} stderr:\n"
+                        f"{outcome.stderr}"
+                    )
+                raise FormatterUnavailableError(
+                    f"cannot write {output}: none of {self._formatter_names()} "
+                    "is available on PATH, so the previous module (if any) was "
+                    "left untouched. Every checked-in module is formatted by "
+                    "the repo's pinned ruff pre-commit hook and `--check` "
+                    "byte-compares formatted output. Install the pinned "
+                    "formatter (e.g. `uvx ruff@0.15.4 --version` to warm the "
+                    "cache, then put it on PATH) and re-run."
                 )
-
-            # Create action ordering
-            action_ordering[action_key] = slice(
-                action_index, action_index + action_term.action_dim
-            )
-            action_index += action_term.action_dim
-
-        action_space = gymnasium.spaces.Dict(action_space_dict)
-
-        # Extract observation space from extract_step_return (if available)
-        observation_space = None
-        if (
-            hasattr(env.unwrapped, "extract_step_return")
-            and hasattr(env.unwrapped.__class__, "extract_step_return")
-            and env.unwrapped.__class__.extract_step_return  # type: ignore
-            is not getattr(
-                env.unwrapped.__class__.__bases__[0], "extract_step_return", None
-            )
-        ):
-            step_return = env.unwrapped.extract_step_return()  # type: ignore
-            observation_space_dict = {}
-            for obs_cat, obs_group in step_return.observation.items():
-                cat_spaces = {}
-                for obs_key, obs_value in obs_group.items():
-                    if space := self._space_from_value(obs_value):
-                        cat_spaces[obs_key] = space
-                observation_space_dict[obs_cat] = gymnasium.spaces.Dict(cat_spaces)
-            if isinstance(env.single_observation_space, gymnasium.spaces.Dict):
-                for key, space in env.single_observation_space.spaces.items():
-                    if key not in observation_space_dict:
-                        observation_space_dict[key] = space
-            observation_space = gymnasium.spaces.Dict(observation_space_dict)
-        else:
-            observation_space = env.single_observation_space
-
-        return EnvInfo(
-            single_action_space=env.single_action_space,
-            detailed_action_space=action_space,
-            action_ordering=action_ordering,
-            action_rate=env_cfg.agent_rate,
-            action_scale=action_scale,
-            single_observation_space=env.single_observation_space,
-            detailed_observation_space=observation_space,
-            robot=env_cfg._robot.name(),
-        )
-
-    def _space_from_value(
-        self, value: numpy.ndarray | torch.Tensor
-    ) -> gymnasium.Space | None:
-        if len(value.shape) == 0 or any(map(lambda dim: dim == 0, value.shape)):
-            return None
-        if isinstance(value, torch.Tensor):
-            dtype = self.__torch_dtype_to_numpy_dtype(value.dtype)
-        else:
-            dtype = value.dtype
-        low, high = self.__numpy_dtype_limits(dtype)
-        return gymnasium.spaces.Box(
-            low=low,
-            high=high,
-            shape=value.shape[1:],
-            dtype=dtype,  # type: ignore
-        )
-
-    def _format_space(self, space: gymnasium.Space) -> str:
-        if isinstance(space, gymnasium.spaces.Box):
-            low_limit, high_limit = self.__numpy_dtype_limits(space.dtype)
-            low_limit_str, high_limit_str = self.__numpy_dtype_limits_str(space.dtype)
-
-            def __flatten(input: Iterable) -> List:
-                output = []
-                for item in input:
-                    if isinstance(item, Iterable):
-                        output.extend(__flatten(item))
-                    else:
-                        output.append(item)
-                return output
-
-            def __format(value: bool | int | float) -> str:
-                if value == low_limit or value == -numpy.inf:
-                    return low_limit_str
-                elif value == high_limit or value == numpy.inf:
-                    return high_limit_str
-                else:
-                    return str(value)
-
-            space_low_flattened = __flatten(space.low.tolist())
-            space_high_flattened = __flatten(space.high.tolist())
-            if (
-                len(set(space_low_flattened)) == 1
-                and len(set(space_high_flattened)) == 1
-            ):
-                low_str = __format(space_low_flattened[0])
-                high_str = __format(space_high_flattened[0])
-            elif not isinstance(space.low[0], Iterable):
-                low_str = f"numpy.array([{', '.join(__format(value) for value in space.low)}])"
-                high_str = f"numpy.array([{', '.join(__format(value) for value in space.high)}])"
+            formatted = candidate.read_text()
+            try:
+                ast.parse(formatted, filename=output.as_posix())
+            except SyntaxError as exc:
+                raise GeneratedModuleSyntaxError(
+                    f"cannot write {output}: the formatted render does not "
+                    f"parse as Python ({exc}), so the previous module (if any) "
+                    "was left untouched"
+                ) from exc
+            # NamedTemporaryFile creates 0600; a product replacing a
+            # checked-in module keeps that module's mode, and a brand-new
+            # product gets the ordinary umask-derived mode.
+            if output.exists():
+                mode = stat.S_IMODE(output.stat().st_mode)
             else:
-                low_str = f"numpy.array({repr(space.low)})"
-                high_str = f"numpy.array({repr(space.high)})"
-            return f"gymnasium.spaces.Box(low={low_str}, high={high_str}, shape={space.shape}, dtype=numpy.{space.dtype})"
-        elif isinstance(space, gymnasium.spaces.Discrete):
-            return f"gymnasium.spaces.Discrete({space.n})"
-        elif isinstance(space, gymnasium.spaces.MultiDiscrete):
-            return f"gymnasium.spaces.MultiDiscrete({space.nvec})"
-        elif isinstance(space, gymnasium.spaces.MultiBinary):
-            return f"gymnasium.spaces.MultiBinary({space.n})"
-        elif isinstance(space, gymnasium.spaces.Dict):
-            items = []
-            for key, subspace in space.spaces.items():
-                items.append(f'"{key}": {self._format_space(subspace)}')
-            return "gymnasium.spaces.Dict({" + ", ".join(items) + "})"
-        elif isinstance(space, gymnasium.spaces.Tuple):
-            entries = []
-            for subspace in space.spaces:
-                entries.append(self._format_space(subspace))
-            return f"gymnasium.spaces.Tuple(({', '.join(entries)}))"
-        else:
-            raise TypeError(f"Unsupported space type: {type(space).__name__}")
+                umask = os.umask(0)
+                os.umask(umask)
+                mode = 0o666 & ~umask
+            os.chmod(candidate, mode)
+            with candidate.open("rb+") as handle:
+                os.fsync(handle.fileno())
+            os.replace(candidate, output)
+            candidate = None
+        finally:
+            if candidate is not None:
+                candidate.unlink(missing_ok=True)
+
+    def _check_against_existing(self, *, content: str, output: Path) -> None:
+        """Compare a formatted render with output without changing output.
+
+        The candidate sits beside output so the formatter finds the same
+        configuration. A missing output fails before any filesystem writes.
+        """
+        if not output.is_file():
+            raise GeneratedModuleDriftError(
+                f"checked-in generated module {output} does not exist; run "
+                "`srb real_agent gen` without --check to create it"
+            )
+        # The temp file is created *inside* the try/finally (not just the
+        # cleanup): if `handle.write` (or the closing flush) raises, or the
+        # process is killed between creation and formatting, `candidate`
+        # must not leak a `.<stem>.gen_check_*.py` file into the package
+        # directory.
+        candidate: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                dir=output.parent,
+                prefix=f".{output.stem}.gen_check_",
+                suffix=".py",
+                mode="w",
+                delete=False,
+            ) as handle:
+                candidate = Path(handle.name)
+                handle.write(content)
+            outcome = self._format_python_file(candidate)
+            fresh_bytes = candidate.read_bytes()
+        finally:
+            if candidate is not None:
+                candidate.unlink(missing_ok=True)
+        if not outcome.ok:
+            if outcome.attempted:
+                raise FormatterFailedError(
+                    f"cannot verify {output}: formatting the fresh render with "
+                    f"{outcome.formatter} failed. This usually means the "
+                    "generator rendered invalid Python, not that a formatter is "
+                    f"missing — {outcome.formatter} stderr:\n{outcome.stderr}"
+                )
+            raise FormatterUnavailableError(
+                f"cannot verify {output}: --check byte-compares a *formatted* "
+                f"fresh render, and none of {self._formatter_names()} is "
+                "available on PATH. Every checked-in module is formatted by "
+                "the repo's pinned ruff pre-commit hook, so comparing against "
+                "an unformatted candidate would manufacture drift. Install "
+                "the pinned formatter (e.g. `uvx ruff@0.15.4 --version` to "
+                "warm the cache, then put it on PATH) and re-run."
+            )
+        existing_bytes = output.read_bytes()
+        if existing_bytes == fresh_bytes:
+            print(f"[gen --check] up to date: {output}")
+            return
+        existing = existing_bytes.decode("utf-8")
+        fresh = fresh_bytes.decode("utf-8")
+        diff = "".join(
+            difflib.unified_diff(
+                existing.splitlines(keepends=True),
+                fresh.splitlines(keepends=True),
+                fromfile=f"{output} (checked-in)",
+                tofile=f"{output} (fresh render)",
+            )
+        )
+        # Stderr: `gen --env ALL` reports only the child's stderr.
+        print(diff, file=sys.stderr)
+        raise GeneratedModuleDriftError(
+            f"generated module drift detected for {output}; regenerate with "
+            "`srb real_agent gen` after reviewing the diff above"
+        )
 
     __FORMAT_CMDS: Sequence[Sequence[str]] = (
         ("ruff", "format"),
         ("black",),
     )
+    __FORMAT_TIMEOUT_S = 30.0
 
-    def _format_python_file(self, file_path: Path) -> bool:
+    @classmethod
+    def _formatter_names(cls) -> str:
+        return " / ".join(cmd[0] for cmd in cls.__FORMAT_CMDS)
+
+    def _format_python_file(self, file_path: Path) -> FormatOutcome:
+        """Format ``file_path`` in place with the first formatter on PATH.
+
+        Falls through to the next configured formatter on failure (matching
+        the previous behaviour), but records the last failure's ``stderr``
+        so a caller can tell "no formatter is installed" apart from "a
+        formatter ran and rejected the candidate" — the latter usually means
+        the *generator* produced invalid Python.
+        """
+        last_failure: FormatOutcome | None = None
         for cmd in self.__FORMAT_CMDS:
-            if shutil.which(cmd[0]):
-                try:
-                    result = subprocess.run(
-                        (*cmd, file_path.as_posix()),
-                        capture_output=True,
-                        text=True,
-                        check=True,
-                    )
-                    if result.returncode == 0:
-                        return True
-                except Exception:
-                    pass
-        return False
-
-    def __torch_dtype_to_numpy_dtype(self, dtype: torch.dtype) -> Any:
-        match dtype:
-            case torch.float32:
-                return numpy.float32
-            case torch.float64:
-                return numpy.float64
-            case torch.int8:
-                return numpy.int8
-            case torch.uint8:
-                return numpy.uint8
-            case torch.int16:
-                return numpy.int16
-            case torch.uint16:
-                return numpy.uint16
-            case torch.int32:
-                return numpy.int32
-            case torch.uint32:
-                return numpy.uint32
-            case torch.int64:
-                return numpy.int64
-            case torch.uint64:
-                return numpy.uint64
-            case torch.bool:
-                return numpy.bool_
-            case _:
-                raise TypeError(f"Unsupported torch dtype '{dtype}'")
-
-    def __numpy_dtype_limits(self, dtype: numpy.dtype) -> Tuple[float, float]:
-        if numpy.issubdtype(dtype, numpy.floating):
-            return numpy.finfo(dtype).min, numpy.finfo(dtype).max  # type: ignore
-        elif numpy.issubdtype(dtype, numpy.integer):
-            return numpy.iinfo(dtype).min, numpy.iinfo(dtype).max
-        elif dtype == numpy.bool_:
-            return 0.0, 1.0
-        else:
-            return -numpy.inf, numpy.inf
-
-    def __numpy_dtype_limits_str(self, dtype: numpy.dtype) -> Tuple[str, str]:
-        if numpy.issubdtype(dtype, numpy.floating):
-            return f"numpy.finfo(numpy.{dtype}).min", f"numpy.finfo(numpy.{dtype}).max"
-        elif numpy.issubdtype(dtype, numpy.integer):
-            return f"numpy.iinfo(numpy.{dtype}).min", f"numpy.iinfo(numpy.{dtype}).max"
-        elif dtype == numpy.bool_:
-            return "0.0", "1.0"
-        else:
-            return "-numpy.inf", "numpy.inf"
+            if not shutil.which(cmd[0]):
+                continue
+            try:
+                result = run_owned(
+                    (*cmd, file_path.as_posix()),
+                    kind=ProcessKind.FINITE,
+                    timeout=self.__FORMAT_TIMEOUT_S,
+                    capture_output=True,
+                )
+            except (ProcessPlatformError, ProcessSpawnError) as exc:
+                last_failure = FormatOutcome(
+                    ok=False, attempted=True, formatter=cmd[0], stderr=str(exc)
+                )
+                continue
+            if (
+                result.status is ProcessStatus.EXITED
+                and result.returncode == 0
+                and result.cleanup_complete
+            ):
+                return FormatOutcome(ok=True, attempted=True, formatter=cmd[0])
+            last_failure = FormatOutcome(
+                ok=False,
+                attempted=True,
+                formatter=cmd[0],
+                stderr=result.error or result.stderr or "",
+            )
+        return last_failure or FormatOutcome(ok=False, attempted=False)

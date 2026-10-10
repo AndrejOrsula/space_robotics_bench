@@ -5,8 +5,8 @@ version = "0.0.1"
 keywords = ["benchmark", "robotics", "simulation", "space"]
 
 
-[dependencies]
 ## OpenXR
+[dependencies]
 "isaacsim.xr.openxr" = {}
 
 ## Inheritance
@@ -14,16 +14,17 @@ keywords = ["benchmark", "robotics", "simulation", "space"]
 
 
 [settings]
-## Extensions
 app.exts.folders = [
     "${app}",
     "${exe-path}/exts",
     "${exe-path}/extscore",
     "${exe-path}/../exts",
     "${exe-path}/../extscache",
+    "${exe-path}/../extsDeprecated",
     "${exe-path}/../extsPhysics",
     "${exe-path}/../isaacsim/exts",
     "${exe-path}/../isaacsim/extscache",
+    "${exe-path}/../isaacsim/extsDeprecated",
     "${exe-path}/../isaacsim/extsPhysics",
 ]
 

@@ -5,10 +5,12 @@ version = "0.0.1"
 keywords = ["benchmark", "robotics", "simulation", "space"]
 
 
-[dependencies]
 ## Basic UI
+[dependencies]
 "omni.kit.uiapp" = {}
 "omni.kit.window.stage" = {}
+# AppLauncher needs the toolbar play-button group to avoid an IsaacLab crash.
+"omni.kit.window.toolbar" = {}
 
 ## Menu bar
 "omni.kit.viewport.menubar.camera" = {}
@@ -30,15 +32,16 @@ keywords = ["benchmark", "robotics", "simulation", "space"]
 
 
 [settings]
-## Extensions
 app.exts.folders = [
     "${app}",
     "${exe-path}/exts",
     "${exe-path}/extscore",
     "${exe-path}/../exts",
     "${exe-path}/../extscache",
+    "${exe-path}/../extsDeprecated",
     "${exe-path}/../extsPhysics",
     "${exe-path}/../isaacsim/exts",
     "${exe-path}/../isaacsim/extscache",
+    "${exe-path}/../isaacsim/extsDeprecated",
     "${exe-path}/../isaacsim/extsPhysics",
 ]

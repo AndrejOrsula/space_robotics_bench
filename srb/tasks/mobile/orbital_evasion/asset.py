@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING
 
 from simforge import TexResConfig
 
@@ -15,11 +15,14 @@ def select_obstacle(
     *,
     prim_path: str = "{ENV_REGEX_NS}/obstacle",
     seed: int = 0,
-    init_state: RigidObjectCfg.InitialStateCfg = RigidObjectCfg.InitialStateCfg(),
-    scale: Tuple[float, float, float] = (5.0, 5.0, 5.0),
+    init_state: RigidObjectCfg.InitialStateCfg | None = None,
+    scale: tuple[float, float, float] = (5.0, 5.0, 5.0),
     texture_resolution: TexResConfig | None = None,
     **kwargs,
 ) -> RigidObjectCfg:
+    if init_state is None:
+        init_state = RigidObjectCfg.InitialStateCfg()
+
     obstacle_cfg = assets.Asteroid(
         scale=scale, texture_resolution=texture_resolution
     ).asset_cfg
@@ -29,9 +32,8 @@ def select_obstacle(
 
     obstacle_cfg.prim_path = prim_path
     obstacle_cfg.init_state = init_state
-    obstacle_cfg.spawn.replace(**kwargs)  # type: ignore
-
-    obstacle_cfg.spawn.assets[0].geo.ops[0].scale_std = (  # type: ignore
+    obstacle_cfg.spawn = obstacle_cfg.spawn.replace(**kwargs)  # type: ignore[union-attr]
+    obstacle_cfg.spawn.assets[0].geo.ops[0].scale_std = (  # type: ignore[union-attr]
         0.2 * scale[0],
         0.2 * scale[1],
         0.2 * scale[2],

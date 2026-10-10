@@ -10,7 +10,6 @@ max_grad_norm: 0.5
 n_epochs: 16
 n_steps: 128
 normalize: true
-sde_sample_freq: 4
 vf_coef: 0.5
 policy_kwargs: "dict(
   log_std_init=-2,

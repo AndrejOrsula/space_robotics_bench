@@ -1,5 +1,5 @@
 n_timesteps: 100000000
-policy: "MultiInputPolicy"
+policy: "MlpPolicy"
 buffer_size: 5000000
 gamma: 0.997
 learning_rate: lin_0.0003

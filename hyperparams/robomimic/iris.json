@@ -203,7 +203,7 @@
                         "low_noise_eval": true
                     },
                     "vae": {
-                        "enabled": false,
+                        "enabled": true,
                         "latent_dim": 14,
                         "latent_clip": null,
                         "kl_weight": 1.0,

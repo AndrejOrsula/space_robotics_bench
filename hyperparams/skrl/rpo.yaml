@@ -1,6 +1,5 @@
-# https://skrl.readthedocs.io/en/latest/api/utils/model_instantiators.html
 models:
-  separate: False
+  separate: True
   policy:
     class: GaussianMixin
     clip_actions: False
@@ -9,15 +8,8 @@ models:
     max_log_std: 2.0
     initial_log_std: -2.0
     network:
-      - name: rnn_layer
-        input: 'concatenate((STATES["state_dyn"], STATES["proprio"], STATES["proprio_dyn"], STATES["command"]))'
-        type: lstm
-        units: 256
-        num_layers: 1
-        bidirectional: False
-        sequenced: True
-      - name: net_after_rnn
-        input: rnn_layer
+      - name: net
+        input: OBSERVATIONS
         layers: [384, 384]
         activations: elu
     output: ACTIONS
@@ -25,36 +17,28 @@ models:
     class: DeterministicMixin
     clip_actions: False
     network:
-      - name: rnn_layer
-        input: 'concatenate((STATES["state_dyn"], STATES["proprio"], STATES["proprio_dyn"], STATES["command"]))'
-        type: lstm
-        units: 256
-        num_layers: 1
-        bidirectional: False
-        sequenced: True
-      - name: net_after_rnn
-        input: rnn_layer
+      - name: net
+        input: STATES
         layers: [384, 384]
         activations: elu
     output: ONE
 
-# https://skrl.readthedocs.io/en/latest/api/memories/sequential.html
 memory:
-  class: SequencedMemory
+  class: RandomMemory
   memory_size: 128
-  num_sequences: 4
 
-# https://skrl.readthedocs.io/en/latest/api/agents/rpo.html
 agent:
   class: RPO
   rollouts: 128
   learning_epochs: 16
   mini_batches: 1
   discount_factor: 0.997
-  lambda: 0.9
+  gae_lambda: 0.9
   learning_rate: 1.0e-4
   learning_rate_scheduler: null
   learning_rate_scheduler_kwargs: {}
+  observation_preprocessor: RunningStandardScaler
+  observation_preprocessor_kwargs: null
   state_preprocessor: RunningStandardScaler
   state_preprocessor_kwargs: null
   value_preprocessor: RunningStandardScaler
@@ -64,7 +48,6 @@ agent:
   grad_norm_clip: 0.5
   ratio_clip: 0.1
   value_clip: 0.1
-  clip_predicted_values: False
   entropy_loss_scale: 0.01
   value_loss_scale: 0.5
   kl_threshold: 0.0
@@ -74,9 +57,8 @@ agent:
     experiment_name: "MISSING"
     write_interval: auto
     checkpoint_interval: 1000
-    wandb: True
+    wandb: False
 
-# https://skrl.readthedocs.io/en/latest/api/trainers/sequential.html
 trainer:
   class: SequentialTrainer
   timesteps: 200000000

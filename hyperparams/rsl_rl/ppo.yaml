@@ -1,0 +1,42 @@
+
+num_steps_per_env: 64
+save_interval: 100
+max_iterations: 10000
+check_for_nan: true
+
+obs_groups:
+  actor:
+    - vector
+  critic:
+    - vector
+
+algorithm:
+  class_name: PPO
+  num_learning_epochs: 8
+  num_mini_batches: 4
+  learning_rate: 3.0e-4
+  schedule: adaptive
+  gamma: 0.99
+  lam: 0.95
+  entropy_coef: 0.01
+  desired_kl: 0.01
+  max_grad_norm: 1.0
+  value_loss_coef: 0.5
+  use_clipped_value_loss: true
+  clip_param: 0.2
+  rnd_cfg: null
+  symmetry_cfg: null
+
+actor:
+  class_name: MLPModel
+  hidden_dims: [384, 384]
+  activation: elu
+  obs_normalization: true
+  distribution_cfg:
+    class_name: GaussianDistribution
+
+critic:
+  class_name: MLPModel
+  hidden_dims: [384, 384]
+  activation: elu
+  obs_normalization: true

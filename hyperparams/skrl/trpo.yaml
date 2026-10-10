@@ -1,6 +1,5 @@
-# https://skrl.readthedocs.io/en/latest/api/utils/model_instantiators.html
 models:
-  separate: False
+  separate: True
   policy:
     class: GaussianMixin
     clip_actions: False
@@ -10,7 +9,7 @@ models:
     initial_log_std: -2.0
     network:
       - name: net
-        input: 'concatenate((STATES["state_dyn"], STATES["proprio"], STATES["proprio_dyn"], STATES["command"]))'
+        input: OBSERVATIONS
         layers: [384, 384]
         activations: elu
     output: ACTIONS
@@ -19,50 +18,47 @@ models:
     clip_actions: False
     network:
       - name: net
-        input: 'concatenate((STATES["state_dyn"], STATES["proprio"], STATES["proprio_dyn"], STATES["command"]))'
+        input: STATES
         layers: [384, 384]
         activations: elu
     output: ONE
 
-# https://skrl.readthedocs.io/en/latest/api/memories/random.html
 memory:
   class: RandomMemory
-  memory_size: 8192
+  memory_size: 1024
 
-# https://skrl.readthedocs.io/en/latest/api/agents/trpo.html
 agent:
   class: TRPO
   rollouts: 1024
-  value_learning_epochs: 20
+  learning_epochs: 20
   mini_batches: 1
   discount_factor: 0.997
-  lambda: 0.95
-  learning_rate_value: 1.0e-4
-  learning_rate_scheduler_value: null
-  learning_rate_scheduler_kwargs_value: {}
+  gae_lambda: 0.95
+  learning_rate: 1.0e-4
+  learning_rate_scheduler: null
+  learning_rate_scheduler_kwargs: {}
+  observation_preprocessor: RunningStandardScaler
+  observation_preprocessor_kwargs: null
   state_preprocessor: RunningStandardScaler
   state_preprocessor_kwargs: null
   value_preprocessor: RunningStandardScaler
   value_preprocessor_kwargs: null
   random_timesteps: 0
   learning_starts: 0
-  grad_norm_clip_value: 0.5
-  entropy_loss_scale: 0.01
+  grad_norm_clip: 0.5
   value_loss_scale: 0.5
   damping: 0.1
   max_kl_divergence: 0.01
-  max_cg_iters: 25
-  backtrack_coef: 0.8
-  backtrack_iters: 10
+  conjugate_gradient_steps: 25
+  max_backtrack_steps: 10
   rewards_shaper_scale: 1.0
   experiment:
     directory: "MISSING"
     experiment_name: "MISSING"
     write_interval: auto
     checkpoint_interval: 1000
-    wandb: True
+    wandb: False
 
-# https://skrl.readthedocs.io/en/latest/api/trainers/sequential.html
 trainer:
   class: SequentialTrainer
   timesteps: 200000000

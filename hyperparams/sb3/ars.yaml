@@ -1,5 +1,5 @@
 n_timesteps: 200000000
-policy: "MultiInputPolicy"
+policy: "MlpPolicy"
 alive_bonus_offset: 0
 delta_std: 0.05
 learning_rate: lin_0.025

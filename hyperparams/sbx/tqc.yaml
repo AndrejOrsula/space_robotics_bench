@@ -11,6 +11,5 @@ normalize: true
 tau: 0.005
 train_freq: 1
 policy_kwargs: "dict(
-  log_std_init=-2,
   net_arch=[384, 384],
   )"

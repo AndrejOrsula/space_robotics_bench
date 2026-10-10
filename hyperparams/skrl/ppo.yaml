@@ -1,6 +1,5 @@
-# https://skrl.readthedocs.io/en/latest/api/utils/model_instantiators.html
 models:
-  separate: False
+  separate: True
   policy:
     class: GaussianMixin
     clip_actions: False
@@ -10,12 +9,7 @@ models:
     initial_log_std: -2.0
     network:
       - name: net
-        input: 'concatenate((
-          STATES["state_dyn"],
-          STATES["proprio"],
-          STATES["proprio_dyn"],
-          STATES["command"]
-          ))'
+        input: OBSERVATIONS
         layers: [384, 384]
         activations: elu
     output: ACTIONS
@@ -24,32 +18,27 @@ models:
     clip_actions: False
     network:
       - name: net
-        input: 'concatenate((
-          STATES["state_dyn"],
-          STATES["proprio"],
-          STATES["proprio_dyn"],
-          STATES["command"]
-          ))'
+        input: STATES
         layers: [384, 384]
         activations: elu
     output: ONE
 
-# https://skrl.readthedocs.io/en/latest/api/memories/random.html
 memory:
   class: RandomMemory
-  memory_size: 256
+  memory_size: 64
 
-# https://skrl.readthedocs.io/en/latest/api/agents/ppo.html
 agent:
   class: PPO
   rollouts: 64
   learning_epochs: 16
   mini_batches: 8
   discount_factor: 0.997
-  lambda: 0.9
+  gae_lambda: 0.9
   learning_rate: 1.0e-4
   learning_rate_scheduler: null
   learning_rate_scheduler_kwargs: {}
+  observation_preprocessor: RunningStandardScaler
+  observation_preprocessor_kwargs: null
   state_preprocessor: RunningStandardScaler
   state_preprocessor_kwargs: null
   value_preprocessor: RunningStandardScaler
@@ -59,7 +48,6 @@ agent:
   grad_norm_clip: 0.5
   ratio_clip: 0.1
   value_clip: 0.1
-  clip_predicted_values: True
   entropy_loss_scale: 0.01
   value_loss_scale: 0.5
   kl_threshold: 0.0
@@ -70,9 +58,8 @@ agent:
     experiment_name: "MISSING"
     write_interval: auto
     checkpoint_interval: 1000
-    wandb: True
+    wandb: False
 
-# https://skrl.readthedocs.io/en/latest/api/trainers/sequential.html
 trainer:
   class: SequentialTrainer
   timesteps: 200000000

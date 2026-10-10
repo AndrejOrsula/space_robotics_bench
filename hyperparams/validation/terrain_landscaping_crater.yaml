@@ -1,0 +1,50 @@
+# Crater-landscaping hardware validation. No shipped adapter provides the Raph
+# drive, shovel, or external-heightmap capabilities, so preflight exits 4 before
+# hardware start. Supply a matching crater-task checkpoint at runtime.
+
+task: terrain_landscaping_crater
+algo: dreamer
+checkpoint: REQUIRED_AT_RUNTIME
+n_episodes: 5
+
+# Must exceed the 30.1 s task horizon so the task, not this timeout, ends episodes.
+max_episode_seconds: 60.0
+
+hardware: []
+
+metrics_to_track:
+  - success_rate
+  - final_grading_mae_m
+  - final_fraction_within_tolerance
+  - action_smoothness
+  - map_age_s
+
+thresholds:
+  success_rate_min: 0.5
+  sim_real_ratio_min: 0.7
+  action_smoothness_max_ratio: 1.5
+  lower_is_better_metrics:
+    - final_grading_mae_m
+    - map_age_s
+  crash_rate_max: 0.0
+  drift_z_max: 3.0
+
+rerun:
+  app_id: srb-validation-landscaping-crater
+  web_port: 9090
+  grpc_port: 9876
+  bind_address: 0.0.0.0
+  keep_historical_data: true
+  keep_scalar_history: true
+  record_to_rrd: true
+
+sim_baseline:
+  wandb_run_id: null
+  local_rrd: null
+  metrics_json: null
+
+drift_window: 5
+storage_root: logs/real_validation
+notes: >-
+  Simulation only. Live Raph and external-mapper adapters are not available,
+  so the real-hardware criteria are unverified.

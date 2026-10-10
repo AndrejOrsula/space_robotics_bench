@@ -1,0 +1,46 @@
+# Formation-following validation; supply checkpoint at runtime.
+
+task: formation_following
+algo: dreamer
+checkpoint: REQUIRED_AT_RUNTIME
+n_episodes: 12
+max_episode_seconds: 60.0
+
+hardware:
+  - ros_cmd_vel
+  - ros_tf
+  - ros_imu
+  - ros_mw
+
+metrics_to_track:
+  - success_rate
+  - formation_distance_error
+  - formation_orientation_error
+  - success_hold_steps
+  - action_smoothness
+  - terminal_reward
+
+thresholds:
+  success_rate_min: 0.15
+  sim_real_ratio_min: 0.6
+  action_smoothness_max_ratio: 1.5
+  crash_rate_max: 0.0
+  drift_z_max: 3.0
+
+rerun:
+  app_id: srb-validation-formation
+  web_port: 9090
+  grpc_port: 9876
+  bind_address: 0.0.0.0
+  keep_historical_data: true
+  keep_scalar_history: true
+  record_to_rrd: true
+
+sim_baseline:
+  wandb_run_id: null
+  local_rrd: null
+  metrics_json: null
+
+drift_window: 5
+storage_root: logs/real_validation
+notes: "Multi-agent formation following validation spec."

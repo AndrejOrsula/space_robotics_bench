@@ -1,0 +1,46 @@
+# Excavation validation on Husky+Kinova; supply checkpoint at runtime and configure sim baseline in this spec.
+
+task: excavation
+algo: skrl_ppo_rnn
+checkpoint: REQUIRED_AT_RUNTIME
+n_episodes: 10
+max_episode_seconds: 90.0
+
+hardware:
+  - ros_depth_heightmap
+  - ros_tf
+  - ros_imu
+  - ros_kortex_cartesian
+  - ros_scoop_target
+  - ros_mw
+
+metrics_to_track:
+  - success_rate
+  - terminal_reward
+  - action_smoothness
+  - scoop_particle_count
+
+thresholds:
+  success_rate_min: 0.4
+  sim_real_ratio_min: 0.6
+  action_smoothness_max_ratio: 1.5
+  crash_rate_max: 0.0
+  drift_z_max: 3.0
+
+rerun:
+  app_id: srb-validation-excavation
+  web_port: 9090
+  grpc_port: 9876
+  bind_address: 0.0.0.0
+  keep_historical_data: true
+  keep_scalar_history: true
+  record_to_rrd: true
+
+sim_baseline:
+  wandb_run_id: null
+  local_rrd: null
+  metrics_json: null
+
+drift_window: 5
+storage_root: logs/real_validation
+notes: ""

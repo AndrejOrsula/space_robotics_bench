@@ -4,10 +4,9 @@ categories = ["science::robotics"]
 description = "Space Robotics Bench"
 documentation = "https://andrejorsula.github.io/space_robotics_bench"
 edition = "2021"
-homepage = "https://github.com/AndrejOrsula/space_robotics_bench"
 keywords = ["benchmark", "robotics", "simulation", "space"]
 license = "MIT OR Apache-2.0"
-publish = true
+publish = false
 readme = "README.md"
 repository = "https://github.com/AndrejOrsula/space_robotics_bench"
 rust-version = "1.88"
@@ -15,5 +14,4 @@ version = "0.0.6"
 
 [workspace]
 resolver = "2"
-members = ["crates/srb", "crates/srb_gui", "crates/srb_py", "crates/srb_sys"]
-default-members = ["crates/srb_gui"]
+members = ["crates/srb_gui"]

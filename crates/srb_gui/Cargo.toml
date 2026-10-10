@@ -5,14 +5,17 @@ categories.workspace = true
 description = "GUI for the Space Robotics Bench"
 documentation.workspace = true
 edition.workspace = true
-homepage.workspace = true
 keywords.workspace = true
 license.workspace = true
-publish.workspace = true
+publish = true
 readme.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 version.workspace = true
+
+[package.metadata.cargo-machete]
+# Keep winit's native X11 and Wayland backends enabled with eframe defaults off.
+ignored = ["winit"]
 
 [[bin]]
 name = "gui"
@@ -20,14 +23,13 @@ path = "src/main.rs"
 
 [dependencies]
 chrono = { version = "0.4" }
-const_format = { version = "0.2", features = ["more_str_macros"] }
-display_json = { version = "0.2" }
 eframe = { version = "0.33", default-features = false, features = [
     "accesskit",
     "glow",
     "persistence",
 ] }
 egui = { version = "0.33", default-features = false }
+egui_plot = { version = "0.34", default-features = false }
 egui_commonmark = { version = "0.22", default-features = false, features = [
     "better_syntax_highlighting",
     "macros",
@@ -37,21 +39,18 @@ egui_extras = { version = "0.33", default-features = false, features = [
     "all_loaders",
     "syntect",
 ] }
+futures = "0.3"
 home = { version = "0.5" }
 image = { version = "0.25", default-features = false, features = [
     "jpeg",
     "png",
 ] }
-itertools = { version = "0.14" }
-nix = { version = "0.30", features = ["signal"] }
+nix = { version = "0.31", features = ["signal"] }
 r2r = { version = "0.9" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1" }
-strum = { version = "0.27", features = ["derive"] }
-subprocess = { version = "0.2" }
-sysinfo = { version = "0.37" }
+strum = { version = "0.28", features = ["derive"] }
 tracing = { version = "0.1" }
 tracing-subscriber = { version = "0.3" }
 typed-builder = { version = "0.23" }
 winit = { version = "0.30" }
-glob = "0.3"

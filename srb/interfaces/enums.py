@@ -1,5 +1,4 @@
 from enum import Enum, auto
-from typing import Type
 
 from typing_extensions import Self
 
@@ -17,7 +16,7 @@ class InterfaceType(str, Enum):
             (variant for variant in cls if string.upper() == variant.name), None
         )
 
-    def implementer(self) -> Type:
+    def implementer(self) -> type:
         match self:
             case InterfaceType.GUI:
                 from .interface.gui import GuiInterface
@@ -47,13 +46,17 @@ class TeleopDeviceType(str, Enum):
             (variant for variant in cls if string.upper() == variant.name), None
         )
 
-    def implementer(self) -> Type:
+    def implementer(self) -> type:
         match self:
             case TeleopDeviceType.KEYBOARD:
                 from .teleop.keyboard_omni import OmniKeyboardTeleopInterface
 
                 return OmniKeyboardTeleopInterface
-            case TeleopDeviceType.ROS | TeleopDeviceType.GAMEPAD:
+            case TeleopDeviceType.GAMEPAD:
+                from .teleop.gamepad import GamepadTeleopInterface
+
+                return GamepadTeleopInterface
+            case TeleopDeviceType.ROS:
                 from .teleop.ros import ROSTeleopInterface
 
                 return ROSTeleopInterface

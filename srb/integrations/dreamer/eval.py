@@ -1,9 +1,11 @@
 from collections import defaultdict
 
 import elements
-import numpy
+import numpy as np
 from isaacsim.simulation_app import SimulationApp
 
+from srb.integrations.dreamer.checkpoint_transaction import checkpoint_read_lock
+from srb.integrations.dreamer.cleanup import annotate_primary, run_cleanup_steps
 from srb.integrations.dreamer.driver import DriverParallelEnv
 
 
@@ -14,13 +16,18 @@ def eval_only(
     args,
     sim_app: SimulationApp,
 ):
-    assert args.from_checkpoint
+    if not args.from_checkpoint:
+        raise ValueError("args.from_checkpoint is false")
 
-    agent = make_agent()
+    with checkpoint_read_lock(args.from_checkpoint) as load_path:
+        agent = make_agent()
+        cp = elements.Checkpoint()
+        cp.agent = agent
+        cp.load(load_path, keys=["agent"])
     logger = make_logger()
 
     logdir = elements.Path(args.logdir)
-    logdir.mkdir()
+    logdir.mkdir(exist_ok=True)
     print("Logdir", logdir)
     step = logger.step
     usage = elements.Usage(**args.usage)
@@ -33,17 +40,19 @@ def eval_only(
     @elements.timer.section("logfn")
     def logfn(tran, worker):
         episode = episodes[worker]
-        tran["is_first"] and episode.reset()  # type: ignore
+        tran["is_first"] and episode.reset()  # type: ignore[misc]
         episode.add("score", tran["reward"], agg="sum")
         episode.add("length", 1, agg="sum")
         episode.add("rewards", tran["reward"], agg="stack")
         for key, value in tran.items():
-            isimage = (value.dtype == numpy.uint8) and (value.ndim == 3)
+            isimage = (value.dtype == np.uint8) and (value.ndim == 3)
             if isimage and worker == 0:
                 episode.add(f"policy_{key}", value, agg="stack")
             elif key.startswith("log/"):
                 assert value.ndim == 0, (key, value.shape, value.dtype)
-                episode.add(key, value, agg=("avg", "max", "sum"))  # type: ignore
+                episode.add(f"{key}/avg", value, agg="avg")
+                episode.add(f"{key}/max", value, agg="max")
+                episode.add(f"{key}/sum", value, agg="sum")
         if tran["is_last"]:
             result = episode.result()
             logger.add(
@@ -55,39 +64,48 @@ def eval_only(
             )
             rew = result.pop("rewards")
             if len(rew) > 1:
-                result["reward_rate"] = (numpy.abs(rew[1:] - rew[:-1]) >= 0.01).mean()
+                result["reward_rate"] = (np.abs(rew[1:] - rew[:-1]) >= 0.01).mean()
             epstats.add(result)
 
-    ########### ONLY THIS IS CHANGED ############
-    # fns = [bind(make_env, i) for i in range(args.envs)]
-    # driver = embodied.Driver(fns, parallel=(not args.debug))
-    driver = DriverParallelEnv(env=make_env(), num_envs=args.envs)
-    ########### ONLY THIS IS CHANGED ############
-    driver.on_step(lambda tran, _: step.increment())
-    driver.on_step(lambda tran, _: policy_fps.step())
-    driver.on_step(logfn)
+    driver = None
+    eval_env = None
+    primary_error: BaseException | None = None
+    try:
+        eval_env = make_env()
+        driver = DriverParallelEnv(env=eval_env, num_envs=args.envs)
+        driver.on_step(lambda tran, _: step.increment())
+        driver.on_step(lambda tran, _: policy_fps.step())
+        driver.on_step(logfn)
 
-    cp = elements.Checkpoint()
-    cp.agent = agent
-    cp.load(args.from_checkpoint, keys=["agent"])
-
-    print("Start evaluation")
-    policy = lambda *args: agent.policy(*args, mode="eval")  # noqa: E731
-    driver.reset(agent.init_policy)
-    while step < args.steps:
-        ########### Sim extra (optional) ############
-        if not sim_app.is_running():
-            break
-        ########### Sim extra (optional) ############
-        driver(policy, steps=10)
-        if should_log(step):
-            logger.add(agg.result())
-            logger.add(epstats.result(), prefix="epstats")
-            logger.add(usage.stats(), prefix="usage")
-            logger.add({"fps/policy": policy_fps.result()})
-            timer_stats = elements.timer.stats()
-            if "summary" in timer_stats:
-                logger.add({"timer": timer_stats["summary"]})
-            logger.write()
-
-    logger.close()
+        print("Start evaluation")
+        policy = lambda *args: agent.policy(*args, mode="eval")  # noqa: E731
+        driver.reset(agent.init_policy)
+        while step < args.steps:
+            ########### Sim extra (optional) ############
+            if not sim_app.is_running():
+                break
+            ########### Sim extra (optional) ############
+            driver(policy, steps=10)
+            if should_log(step):
+                logger.add(agg.result())
+                logger.add(epstats.result(), prefix="epstats")
+                logger.add(usage.stats(), prefix="usage")
+                logger.add({"fps/policy": policy_fps.result()})
+                timer_stats = elements.timer.stats()
+                if "summary" in timer_stats:
+                    logger.add({"timer": timer_stats["summary"]})
+                logger.write()
+    except BaseException as exc:
+        primary_error = exc
+        raise
+    finally:
+        cleanup_steps = [("logger.close", logger.close)]
+        if driver is not None:
+            cleanup_steps.insert(0, ("driver.close", driver.close))
+        elif eval_env is not None:
+            cleanup_steps.insert(0, ("env.close", eval_env.close))
+        cleanup_errors = run_cleanup_steps(cleanup_steps)
+        if primary_error is not None:
+            annotate_primary(primary_error, cleanup_errors)
+        elif cleanup_errors:
+            raise cleanup_errors[0][1]

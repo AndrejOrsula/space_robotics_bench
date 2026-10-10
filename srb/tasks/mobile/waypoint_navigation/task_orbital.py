@@ -3,9 +3,14 @@ from typing import Sequence
 import torch
 
 from srb import assets
-from srb._typing import StepReturn
-from srb.core.action import ThrustAction
-from srb.core.asset import AssetVariant, ExtravehicularScenery, MobileRobot
+from srb._typing import ObservationGroup, StepReturn
+from srb.core.action import ThrustActionGroup
+from srb.core.asset import (
+    AssetVariant,
+    ExtravehicularScenery,
+    IntravehicularScenery,
+    OrbitalRobot,
+)
 from srb.core.env import (
     OrbitalEnv,
     OrbitalEnvCfg,
@@ -13,22 +18,82 @@ from srb.core.env import (
     OrbitalSceneCfg,
     ViewerCfg,
 )
-from srb.core.manager import EventTermCfg, SceneEntityCfg
+from srb.core.env.mobile import OrbitalMobileRewardCfg
+from srb.core.env.srb_env import SrbEnv
+from srb.core.manager import SceneEntityCfg
 from srb.core.marker import VisualizationMarkers, VisualizationMarkersCfg
-from srb.core.mdp import apply_external_force_torque, offset_pose_natural
+from srb.core.mdp import (
+    apply_external_force_torque,
+    offset_pose_natural,
+    reset_pose_natural,
+    reset_root_state_uniform,
+)
+from srb.core.randomization import RandomizationCategory, SrbEventTermCfg
+from srb.core.reward import (
+    HyperbolicRewardTerm,
+    LinearRewardTerm,
+    LogCoshRewardTerm,
+    ScaledRewardTerm,
+)
 from srb.core.sim import ArrowCfg, PreviewSurfaceCfg
 from srb.utils import logging
 from srb.utils.cfg import configclass
 from srb.utils.math import (
     matrix_from_quat,
+    radians,
     rotmat_to_rot6d,
-    rpy_to_quat,
     subtract_frame_transforms,
 )
 
-##############
-### Config ###
-##############
+
+class RewardCfg(OrbitalMobileRewardCfg):
+    """Position shaping for translation-only waypoint control."""
+
+    penalty_fuel_consumption: LinearRewardTerm = LinearRewardTerm(weight=0.0, limit=8.0)
+    """Disabled because waypoint tracking requires sustained thrust."""
+
+    penalty_action_rate: LogCoshRewardTerm = LogCoshRewardTerm(weight=-4.0, limit=8.0)
+    """Smooths small corrections while saturating for large action changes."""
+
+    penalty_action_magnitude: LogCoshRewardTerm = LogCoshRewardTerm(
+        weight=-1.0, limit=4.0
+    )
+    """Encourages fuel-efficient low-thrust operation."""
+
+    penalty_angular_velocity: LogCoshRewardTerm = LogCoshRewardTerm(
+        weight=-2.0, limit=8.0
+    )
+    """Suppresses rotational drift from external perturbations."""
+
+    penalty_position_distance: LinearRewardTerm = LinearRewardTerm(
+        weight=-1.0, limit=8.0
+    )
+    """Provides a coarse gradient toward the target."""
+
+    penalty_velocity_at_target: LogCoshRewardTerm = LogCoshRewardTerm(
+        weight=-4.0, limit=8.0
+    )
+    """Encourages braking near the target without penalizing transit."""
+
+    reward_position_approach: HyperbolicRewardTerm = HyperbolicRewardTerm(
+        weight=4.0, scale=2.0
+    )
+    """Provides dense shaping at medium range."""
+
+    reward_position_precision: ScaledRewardTerm = ScaledRewardTerm(
+        weight=8.0, limit=8.0
+    )
+    """Flat-top gives zero gradient at the waypoint for stable settling."""
+
+    reward_smooth_station_keeping: ScaledRewardTerm = ScaledRewardTerm(
+        weight=8.0, limit=8.0
+    )
+    """Rewards low action rate near the target without pushing at rest."""
+
+    gaussian_std_position_precision: float = 0.5
+    """Position precision width in metres."""
+    gaussian_std_station_keeping_action_rate: float = 0.3
+    """Action-rate width for the station-keeping reward."""
 
 
 @configclass
@@ -38,63 +103,82 @@ class SceneCfg(OrbitalSceneCfg):
 
 @configclass
 class EventCfg(OrbitalEventCfg):
-    target_pose_evolution: EventTermCfg = EventTermCfg(
+    randomize_robot_state: SrbEventTermCfg = SrbEventTermCfg(
+        func=reset_root_state_uniform,
+        mode="reset",
+        category=RandomizationCategory.PHYSICS,
+        params={
+            "asset_cfg": SceneEntityCfg("robot"),
+            "pose_range": {
+                "x": (-0.1, 0.1),
+                "y": (-0.1, 0.1),
+                "z": (-0.1, 0.1),
+                "roll": (-torch.pi, torch.pi),
+                "pitch": (-torch.pi, torch.pi),
+                "yaw": (-torch.pi, torch.pi),
+            },
+            "velocity_range": {
+                "x": (-0.05, 0.05),
+                "y": (-0.05, 0.05),
+                "z": (-0.05, 0.05),
+                "roll": (-radians(5.0), radians(5.0)),
+                "pitch": (-radians(5.0), radians(5.0)),
+                "yaw": (-radians(5.0), radians(5.0)),
+            },
+        },
+    )
+    # Keep drift trackable at low thrust; attitude tracking is not required.
+    target_pose_evolution: SrbEventTermCfg = SrbEventTermCfg(
         func=offset_pose_natural,
         mode="interval",
-        interval_range_s=(0.1, 0.1),
+        interval_range_s=(0.2, 0.2),
         is_global_time=True,
+        category=RandomizationCategory.TASK,
         params={
             "env_attr_name": "_goal",
             "pos_axes": ("x", "y", "z"),
-            "pos_step_range": (0.01, 0.1),
-            "pos_smoothness": 0.96,
-            "pos_step_smoothness": 0.8,
+            "pos_step_range": (0.005, 0.02),
+            "pos_smoothness": 0.98,
+            "pos_step_smoothness": 0.95,
             "pos_bounds": {
-                "x": (-32.0, 32.0),
-                "y": (-32.0, 32.0),
-                "z": (-32.0, 32.0),
+                "x": (-4.0, 4.0),
+                "y": (-4.0, 4.0),
+                "z": (-4.0, 4.0),
             },
             "orient_yaw_only": False,
-            "orient_smoothness": 0.8,
+            "orient_smoothness": 0.9,
         },
     )
-    push_robot: EventTermCfg = EventTermCfg(
+    # Small torque avoids spins the spacecraft cannot correct.
+    push_robot: SrbEventTermCfg = SrbEventTermCfg(
         func=apply_external_force_torque,
         mode="interval",
         interval_range_s=(5.0, 20.0),
+        category=RandomizationCategory.PHYSICS,
         params={
             "asset_cfg": SceneEntityCfg("robot"),
-            "force_range": (-2.0, 2.0),
-            "torque_range": (-0.08727, 0.08727),
+            "force_range": (-0.5, 0.5),
+            "torque_range": (-0.005, 0.005),
         },
     )
 
 
 @configclass
 class TaskCfg(OrbitalEnvCfg):
-    ## Scene
     scene: SceneCfg = SceneCfg()
     stack: bool = True
 
-    ## Assets
-    scenery: ExtravehicularScenery | MobileRobot | AssetVariant | None = (
-        assets.Gateway()
-    )
-    scenery.asset_cfg.init_state.pos = (0.0, 7.0, -10.0)
-    scenery.asset_cfg.init_state.rot = rpy_to_quat(0.0, 0.0, 90.0)
-    scenery.asset_cfg.spawn.collision_props.collision_enabled = False  # type: ignore
-    scenery.asset_cfg.spawn.mesh_collision_props.mesh_approximation = None  # type: ignore
-
-    ## Events
+    robot: OrbitalRobot | AssetVariant = assets.SatelliteMockup()
+    scenery: ExtravehicularScenery | IntravehicularScenery | AssetVariant | None = None
     events: EventCfg = EventCfg()
 
-    ## Time
+    reward: RewardCfg = RewardCfg()
+
     env_rate: float = 1.0 / 40.0
     agent_rate: float = 1.0 / 10.0
     episode_length_s: float = 30.0
-    is_finite_horizon: bool = True
+    is_finite_horizon: bool = False
 
-    ## Target
     target_pos_range_ratio: float = 0.9
     target_marker_cfg: VisualizationMarkersCfg = VisualizationMarkersCfg(
         prim_path="/Visuals/target",
@@ -109,7 +193,6 @@ class TaskCfg(OrbitalEnvCfg):
         },
     )
 
-    ## Viewer
     viewer: ViewerCfg = ViewerCfg(
         eye=(3.0, -3.0, 3.0),
         lookat=(0.0, 0.0, 0.0),
@@ -117,56 +200,56 @@ class TaskCfg(OrbitalEnvCfg):
         asset_name="robot",
     )
 
+    def __post_init__(self):
+        # Disable fuel consumption
+        if isinstance(self.robot.action_group, ThrustActionGroup):
+            self.robot.action_group.thrust.fuel_consumption_rate = 0.0
 
-############
-### Task ###
-############
+        super().__post_init__()
 
 
-class Task(OrbitalEnv):
+class Task(SrbEnv, OrbitalEnv):
     cfg: TaskCfg
+    _srb_direct_runtime = True
 
     def __init__(self, cfg: TaskCfg, **kwargs):
-        super().__init__(cfg, **kwargs)
+        super().__init__(cfg, runtime_mode="isaac", **kwargs)
 
-        ## Get scene assets
         self._target_marker: VisualizationMarkers = VisualizationMarkers(
             self.cfg.target_marker_cfg
         )
 
-        ## Initialize buffers
         self._goal = torch.zeros(self.num_envs, 7, device=self.device)
         self._goal[:, 0:3] = self.scene.env_origins
-        self._goal[:, 3] = 1.0
+        self._goal[:, 6] = 1.0  # xyzw identity (w at index 6)
 
     def _reset_idx(self, env_ids: Sequence[int]):
         super()._reset_idx(env_ids)
 
-        ## Reset goal position
         self._goal[env_ids, 0:3] = self.scene.env_origins[env_ids]
         self._goal[env_ids, 3:7] = torch.tensor(
-            [1.0, 0.0, 0.0, 0.0], device=self.device
+            [0.0, 0.0, 0.0, 1.0],
+            device=self.device,  # xyzw identity
         )
+        # Reset drift state at each episode boundary.
+        reset_pose_natural(self, env_ids, "_goal")
 
-        ## Setup TF listener for ROS-defined target (if applicable)
-        if hasattr(self.unwrapped, "ros_node"):
+        # Recreating the listener would leak its persistent /tf callback.
+        if hasattr(self.unwrapped, "ros_node") and not hasattr(self, "tf_buffer"):
             from tf2_ros import Buffer, TransformListener
 
             self.tf_buffer = Buffer()
             self.tf_listener = TransformListener(
-                self.tf_buffer, self.unwrapped.ros_node
+                self.tf_buffer,
+                self.unwrapped.ros_node,  # type: ignore[misc]
             )
             logging.info("TF listener initialized.")
-            # Disable target evolution event if using ROS TF
             self.cfg.events.target_pose_evolution.interval_range_s = (1.0e9, 1.0e9)
             self.event_manager.set_term_cfg(
                 "target_pose_evolution", self.cfg.events.target_pose_evolution
             )
 
-            self.event_manager.active_terms
-
-    def extract_step_return(self) -> StepReturn:
-        ## Get target pose from ROS TF (if applicable)
+    def advance_step_state(self) -> None:
         if hasattr(self, "tf_buffer"):
             from rclpy.time import Duration, Time
 
@@ -175,216 +258,130 @@ class Task(OrbitalEnv):
                     "world",
                     "target",
                     Time(),
-                    timeout=Duration(
-                        seconds=1,
-                        nanoseconds=0,
+                    Duration(
+                        seconds=0,
+                        nanoseconds=200000000,
                     ),
                 )
                 logging.debug(f"Got transform from 'world' to 'target': {tf_stamped}")
-                self._goal[:, 0] = tf_stamped.transform.translation.x
-                self._goal[:, 1] = tf_stamped.transform.translation.y
-                self._goal[:, 2] = tf_stamped.transform.translation.z
-                self._goal[:, 3] = tf_stamped.transform.rotation.w
-                self._goal[:, 4] = tf_stamped.transform.rotation.x
-                self._goal[:, 5] = tf_stamped.transform.rotation.y
-                self._goal[:, 6] = tf_stamped.transform.rotation.z
+                # The TF pose is env-local: offset it by each env origin so every
+                # env (distinct origins under `env.stack=false`) gets it in its
+                # own cell rather than env_0's world position.
+                translation = tf_stamped.transform.translation
+                self._goal[:, 0:3] = self.scene.env_origins + torch.tensor(
+                    (translation.x, translation.y, translation.z),
+                    dtype=self._goal.dtype,
+                    device=self._goal.device,
+                )
+                self._goal[:, 3] = tf_stamped.transform.rotation.x
+                self._goal[:, 4] = tf_stamped.transform.rotation.y
+                self._goal[:, 5] = tf_stamped.transform.rotation.z
+                self._goal[:, 6] = tf_stamped.transform.rotation.w
             except Exception as e:
                 logging.warning(
                     f"Failed to get transform from 'world' to 'target': {e}"
                 )
 
-        ## Visualize target
         self._target_marker.visualize(self._goal[:, 0:3], self._goal[:, 3:7])
 
-        ## Get remaining fuel (if applicable)
-        if self._thrust_action_term_key:
-            thrust_action_term: ThrustAction = self.action_manager._terms[  # type: ignore
-                self._thrust_action_term_key
-            ]
-            remaining_fuel = (
-                thrust_action_term.remaining_fuel / thrust_action_term.cfg.fuel_capacity
-            ).unsqueeze(-1)
-        else:
-            remaining_fuel = None
+    def extract_step_return(self) -> StepReturn:
+        rew = self.cfg.reward
+        num_envs = self.num_envs
+        device = self.device
 
-        return _compute_step_return(
-            ## Time
-            episode_length=self.episode_length_buf,
-            max_episode_length=self.max_episode_length,
-            truncate_episodes=self.cfg.truncate_episodes,
-            ## Actions
-            act_current=self.action_manager.action,
-            act_previous=self.action_manager.prev_action,
-            ## States
-            # Root
-            tf_pos_robot=self._robot.data.root_pos_w,
-            tf_quat_robot=self._robot.data.root_quat_w,
-            vel_lin_robot=self._robot.data.root_lin_vel_b,
-            vel_ang_robot=self._robot.data.root_ang_vel_b,
-            # Transforms (world frame)
-            tf_pos_target=self._goal[:, 0:3],
-            tf_quat_target=self._goal[:, 3:7],
-            # IMU
-            imu_lin_acc=self._imu_robot.data.lin_acc_b,
-            imu_ang_vel=self._imu_robot.data.ang_vel_b,
-            # Fuel
-            remaining_fuel=remaining_fuel,
+        act_current = self.action_manager.action
+        act_previous = self.action_manager.prev_action
+
+        tf_pos_robot, tf_quat_robot, vel_lin_robot, vel_ang_robot = (
+            self._robot_base_state()
         )
 
+        imu_lin_acc = self._imu_robot.data.lin_acc_b
+        imu_ang_vel = self._imu_robot.data.ang_vel_b
 
-@torch.jit.script
-def _compute_step_return(
-    *,
-    ## Time
-    episode_length: torch.Tensor,
-    max_episode_length: int,
-    truncate_episodes: bool,
-    ## Actions
-    act_current: torch.Tensor,
-    act_previous: torch.Tensor,
-    ## States
-    # Root
-    tf_pos_robot: torch.Tensor,
-    tf_quat_robot: torch.Tensor,
-    vel_lin_robot: torch.Tensor,
-    vel_ang_robot: torch.Tensor,
-    # Transforms (world frame)
-    tf_pos_target: torch.Tensor,
-    tf_quat_target: torch.Tensor,
-    # IMU
-    imu_lin_acc: torch.Tensor,
-    imu_ang_vel: torch.Tensor,
-    # Fuel
-    remaining_fuel: torch.Tensor | None,
-) -> StepReturn:
-    num_envs = episode_length.size(0)
-    dtype = episode_length.dtype
-    device = episode_length.device
+        tf_pos_target = self._goal[:, 0:3]
+        tf_quat_target = self._goal[:, 3:7]
 
-    ############
-    ## States ##
-    ############
-    ## Root
-    tf_rotmat_robot = matrix_from_quat(tf_quat_robot)
-    tf_rot6d_robot = rotmat_to_rot6d(tf_rotmat_robot)
+        tf_rotmat_robot = matrix_from_quat(tf_quat_robot)
+        tf_rot6d_robot = rotmat_to_rot6d(tf_rotmat_robot)
 
-    ## Transforms (world frame)
-    # Robot -> Target
-    tf_pos_robot_to_target, tf_quat_robot_to_target = subtract_frame_transforms(
-        t01=tf_pos_robot,
-        q01=tf_quat_robot,
-        t02=tf_pos_target,
-        q02=tf_quat_target,
-    )
-    tf_rotmat_robot_to_target = matrix_from_quat(tf_quat_robot_to_target)
-    tf_rot6d_robot_to_target = rotmat_to_rot6d(tf_rotmat_robot_to_target)
-    dist_robot_to_target = torch.norm(tf_pos_robot_to_target, dim=-1)
+        tf_pos_robot_to_target, tf_quat_robot_to_target = subtract_frame_transforms(
+            t01=tf_pos_robot,
+            q01=tf_quat_robot,
+            t02=tf_pos_target,
+            q02=tf_quat_target,
+        )
+        tf_rotmat_robot_to_target = matrix_from_quat(tf_quat_robot_to_target)
+        tf_rot6d_robot_to_target = rotmat_to_rot6d(tf_rotmat_robot_to_target)
+        dist_robot_to_target = torch.norm(tf_pos_robot_to_target, dim=-1)
 
-    ## Fuel
-    remaining_fuel = (
-        remaining_fuel
-        if remaining_fuel is not None
-        else torch.ones((num_envs, 1), dtype=dtype, device=device)
-    )
+        action_rate_metric = torch.mean(torch.square(act_current - act_previous), dim=1)
+        action_magnitude_metric = torch.mean(torch.square(act_current), dim=1)
+        angular_velocity_metric = torch.norm(vel_ang_robot, dim=-1)
+        position_distance_metric = torch.square(dist_robot_to_target)
 
-    #############
-    ## Rewards ##
-    #############
-    # Penalty: Action rate
-    WEIGHT_ACTION_RATE = -16.0
-    _action_rate = torch.mean(torch.square(act_current - act_previous), dim=1)
-    penalty_action_rate = WEIGHT_ACTION_RATE * _action_rate
+        position_precision = torch.exp(
+            -torch.square(dist_robot_to_target)
+            / (2.0 * rew.gaussian_std_position_precision**2)
+        )
 
-    # Penalty: Action magnitude
-    WEIGHT_ACTION_MAGNITUDE = -16.0
-    _action_magnitude = torch.mean(torch.square(act_current), dim=1)
-    penalty_action_magnitude = WEIGHT_ACTION_MAGNITUDE * _action_magnitude
+        velocity_at_target_metric = position_precision * torch.norm(
+            vel_lin_robot, dim=-1
+        )
 
-    # Penalty: Fuel consumption
-    WEIGHT_FUEL_CONSUMPTION = -8.0
-    penalty_fuel_consumption = WEIGHT_FUEL_CONSUMPTION * torch.square(
-        1.0 - remaining_fuel.squeeze(-1)
-    )
+        station_keeping_metric = position_precision * torch.exp(
+            -action_rate_metric
+            / (2.0 * rew.gaussian_std_station_keeping_action_rate**2)
+        )
 
-    # Penalty: Position tracking | Robot <--> Target
-    WEIGHT_POSITION_TRACKING = -2.0
-    MAX_POSITION_TRACKING_PENALTY = -16.0
-    penalty_position_tracking = torch.clamp_min(
-        WEIGHT_POSITION_TRACKING * torch.square(dist_robot_to_target),
-        min=MAX_POSITION_TRACKING_PENALTY,
-    )
+        reward: dict[str, torch.Tensor] = {
+            "penalty_action_rate": rew.penalty_action_rate(action_rate_metric),
+            "penalty_action_magnitude": rew.penalty_action_magnitude(
+                action_magnitude_metric
+            ),
+            "penalty_angular_velocity": rew.penalty_angular_velocity(
+                angular_velocity_metric
+            ),
+            "penalty_position_distance": rew.penalty_position_distance(
+                position_distance_metric
+            ),
+            "penalty_velocity_at_target": rew.penalty_velocity_at_target(
+                velocity_at_target_metric
+            ),
+            "reward_position_approach": rew.reward_position_approach(
+                dist_robot_to_target
+            ),
+            "reward_position_precision": rew.reward_position_precision(
+                position_precision
+            ),
+            "reward_smooth_station_keeping": rew.reward_smooth_station_keeping(
+                station_keeping_metric
+            ),
+        }
 
-    # Reward: Position tracking | Robot <--> Target (precision)
-    WEIGHT_POSITION_TRACKING_PRECISION = 16.0
-    TANH_STD_POSITION_TRACKING_PRECISION = 0.1
-    _position_tracking_precision = 1.0 - torch.tanh(
-        dist_robot_to_target / TANH_STD_POSITION_TRACKING_PRECISION
-    )
-    reward_position_tracking_precision = (
-        WEIGHT_POSITION_TRACKING_PRECISION * _position_tracking_precision
-    )
+        termination = torch.zeros(num_envs, dtype=torch.bool, device=device)
+        truncation = (
+            self.episode_length_buf >= self.max_episode_length
+            if self.cfg.truncate_episodes
+            else torch.zeros(num_envs, dtype=torch.bool, device=device)
+        )
 
-    # Reward: Target orientation tracking once position is reached | Robot <--> Target
-    WEIGHT_ORIENTATION_TRACKING = 64.0
-    TANH_STD_ORIENTATION_TRACKING = 0.25
-    orientation_error = torch.linalg.matrix_norm(
-        tf_rotmat_robot_to_target
-        - torch.eye(3, device=device).unsqueeze(0).expand_as(tf_rotmat_robot_to_target),
-        ord="fro",
-    )
-    _orientation_tracking_precision = _position_tracking_precision * (
-        1.0 - torch.tanh(orientation_error / TANH_STD_ORIENTATION_TRACKING)
-    )
-    reward_orientation_tracking = (
-        WEIGHT_ORIENTATION_TRACKING * _orientation_tracking_precision
-    )
-
-    # Reward: Action rate at target
-    WEIGHT_ACTION_RATE_AT_TARGET = 128.0
-    TANH_STD_ACTION_RATE_AT_TARGET = 0.2
-    reward_action_rate_at_target = (
-        WEIGHT_ACTION_RATE_AT_TARGET
-        * _orientation_tracking_precision
-        * (1.0 - torch.tanh(_action_rate / TANH_STD_ACTION_RATE_AT_TARGET))
-    )
-
-    ##################
-    ## Terminations ##
-    ##################
-    # No termination condition
-    termination = torch.zeros(num_envs, dtype=torch.bool, device=device)
-    # Truncation
-    truncation = (
-        episode_length >= max_episode_length
-        if truncate_episodes
-        else torch.zeros(num_envs, dtype=torch.bool, device=device)
-    )
-
-    return StepReturn(
-        {
-            "state": {
-                "act_previous": act_previous,
-                "tf_rot6d_robot": tf_rot6d_robot,
-                "vel_lin_robot": vel_lin_robot,
-                "vel_ang_robot": vel_ang_robot,
-                "tf_pos_robot_to_target": tf_pos_robot_to_target,
-                "tf_rot6d_robot_to_target": tf_rot6d_robot_to_target,
+        return StepReturn(
+            {
+                ObservationGroup.STATE: {
+                    "act_previous": act_previous,
+                    "tf_rot6d_robot": tf_rot6d_robot,
+                    "vel_lin_robot": vel_lin_robot,
+                    "vel_ang_robot": vel_ang_robot,
+                    "tf_pos_robot_to_target": tf_pos_robot_to_target,
+                    "tf_rot6d_robot_to_target": tf_rot6d_robot_to_target,
+                },
+                ObservationGroup.PROPRIO: {
+                    "imu_lin_acc": imu_lin_acc,
+                    "imu_ang_vel": imu_ang_vel,
+                },
             },
-            "proprio": {
-                "imu_lin_acc": imu_lin_acc,
-                "imu_ang_vel": imu_ang_vel,
-                "remaining_fuel": remaining_fuel,
-            },
-        },
-        {
-            "penalty_action_rate": penalty_action_rate,
-            "penalty_action_magnitude": penalty_action_magnitude,
-            "penalty_fuel_consumption": penalty_fuel_consumption,
-            "penalty_position_tracking": penalty_position_tracking,
-            "reward_position_tracking_precision": reward_position_tracking_precision,
-            "reward_orientation_tracking": reward_orientation_tracking,
-            "reward_action_rate_at_target": reward_action_rate_at_target,
-        },
-        termination,
-        truncation,
-    )
+            reward,
+            termination,
+            truncation,
+        )

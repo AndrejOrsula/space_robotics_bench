@@ -48,6 +48,9 @@ updates:
       - dependency-name: "optuna"
         update-types:
           - "version-update:semver-major"
+      - dependency-name: "pyspacemouse"
+        update-types:
+          - "version-update:semver-major"
 
   - package-ecosystem: "cargo"
     directory: "/"

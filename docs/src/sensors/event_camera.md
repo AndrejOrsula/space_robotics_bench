@@ -332,9 +332,9 @@ empty hash and warning.
 Random/human collection records its controller as `policy_id`. Strict
 validation permits empty checkpoint hashes for `random`, `human`, `zero`,
 `rand`, `teleop`, `ros`, `synthetic_fixture`; other policies require one.
-Missing SRB or Isaac Lab provenance fails. In strict source images,
-`srb_git_sha` comes from the verified adjacent build manifest; in checkouts,
-Git. It identifies build source, not unchanged runtime files.
+Missing SRB or Isaac Lab provenance fails. `srb_git_sha` is the Git revision
+of the SRB checkout, which images also include. It identifies build source,
+not unchanged runtime files.
 `isaaclab_version` is the installed package version and may differ from pinned
 source.
 

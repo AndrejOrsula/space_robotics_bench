@@ -49,11 +49,8 @@ export SRB_ASSETS_HF_REPO_REVISION=main         # optional
 ./assets/scripts/update.bash
 ```
 
-For non-strict builds, `./.docker/build.bash` can bootstrap a target directory
-when it is missing or contains only `.git`. Set the matching variables:
+`./.docker/build.bash` bootstraps a target directory when it is missing or
+contains only `.git`. Set the matching variables:
 
 - `SRB_ASSETS_...` for `assets/srb_assets`
 - `SRB_GRAPHICS_...` for `docs/src/_graphics`
-
-Strict source-provenance builds require populated asset directories. They skip
-this bootstrap step.

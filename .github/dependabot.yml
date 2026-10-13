@@ -25,6 +25,10 @@ updates:
           - "minor"
           - "patch"
     ignore:
+      - dependency-name: "jax"
+      - dependency-name: "jaxlib"
+      - dependency-name: "matplotlib"
+      - dependency-name: "scipy"
       - dependency-name: "torch"
       - dependency-name: "torchvision"
       - dependency-name: "tensordict"
@@ -36,6 +40,9 @@ updates:
       - dependency-name: "simforge"
       - dependency-name: "simforge-foundry"
       - dependency-name: "numpy"
+        update-types:
+          - "version-update:semver-major"
+      - dependency-name: "optuna"
         update-types:
           - "version-update:semver-major"
 

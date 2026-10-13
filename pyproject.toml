@@ -4,6 +4,8 @@ build-backend = "hatchling.build"
 
 [tool.uv]
 override-dependencies = ["diffusers>=0.31,<0.32"]
+## Match the compiled packages bundled with Isaac Sim 6.1
+constraint-dependencies = ["matplotlib==3.10.8", "scipy==1.17.0"]
 extra-build-variables = { egl-probe = { CMAKE_POLICY_VERSION_MINIMUM = "3.5" } }
 
 [dependency-groups]
@@ -221,7 +223,7 @@ algo = [
   "srb[skrl]",
   "srb[robomimic]",
 ]
-dreamer = ["jax>=0.4,<1.0"]
+dreamer = ["jax~=0.4,<0.5.1"]
 rsl_rl = ["rsl-rl-lib==5.5.1"]
 tdmpc2 = [
   "torch==2.12.0",
@@ -235,8 +237,8 @@ sbx = ["sbx-rl~=0.28", "tf_keras~=2.0"]
 skrl = ["skrl~=2.1"]
 robomimic = []
 ## Hyperparameter tuning
-tune = ["optuna>=4.6,<6"]
-tune-rdb = ["optuna>=4.6,<6", "psycopg2-binary>=2.9,<3"]
+tune = ["optuna>=4.6,<5"]
+tune-rdb = ["optuna>=4.6,<5", "psycopg2-binary>=2.9,<3"]
 ## Data
 data = [
   "h5py>=3.10,<4.0",

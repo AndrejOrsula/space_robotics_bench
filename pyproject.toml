@@ -282,7 +282,7 @@ cli = [
 ]
 dev = ["srb[lint]", "srb[test]", "srb[tracing]", "srb[typing]", "srb[plots]"]
 lint = ["ruff==0.16.10"]
-rich = ["rich~=14.0"]
+rich = ["rich>=14,<16"]
 test = [
   "pytest~=9.0",
   "pytest-order~=1.0",

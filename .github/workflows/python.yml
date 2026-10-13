@@ -2,9 +2,7 @@ name: Python
 
 on:
   push:
-    branches:
-      - dev
-      - main
+    branches: [main, dev]
   pull_request:
   release:
     types: [published]
@@ -18,7 +16,8 @@ permissions:
   contents: read
 
 jobs:
-  python:
+  test:
+    name: Build & Test
     if: ${{ github.event_name != 'release' || github.event.release.prerelease == false }}
     runs-on: ubuntu-26.04
     steps:
@@ -102,9 +101,9 @@ jobs:
           retention-days: 7
 
   publish:
+    name: Publish to PyPI
     if: ${{ github.event_name == 'release' && github.event.release.prerelease == false && github.repository == 'AndrejOrsula/space_robotics_bench' }}
-    needs:
-      - python
+    needs: [test]
     runs-on: ubuntu-26.04
     environment: pypi
     permissions:

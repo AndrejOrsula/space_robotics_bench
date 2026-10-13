@@ -2,9 +2,7 @@ name: Docs
 
 on:
   push:
-    branches:
-      - dev
-      - main
+    branches: [main, dev]
     paths:
       - ".github/workflows/docs.yml"
       - ".gitmodules"
@@ -25,6 +23,7 @@ env:
 
 jobs:
   build:
+    name: Build Documentation
     runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -45,8 +44,9 @@ jobs:
           path: /tmp/srb-docs
 
   deploy:
+    name: Deploy Documentation
     if: ${{ github.event_name != 'pull_request' && github.repository == 'AndrejOrsula/space_robotics_bench' && github.ref == 'refs/heads/main' }}
-    needs: build
+    needs: [build]
     permissions:
       contents: read
       pages: write

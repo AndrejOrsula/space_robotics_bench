@@ -2,9 +2,7 @@ name: pre-commit
 
 on:
   push:
-    branches:
-      - dev
-      - main
+    branches: [main, dev]
   pull_request:
   workflow_dispatch:
 
@@ -20,6 +18,7 @@ env:
 
 jobs:
   pre-commit:
+    name: Code Hygiene & Formatting
     runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1

@@ -6,6 +6,10 @@ updates:
       interval: "weekly"
     cooldown:
       default-days: 7
+    groups:
+      github-actions:
+        patterns:
+          - "*"
 
   - package-ecosystem: "uv"
     directory: "/"
@@ -13,6 +17,13 @@ updates:
       interval: "weekly"
     cooldown:
       default-days: 7
+    groups:
+      minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
     ignore:
       - dependency-name: "torch"
       - dependency-name: "torchvision"
@@ -34,6 +45,13 @@ updates:
       interval: "weekly"
     cooldown:
       default-days: 7
+    groups:
+      minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
     ignore:
       - dependency-name: "eframe"
         update-types:

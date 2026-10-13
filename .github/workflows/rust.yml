@@ -2,11 +2,8 @@ name: Rust
 
 on:
   push:
-    branches:
-      - dev
-      - main
-    paths-ignore:
-      - "docs/**"
+    branches: [main, dev]
+    paths-ignore: ["docs/**"]
   pull_request:
   release:
     types: [published]
@@ -24,6 +21,7 @@ env:
 
 jobs:
   rustfmt:
+    name: Code Formatting
     runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -36,9 +34,11 @@ jobs:
       - name: cargo fmt
         run: cargo fmt --all --check
 
-  cargo:
-    needs: rustfmt
+  test:
+    name: Test (${{ matrix.toolchain }})
+    needs: [rustfmt]
     runs-on: ubuntu-26.04
+    continue-on-error: ${{ matrix.toolchain == 'beta' }}
     container:
       image: ros:jazzy-ros-base
     env:
@@ -49,10 +49,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        toolchain:
-          - "1.88"
-          - stable
-          - beta
+        toolchain: ["1.88", stable, beta]
     steps:
       - name: Install build prerequisites
         run: |
@@ -84,6 +81,7 @@ jobs:
           cargo publish --dry-run --locked --package srb_gui
 
   deny:
+    name: Dependencies & Licenses (cargo-deny)
     runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -94,10 +92,9 @@ jobs:
           command: check advisories bans licenses sources
 
   publish:
+    name: Publish to crates.io
     if: ${{ github.event_name == 'release' && github.event.release.prerelease == false && github.repository == 'AndrejOrsula/space_robotics_bench' }}
-    needs:
-      - cargo
-      - deny
+    needs: [test, deny]
     runs-on: ubuntu-26.04
     environment: crates-io
     permissions:

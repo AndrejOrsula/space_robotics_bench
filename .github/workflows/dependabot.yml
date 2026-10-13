@@ -1,6 +1,8 @@
 name: Dependabot automation
 
-on: pull_request
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
 
 concurrency:
   group: "${{ github.workflow }} @ ${{ github.event.pull_request.number }}"
@@ -9,8 +11,9 @@ concurrency:
 permissions: {}
 
 jobs:
-  dependabot_automation:
-    if: ${{ github.event.pull_request.user.login == 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository }}
+  dependabot:
+    name: Approve & Enable Auto-Merge
+    if: ${{ github.event.pull_request.user.login == 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.draft }}
     runs-on: ubuntu-26.04
     permissions:
       contents: write

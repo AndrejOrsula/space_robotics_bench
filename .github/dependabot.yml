@@ -4,11 +4,15 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: "uv"
     directory: "/"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
     ignore:
       - dependency-name: "torch"
       - dependency-name: "torchvision"
@@ -28,24 +32,14 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
     ignore:
       - dependency-name: "eframe"
         update-types:
           - "version-update:semver-minor"
           - "version-update:semver-major"
-      - dependency-name: "egui"
-        update-types:
-          - "version-update:semver-minor"
-          - "version-update:semver-major"
-      - dependency-name: "egui_commonmark"
-        update-types:
-          - "version-update:semver-minor"
-          - "version-update:semver-major"
-      - dependency-name: "egui_extras"
-        update-types:
-          - "version-update:semver-minor"
-          - "version-update:semver-major"
-      - dependency-name: "egui_plot"
+      - dependency-name: "egui*"
         update-types:
           - "version-update:semver-minor"
           - "version-update:semver-major"

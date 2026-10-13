@@ -14,7 +14,7 @@ permissions:
 
 concurrency:
   group: "${{ github.workflow }} @ ${{ github.event.pull_request.head.label || github.head_ref || github.ref }}"
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name != 'release' }}
 
 env:
   SOURCE_HELPER_PIN_FILE: .docker/helpers/release/source_provenance.sha256
@@ -70,10 +70,9 @@ jobs:
           fetch-depth: 0
           submodules: recursive
 
-      ## Extract metadata (tags, labels) from Git reference and GitHub events for the Docker image
       - name: Extract build metadata
         id: metadata
-        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302
         with:
           images: |
             ghcr.io/${{ github.repository }}
@@ -329,7 +328,7 @@ jobs:
 
       - name: Upload credential-free build evidence
         if: ${{ always() && github.event_name == 'release' }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: docker-build-evidence
           path: ${{ runner.temp }}/srb-docker-build-evidence
@@ -405,10 +404,9 @@ jobs:
           fetch-depth: 0
           submodules: recursive
 
-      ## Extract metadata (tags, labels) from Git reference and GitHub events for the Docker image
       - name: Extract release metadata
         id: metadata
-        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302
         with:
           images: |
             ghcr.io/${{ github.repository }}
@@ -697,9 +695,8 @@ jobs:
             echo "enabled=false" >> "${GITHUB_OUTPUT}"
           fi
 
-      ## Login to Docker Hub and/or GitHub container registry
       - name: Login to GitHub container registry
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -707,12 +704,11 @@ jobs:
 
       - name: Login to Docker Hub when configured
         if: ${{ steps.dockerhub.outputs.enabled == 'true' }}
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
 
-      ## Build and push if the workflow was triggered by a release
       - name: Push exact fresh IID to metadata aliases
         shell: bash
         env:
@@ -850,7 +846,7 @@ jobs:
 
       - name: Upload signed release evidence
         if: ${{ always() }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: docker-release-evidence
           path: ${{ runner.temp }}/srb-docker-publish-evidence

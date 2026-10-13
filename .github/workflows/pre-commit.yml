@@ -16,7 +16,6 @@ permissions:
   contents: read
 
 env:
-  PYTHON_VERSION: "3.12"
   SKIP: cargo-fmt
 
 jobs:
@@ -28,10 +27,16 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
+          python-version: "3.12"
+      - name: Cache pre-commit environments
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ runner.os }}-${{ env.pythonLocation }}-${{ hashFiles('.pre-commit-config.yaml') }}
       - name: Run pre-commit
-        uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd
-      - name: Apply fixes from pre-commit
-        uses: pre-commit-ci/lite-action@5d6cc0eb514c891a40562a58a8e71576c5c7fb43
+        run: |
+          python -m pip install pre-commit
+          pre-commit run --all-files --show-diff-on-failure --color=always
+      - name: Apply fixes with pre-commit-ci-lite
+        uses: pre-commit-ci/lite-action@062bca0919bc9d6e66755cc05074b70c77e111fc
         if: always()

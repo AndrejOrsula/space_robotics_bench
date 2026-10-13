@@ -7,44 +7,45 @@ on:
       - main
     paths:
       - ".github/workflows/docs.yml"
+      - ".gitmodules"
       - "docs/**"
       - "*.md"
   pull_request:
-  release:
-    types: [published]
   workflow_dispatch:
-
-permissions:
-  contents: read
 
 concurrency:
   group: "${{ github.workflow }} @ ${{ github.event.pull_request.head.label || github.head_ref || github.ref }}"
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
+env:
+  MDBOOK_VERSION: "0.5.3"
+
 jobs:
   build:
-    if: ${{ github.event_name != 'release' || github.event.release.prerelease == false }}
     runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
           submodules: recursive
-          fetch-depth: 0
-      - name: Setup mdBook
-        uses: peaceiris/actions-mdbook@ee69d230fe19748b7abf22df32acaa93833fad08
-        with:
-          mdbook-version: "0.5.3"
+      - name: Install mdBook
+        run: |
+          mkdir -p "${RUNNER_TEMP}/mdbook"
+          curl --proto "=https" --tlsv1.2 -fsSL "https://github.com/rust-lang/mdBook/releases/download/v${MDBOOK_VERSION}/mdbook-v${MDBOOK_VERSION}-x86_64-unknown-linux-gnu.tar.gz" | tar -xz -C "${RUNNER_TEMP}/mdbook"
+          echo "${RUNNER_TEMP}/mdbook" >> "${GITHUB_PATH}"
       - name: Build
         run: mdbook build docs --dest-dir /tmp/srb-docs
       - name: Upload artifact
-        if: ${{ github.event_name != 'pull_request' && github.repository == 'AndrejOrsula/space_robotics_bench' && (github.event_name != 'push' || github.ref == 'refs/heads/main') }}
-        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b
+        if: ${{ github.event_name != 'pull_request' && github.repository == 'AndrejOrsula/space_robotics_bench' && github.ref == 'refs/heads/main' }}
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9
         with:
           path: /tmp/srb-docs
 
   deploy:
-    if: ${{ (github.event_name != 'pull_request' && github.repository == 'AndrejOrsula/space_robotics_bench') && (github.event_name != 'push' || github.ref == 'refs/heads/main') && (github.event_name != 'release' || github.event.release.prerelease == false) }}
+    if: ${{ github.event_name != 'pull_request' && github.repository == 'AndrejOrsula/space_robotics_bench' && github.ref == 'refs/heads/main' }}
     needs: build
     permissions:
       contents: read

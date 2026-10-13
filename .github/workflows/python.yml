@@ -12,7 +12,7 @@ on:
 
 concurrency:
   group: "${{ github.workflow }} @ ${{ github.event.pull_request.head.label || github.head_ref || github.ref }}"
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name != 'release' }}
 
 permissions:
   contents: read
@@ -26,20 +26,19 @@ jobs:
         uses: AdityaGarg8/remove-unwanted-software@90e01b21170618765a73370fcc3abbd1684a7793
         with:
           remove-android: "true"
-          remove-cached-tools: "false"
           remove-codeql: "true"
           remove-docker-images: "true"
           remove-dotnet: "true"
           remove-haskell: "true"
-          remove-large-packages: "false"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
       - name: Install uv
-        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884
         with:
-          enable-cache: true
+          enable-cache: ${{ github.event_name != 'release' }}
           cache-dependency-glob: "uv.lock"
+          prune-cache: true
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
@@ -95,7 +94,7 @@ jobs:
           PY
       - name: Upload release distributions
         if: ${{ github.event_name == 'release' }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: python-dist
           path: dist/
@@ -107,20 +106,20 @@ jobs:
     needs:
       - python
     runs-on: ubuntu-26.04
+    environment: pypi
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
       - name: Install uv
-        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884
         with:
           enable-cache: false
-      - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
-        with:
-          python-version-file: "pyproject.toml"
       - name: Download release distributions
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
           name: python-dist
           path: dist/
@@ -144,15 +143,12 @@ jobs:
               )
               raise SystemExit(1)
           PY
-      - name: Require a PyPI token
+      - name: Publish
         env:
           PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
         run: |
-          if [ -z "${PYPI_TOKEN}" ]; then
-            echo "::error::PYPI_TOKEN is not set, so this release cannot be published to PyPI. Set the secret and re-run, or delete the release."
-            exit 1
+          if [ -n "${PYPI_TOKEN}" ]; then
+            UV_PUBLISH_TOKEN="${PYPI_TOKEN}" uv publish dist/*
+          else
+            uv publish --trusted-publishing always dist/*
           fi
-      - name: Publish
-        env:
-          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_TOKEN }}
-        run: uv publish dist/*

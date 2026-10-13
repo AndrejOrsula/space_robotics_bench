@@ -14,18 +14,13 @@ on:
 
 concurrency:
   group: "${{ github.workflow }} @ ${{ github.event.pull_request.head.label || github.head_ref || github.ref }}"
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name != 'release' }}
 
 permissions:
   contents: read
 
 env:
-  MSRV: "1.88"
-  ROS_DISTRO: "jazzy"
   CARGO_TERM_COLOR: always
-  CARGO_NET_RETRY: 10
-  CARGO_HTTP_TIMEOUT: 120
-  CRATE_NAME_GUI: srb_gui
 
 jobs:
   rustfmt:
@@ -34,97 +29,59 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f
         with:
+          toolchain: stable
           components: rustfmt
-
       - name: cargo fmt
-        run: cargo fmt --all --check --verbose
+        run: cargo fmt --all --check
 
   cargo:
     needs: rustfmt
     runs-on: ubuntu-26.04
+    container:
+      image: ros:jazzy-ros-base
+    env:
+      BASH_ENV: /opt/ros/jazzy/setup.bash
     defaults:
       run:
         shell: bash
-    container:
-      image: ros:jazzy-ros-base
     strategy:
       fail-fast: false
       matrix:
         toolchain:
-          - MSRV
+          - "1.88"
           - stable
           - beta
     steps:
-      - name: Install build prerequisites into the ROS container
+      - name: Install build prerequisites
         run: |
-          printf 'Acquire::Retries "5";\n' > /etc/apt/apt.conf.d/80-srb-retries
           apt-get update
           DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends --yes \
             build-essential ca-certificates clang cmake curl git libssl-dev pkg-config
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
-        with:
-          save-if: ${{ github.event_name == 'push'}}
-      - uses: dtolnay/rust-toolchain@d1031067263f94b142dd6c0ce24c5eb9d02d52a0
-        if: ${{ matrix.toolchain != 'MSRV' && matrix.toolchain != 'stable' }}
-        with:
-          toolchain: ${{ matrix.toolchain }}
-      - uses: dtolnay/rust-toolchain@d1031067263f94b142dd6c0ce24c5eb9d02d52a0
-        if: ${{ matrix.toolchain == 'MSRV' }}
-        with:
-          toolchain: ${{ env.MSRV }}
-      - uses: dtolnay/rust-toolchain@d1031067263f94b142dd6c0ce24c5eb9d02d52a0
-        if: ${{ matrix.toolchain == 'stable' }}
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f
         with:
           toolchain: ${{ matrix.toolchain }}
           components: clippy
-
-      ## cargo check
-      - name: cargo check
-        run: source /opt/ros/${{ env.ROS_DISTRO }}/setup.bash && cargo check --workspace --all-targets --verbose
-      - name: cargo check --no-default-features
-        run: source /opt/ros/${{ env.ROS_DISTRO }}/setup.bash && cargo check --workspace --all-targets --no-default-features --verbose
-      - name: cargo check --all-features
-        run: source /opt/ros/${{ env.ROS_DISTRO }}/setup.bash && cargo check --workspace --all-targets --all-features --verbose
-
-      ## cargo test
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+        with:
+          save-if: ${{ github.event_name == 'push' }}
       - name: cargo test
-        run: source /opt/ros/${{ env.ROS_DISTRO }}/setup.bash && cargo test --workspace --all-targets --verbose
-      - name: cargo test --no-default-features
-        run: source /opt/ros/${{ env.ROS_DISTRO }}/setup.bash && cargo test --workspace --all-targets --no-default-features --verbose
-      - name: cargo test --all-features
-        run: source /opt/ros/${{ env.ROS_DISTRO }}/setup.bash && cargo test --workspace --all-targets --all-features --verbose
-
-      ## cargo test --doc
-      - name: cargo test --doc
-        run: source /opt/ros/${{ env.ROS_DISTRO }}/setup.bash && cargo test --workspace --doc --verbose
-      - name: cargo test --doc --no-default-features
-        run: source /opt/ros/${{ env.ROS_DISTRO }}/setup.bash && cargo test --workspace --doc --no-default-features --verbose
-      - name: cargo test --doc --all-features
-        run: source /opt/ros/${{ env.ROS_DISTRO }}/setup.bash && cargo test --workspace --doc --all-features --verbose
-
-      - name: stable | cargo clippy
+        run: cargo test --workspace --all-features --locked
+      - name: cargo clippy
         if: ${{ matrix.toolchain == 'stable' }}
-        run: source /opt/ros/${{ env.ROS_DISTRO }}/setup.bash && cargo clippy --workspace --all-targets --all-features --no-deps --verbose -- --deny warnings
-
-      ## [stable] cargo doc
-      - name: stable | cargo doc --document-private-items
+        run: cargo clippy --workspace --all-targets --all-features --locked -- --deny warnings
+      - name: cargo doc
         if: ${{ matrix.toolchain == 'stable' }}
-        run: source /opt/ros/${{ env.ROS_DISTRO }}/setup.bash && cargo doc --workspace --all-features --no-deps --document-private-items --verbose
-
-      ## [stable] cargo publish --dry-run
-      - name: stable | cargo publish --dry-run
+        run: cargo doc --workspace --all-features --no-deps --document-private-items --locked
+      - name: cargo publish --dry-run
         if: ${{ matrix.toolchain == 'stable' }}
         run: |
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          echo "pack indices before repack: $(find .git/objects/pack -name '*.idx' | wc -l)"
-          git repack -a -d -q
-          echo "pack indices after repack: $(find .git/objects/pack -name '*.idx' | wc -l)"
-          source /opt/ros/${{ env.ROS_DISTRO }}/setup.bash && cargo publish --dry-run --locked --package ${{ env.CRATE_NAME_GUI }}
+          git config --global --add safe.directory "${GITHUB_WORKSPACE}"
+          cargo publish --dry-run --locked --package srb_gui
 
   deny:
     runs-on: ubuntu-26.04
@@ -142,23 +99,29 @@ jobs:
       - cargo
       - deny
     runs-on: ubuntu-26.04
+    environment: crates-io
+    permissions:
+      contents: read
+      id-token: write
+    container:
+      image: ros:jazzy-ros-base
+    env:
+      BASH_ENV: /opt/ros/jazzy/setup.bash
     defaults:
       run:
         shell: bash
-    container:
-      image: ros:jazzy-ros-base
     steps:
-      - name: Install build prerequisites into the ROS container
+      - name: Install build prerequisites
         run: |
-          printf 'Acquire::Retries "5";\n' > /etc/apt/apt.conf.d/80-srb-retries
           apt-get update
           DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends --yes \
             build-essential ca-certificates clang cmake curl git libssl-dev pkg-config
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87
-
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f
+        with:
+          toolchain: stable
       - name: Verify release tag
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
@@ -169,17 +132,16 @@ jobs:
             echo "::error::Release tag ${RELEASE_TAG} does not match srb_gui version ${crate_version}."
             exit 1
           fi
-      - name: Require a crates.io token
+      - name: Authenticate with crates.io
+        id: auth
+        uses: rust-lang/crates-io-auth-action@c6f97d42243bad5fab37ca0427f495c86d5b1a18
+        continue-on-error: true
+      - name: cargo publish
         env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token || secrets.CARGO_REGISTRY_TOKEN }}
         run: |
           if [ -z "${CARGO_REGISTRY_TOKEN}" ]; then
-            echo "::error::CARGO_REGISTRY_TOKEN is not set, so this release cannot be published to crates.io. Set the secret and re-run, or delete the release."
+            echo "::error::Neither crates.io trusted publishing nor the CARGO_REGISTRY_TOKEN secret is configured."
             exit 1
           fi
-
-      ## Publish to crates.io
-      - name: Publish crate (gui)
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: source /opt/ros/${{ env.ROS_DISTRO }}/setup.bash && cargo publish --locked --package ${{ env.CRATE_NAME_GUI }}
+          cargo publish --locked --package srb_gui

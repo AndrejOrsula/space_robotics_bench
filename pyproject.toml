@@ -253,14 +253,14 @@ event-metavision = ["h5py>=3.10,<4.0"]
 event-v2ce = [
   "h5py>=3.10,<4.0",
   "torch",
-  "opencv-python-headless>=4.8,<5.0",
+  "opencv-python-headless>=4.8,<6.0",
   "einops>=0.6,<1.0",
 ]
 event-ros = ["h5py>=3.10,<4.0"]
 event-reconstruction = [
   "h5py>=3.10,<4.0",
   "torch",
-  "opencv-python-headless>=4.8,<5.0",
+  "opencv-python-headless>=4.8,<6.0",
   "scipy>=1.10,<2.0",
   "lpips>=0.1.4,<1.0",
 ]

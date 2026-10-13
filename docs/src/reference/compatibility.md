@@ -11,7 +11,6 @@ The matrix shows supported robot categories for each task. A ✓ marks a support
 | Task | **Manipulator** | **Mobile Manipulator** | **Mobile Robot** |
 |---|:---: | :---: | :---:|
 | `lunalab` | | ✓ | |
-| `orbital_lunalab` | | | ✓ |
 | `zerog_lab` | | ✓ | |
 | `_manipulation` | ✓ | | |
 | `debris_capture` | ✓ | | |

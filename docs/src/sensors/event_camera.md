@@ -161,7 +161,7 @@ frame rate (configured cap until frame two). Recommended minimum rates:
 
 1. Enable `events` in `env.active_sensors` (alias of `event_camera`). Tasks with
    an event camera spawn it then: front (`velocity_tracking`,
-   `waypoint_navigation`, `orbital_lunalab`), onboard (`landing`, `moonfall`, `zerog_lab`), or
+   `waypoint_navigation`), onboard (`landing`, `moonfall`, `zerog_lab`), or
    wrist (`excavation`, `sample_collection`). Without it, `--record-events`
    fails because the scene has no event camera.
 

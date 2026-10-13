@@ -173,9 +173,9 @@ SRB applies no per-`num_envs` GPU buffer sizing; PhysX buffers keep Isaac Lab's 
 
 ## 9. Training configuration
 
-### Two of the 43 tasks have tuned hyperparameters
+### Two of the 42 tasks have tuned hyperparameters
 
-`hyperparams/` has 28 reinforcement-learning and 11 imitation-learning configs; `hyperparams/task/` overrides two of 43 tasks. The other 41 use defaults, not best-achievable settings. Untuned scores are unfair across algorithms; published scores are not tuned or configuration-matched.
+`hyperparams/` has 28 reinforcement-learning and 11 imitation-learning configs; `hyperparams/task/` overrides two of 42 tasks. The other 40 use defaults, not best-achievable settings. Untuned scores are unfair across algorithms; published scores are not tuned or configuration-matched.
 
 ## Known limitations
 

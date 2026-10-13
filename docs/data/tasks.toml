@@ -250,10 +250,6 @@ video_id = ""
 tagline = "Digital twin of the LunaLab planetary analogue testbed"
 video_id = ""
 
-[orbital_lunalab]
-tagline = "Floating platform hovering over the LunaLab regolith"
-video_id = ""
-
 [zerog_lab]
 tagline = "Digital twin of a zero-gravity laboratory testbed"
 video_id = ""

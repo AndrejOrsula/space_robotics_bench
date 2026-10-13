@@ -59,10 +59,10 @@ srb agent collect --env excavation --collector zero --num_episodes 5 --horizon 2
 
 ### Multi-Modal Recording
 
-Add `visual` to `env.active_sensors` for RGB-D and `events` for the [event camera](../sensors/event_camera.md), e.g. a floating platform over the LunaLab regolith:
+Add `visual` to `env.active_sensors` for RGB-D and `events` for the [event camera](../sensors/event_camera.md), e.g. a floating platform in the Zero-G lab:
 
 ```bash
-srb agent collect --headless --env orbital_lunalab --collector random \
+srb agent collect --headless --env zerog_lab --collector random \
   --num_episodes 10 env.num_envs=1 \
   'env.active_sensors=[proprioception,contact,transform,visual,events]' \
   --record-events

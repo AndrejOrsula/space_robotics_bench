@@ -267,7 +267,7 @@ event-reconstruction = [
 ]
 ## Hardware
 hw = ["srb[spacemouse]"]
-spacemouse = ["pyspacemouse~=1.0"]
+spacemouse = ["pyspacemouse>=1,<3"]
 ## Logging
 logging = ["srb[wandb]", "srb[tensorboard]"]
 wandb = ["wandb==0.30.0"]

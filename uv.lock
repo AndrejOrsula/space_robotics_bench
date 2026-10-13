@@ -2100,7 +2100,7 @@ wheels = [
 
 [[package]]
 name = "optuna"
-version = "4.6.0"
+version = "5.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "alembic" },
@@ -2111,9 +2111,9 @@ dependencies = [
     { name = "sqlalchemy" },
     { name = "tqdm" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/6b/81/08f90f194eed78178064a9383432eca95611e2c5331e7b01e2418ce4b15a/optuna-4.6.0.tar.gz", hash = "sha256:89e38c2447c7f793a726617b8043f01e31f0bad54855040db17eb3b49404a369", size = 477444, upload-time = "2025-11-10T05:14:30.151Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/27/6d/7bd33b5ed3a83f1c1517fb20c54c7dbf59e6c76430d9b26d3205074ff6b0/optuna-5.0.0.tar.gz", hash = "sha256:358bb878b7b1e20e90dc944ac4261796dd3d5c2b7860aa960a08fc10e0b5beff", size = 508726, upload-time = "2026-09-07T05:16:21.136Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/58/de/3d8455b08cb6312f8cc46aacdf16c71d4d881a1db4a4140fc5ef31108422/optuna-4.6.0-py3-none-any.whl", hash = "sha256:4c3a9facdef2b2dd7e3e2a8ae3697effa70fae4056fcf3425cfc6f5a40feb069", size = 404708, upload-time = "2025-11-10T05:14:28.6Z" },
+    { url = "https://files.pythonhosted.org/packages/90/e5/7c5e8cdda8c9f0cd8aca0a376dee9cff6b8c30692cf614960d9e80f59689/optuna-5.0.0-py3-none-any.whl", hash = "sha256:5fff892ae6baf4948c810c5b8635ec67e08efb0709b41cb73b14e30391d44720", size = 442352, upload-time = "2026-09-07T05:16:19.943Z" },
 ]
 
 [[package]]
@@ -3525,8 +3525,8 @@ requires-dist = [
     { name = "onnx", marker = "extra == 'onnx'", specifier = ">=1.16,<2.0" },
     { name = "opencv-python-headless", marker = "extra == 'event-reconstruction'", specifier = ">=4.8,<5.0" },
     { name = "opencv-python-headless", marker = "extra == 'event-v2ce'", specifier = ">=4.8,<5.0" },
-    { name = "optuna", marker = "extra == 'tune'", specifier = ">=4.6,<5" },
-    { name = "optuna", marker = "extra == 'tune-rdb'", specifier = ">=4.6,<5" },
+    { name = "optuna", marker = "extra == 'tune'", specifier = ">=4.6,<6" },
+    { name = "optuna", marker = "extra == 'tune-rdb'", specifier = ">=4.6,<6" },
     { name = "orjson", specifier = "~=3.10" },
     { name = "oxidasim", specifier = "==0.1.0" },
     { name = "pandas", marker = "extra == 'data'", specifier = ">=2.0,<3.0" },

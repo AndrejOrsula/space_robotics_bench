@@ -144,7 +144,7 @@ known-first-party = ["srb"]
 
 [project]
 name = "srb"
-version = "0.0.6"
+version = "0.1.0"
 description = "Robot Learning Beyond Earth"
 authors = [{ name = "Andrej Orsula", email = "orsula.andrej@gmail.com" }]
 maintainers = [{ name = "Andrej Orsula", email = "orsula.andrej@gmail.com" }]

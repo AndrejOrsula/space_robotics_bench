@@ -2,7 +2,7 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
     <name>srb</name>
-    <version>0.0.6</version>
+    <version>0.1.0</version>
     <description>Robot Learning Beyond Earth</description>
     <maintainer email="orsula.andrej@gmail.com">Andrej Orsula</maintainer>
     <license>MIT</license>

@@ -235,8 +235,8 @@ sbx = ["sbx-rl~=0.28", "tf_keras~=2.0"]
 skrl = ["skrl~=2.1"]
 robomimic = []
 ## Hyperparameter tuning
-tune = ["optuna>=4.6,<5"]
-tune-rdb = ["optuna>=4.6,<5", "psycopg2-binary>=2.9,<3"]
+tune = ["optuna>=4.6,<6"]
+tune-rdb = ["optuna>=4.6,<6", "psycopg2-binary>=2.9,<3"]
 ## Data
 data = [
   "h5py>=3.10,<4.0",

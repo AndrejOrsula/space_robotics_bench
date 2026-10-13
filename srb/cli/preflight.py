@@ -211,7 +211,11 @@ def require_runtime_task_sidecar(
             details.append("missing from docs/data/tasks.toml: " + ", ".join(missing))
         if stale:
             details.append("not present in runtime registry: " + ", ".join(stale))
-        _reject("Runtime task/catalog mismatch; " + "; ".join(details))
+        _reject(
+            "Runtime task/catalog mismatch; "
+            + "; ".join(details)
+            + "; run `srb cache update` if the cache predates an SRB update"
+        )
 
 
 def offline_cache_ready() -> bool:

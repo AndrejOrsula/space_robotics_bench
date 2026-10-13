@@ -3330,6 +3330,7 @@ algo = [
     { name = "skrl" },
     { name = "stable-baselines3" },
     { name = "tensordict" },
+    { name = "tensorflow" },
     { name = "termcolor" },
     { name = "tf-keras" },
     { name = "torch" },
@@ -3369,6 +3370,7 @@ all = [
     { name = "stable-baselines3" },
     { name = "tensorboard" },
     { name = "tensordict" },
+    { name = "tensorflow" },
     { name = "termcolor" },
     { name = "tf-keras" },
     { name = "torch" },
@@ -3412,6 +3414,7 @@ dev = [
 ]
 dreamer = [
     { name = "jax" },
+    { name = "tensorflow" },
 ]
 event-hdf5-blosc = [
     { name = "hdf5plugin" },
@@ -3649,6 +3652,7 @@ requires-dist = [
     { name = "stable-baselines3", marker = "extra == 'sb3'", specifier = "~=2.9" },
     { name = "tensorboard", marker = "extra == 'tensorboard'", specifier = "~=2.0" },
     { name = "tensordict", marker = "extra == 'tdmpc2'", specifier = "==0.14.2" },
+    { name = "tensorflow", marker = "extra == 'dreamer'", specifier = "<2.21" },
     { name = "termcolor", marker = "extra == 'tdmpc2'" },
     { name = "tf-keras", marker = "extra == 'sbx'", specifier = "~=2.0" },
     { name = "torch", marker = "extra == 'event-reconstruction'" },

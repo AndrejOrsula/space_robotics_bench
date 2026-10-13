@@ -204,7 +204,8 @@ def test_cli_agent_train(env: str, num_envs: int, algo: str):
             "srb",
             "agent",
             "train",
-            "--headless" if HEADLESS else "--hide_ui",
+            # Dreamer trains in headless workers and rejects --hide_ui
+            "--headless" if HEADLESS or algo == "dreamer" else "--hide_ui",
             f"env.scene.num_envs={num_envs}",
             "--env",
             env,

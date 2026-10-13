@@ -1449,7 +1449,8 @@ def run_dreamer_process_training(
     process_env_factory: Callable[[Any], Any] | None = None,
     learner_runner: Callable[..., Any] | None = None,
     transport_timeout_s: float = 5.0,
-    startup_timeout_s: float = 120.0,
+    # Cold Isaac Sim worker startup can take several minutes
+    startup_timeout_s: float = 600.0,
 ) -> Any:
     """Run Dreamer training with Isaac owned exclusively by child workers.
 

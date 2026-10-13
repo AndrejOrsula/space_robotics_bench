@@ -616,7 +616,8 @@ def _read_lunarlab_zarr(source_dir, *, epoch_range=None, epoch_stride: int = 1) 
         import zarr
     except FailureError:
         raise
-    except ImportError as exc:
+    # TypeError: zarr shadowed by an older typing_extensions (e.g. Isaac's python.sh)
+    except (ImportError, TypeError) as exc:
         _raise_importer_optional(
             "reading lunarlab spice_maps 'epochs.zarr' products requires the "
             "'zarr' package (and 'numcodecs'); install the srb[spice] extra "

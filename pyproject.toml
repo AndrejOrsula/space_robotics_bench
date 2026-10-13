@@ -223,7 +223,8 @@ algo = [
   "srb[skrl]",
   "srb[robomimic]",
 ]
-dreamer = ["jax~=0.4,<0.5.1"]
+## TensorBoard logging; jaxlib 0.5 breaks the profiler hook of TensorFlow 2.21
+dreamer = ["jax~=0.4,<0.5.1", "tensorflow<2.21"]
 rsl_rl = ["rsl-rl-lib==5.5.1"]
 tdmpc2 = [
   "torch==2.12.0",

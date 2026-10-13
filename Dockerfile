@@ -721,6 +721,9 @@ RUN --mount=type=cache,target="/root/.cache/uv" \
     if [[ "${RSL_RL_DEV,,}" = true ]]; then uv pip install --python "${PYTHONEXE}" --no-deps --editable "${RSL_RL_PATH}"; fi && \
     rm -f /tmp/srb-requirements.txt && \
     python -c 'from importlib.metadata import version; import numpy, pyproj, rasterio; print("srb", version("srb"), "oxidasim", version("oxidasim"), "simforge", version("simforge"), "simforge-foundry", version("simforge-foundry")); print("numpy", version("numpy"), "pyproj", version("pyproj"), "proj", pyproj.proj_version_str, "rasterio", version("rasterio"), "gdal", rasterio.__gdal_version__)' && \
+    ## Kit loads its bundled copies of these compiled packages, so the venv must match them.
+    python -c 'import glob, os; from importlib.metadata import version; stale = [p for p in ("matplotlib", "scipy") if not glob.glob(os.path.join(os.environ["ISAAC_PATH"], "ext*", "*", "pip_prebundle", f"{p}-{version(p)}.dist-info"))]; assert not stale, f"{stale} must match the versions bundled with Isaac Sim"' && \
+    python -c 'import jax; print("jax", jax.__version__, jax.devices())' && \
     if [ "$TARGETARCH" != "amd64" ]; then python -c 'from pxr import Usd; print("[INFO] pxr resolves to", Usd.__file__, "version", Usd.GetVersion())'; fi
 
 ## PyPI provides CPU-only torch for aarch64; SRB requires CUDA for batched envs.

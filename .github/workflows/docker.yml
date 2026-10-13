@@ -84,7 +84,7 @@ jobs:
 
       ## Build and push if the workflow was triggered by a release
       - name: Build (and push on release)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ${{ matrix.dockerfile }}

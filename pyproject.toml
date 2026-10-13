@@ -292,7 +292,7 @@ test = [
 ]
 tracing = ["srb[rich]", "logfire~=4.0"]
 typing = [
-  "mypy~=1.0",
+  "mypy>=1,<3",
   "types-psutil~=7.0",
   "types-PyYAML~=6.0",
   "types-requests~=2.31",

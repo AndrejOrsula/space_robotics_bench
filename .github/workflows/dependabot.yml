@@ -5,7 +5,7 @@ permissions: {}
 
 jobs:
   dependabot_automation:
-    runs-on: [self-hosted, Linux, X64, ubuntu-latest]
+    runs-on: ubuntu-26.04
     permissions:
       contents: write
       pull-requests: write
@@ -14,13 +14,6 @@ jobs:
       GH_TOKEN: ${{secrets.GITHUB_TOKEN}}
       PR_URL: ${{github.event.pull_request.html_url}}
     steps:
-      - name: Check the runner provides the GitHub CLI
-        run: |
-          if ! command -v gh >/dev/null 2>&1; then
-            echo "::error::the GitHub CLI (gh) is not installed on this runner; Dependabot auto-approval and auto-merge cannot run. Install it (https://github.com/cli/cli#installation) on the self-hosted runners."
-            exit 1
-          fi
-          gh --version
       - name: Fetch metadata
         id: metadata
         uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98

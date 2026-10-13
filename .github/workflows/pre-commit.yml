@@ -21,11 +21,8 @@ env:
 
 jobs:
   pre-commit:
-    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    runs-on: [self-hosted, Linux, X64, ubuntu-latest]
+    runs-on: ubuntu-26.04
     steps:
-      - name: Reclaim workspace ownership
-        run: sudo --non-interactive chown -R "$(id -u):$(id -g)" "${GITHUB_WORKSPACE}"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false

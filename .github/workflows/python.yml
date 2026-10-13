@@ -19,11 +19,10 @@ permissions:
 
 jobs:
   python:
-    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (github.event_name != 'release' || github.event.release.prerelease == false) }}
-    runs-on: [self-hosted, Linux, X64, ubuntu-latest]
+    if: ${{ github.event_name != 'release' || github.event.release.prerelease == false }}
+    runs-on: ubuntu-26.04
     steps:
       - name: Maximize build space
-        if: runner.environment == 'github-hosted'
         uses: AdityaGarg8/remove-unwanted-software@90e01b21170618765a73370fcc3abbd1684a7793
         with:
           remove-android: "true"
@@ -33,8 +32,6 @@ jobs:
           remove-dotnet: "true"
           remove-haskell: "true"
           remove-large-packages: "false"
-      - name: Reclaim workspace ownership
-        run: sudo --non-interactive chown -R "$(id -u):$(id -g)" "${GITHUB_WORKSPACE}"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
@@ -109,10 +106,8 @@ jobs:
     if: ${{ github.event_name == 'release' && github.event.release.prerelease == false && github.repository == 'AndrejOrsula/space_robotics_bench' }}
     needs:
       - python
-    runs-on: [self-hosted, Linux, X64, ubuntu-latest]
+    runs-on: ubuntu-26.04
     steps:
-      - name: Reclaim workspace ownership
-        run: sudo --non-interactive chown -R "$(id -u):$(id -g)" "${GITHUB_WORKSPACE}"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false

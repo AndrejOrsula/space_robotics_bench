@@ -29,25 +29,11 @@ env:
 
 jobs:
   rustfmt:
-    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    runs-on: [self-hosted, Linux, X64, ubuntu-latest]
+    runs-on: ubuntu-26.04
     steps:
-      - name: Reclaim workspace ownership
-        run: sudo --non-interactive chown -R "$(id -u):$(id -g)" "${GITHUB_WORKSPACE}"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      - name: Use a writable Rust home
-        shell: bash
-        run: |
-          if ! command -v rustup >/dev/null 2>&1; then
-            base="${RUNNER_TOOL_CACHE:-$RUNNER_TEMP}/srb-rust"
-            mkdir -p "$base/cargo/bin" "$base/rustup"
-            echo "CARGO_HOME=$base/cargo" >> "$GITHUB_ENV"
-            echo "RUSTUP_HOME=$base/rustup" >> "$GITHUB_ENV"
-            echo "$base/cargo/bin" >> "$GITHUB_PATH"
-            echo "Rust home redirected to $base"
-          fi
       - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87
         with:
           components: rustfmt
@@ -56,9 +42,8 @@ jobs:
         run: cargo fmt --all --check --verbose
 
   cargo:
-    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     needs: rustfmt
-    runs-on: [self-hosted, Linux, X64, ubuntu-latest]
+    runs-on: ubuntu-26.04
     defaults:
       run:
         shell: bash
@@ -141,16 +126,9 @@ jobs:
           echo "pack indices after repack: $(find .git/objects/pack -name '*.idx' | wc -l)"
           source /opt/ros/${{ env.ROS_DISTRO }}/setup.bash && cargo publish --dry-run --locked --package ${{ env.CRATE_NAME_GUI }}
 
-      - name: Restore workspace ownership for host jobs
-        if: ${{ always() }}
-        run: chown -R --reference="${GITHUB_WORKSPACE}/.." "${GITHUB_WORKSPACE}"
-
   deny:
-    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    runs-on: [self-hosted, Linux, X64, ubuntu-latest]
+    runs-on: ubuntu-26.04
     steps:
-      - name: Reclaim workspace ownership
-        run: sudo --non-interactive chown -R "$(id -u):$(id -g)" "${GITHUB_WORKSPACE}"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
@@ -163,7 +141,7 @@ jobs:
     needs:
       - cargo
       - deny
-    runs-on: [self-hosted, Linux, X64, ubuntu-latest]
+    runs-on: ubuntu-26.04
     defaults:
       run:
         shell: bash
@@ -205,7 +183,3 @@ jobs:
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: source /opt/ros/${{ env.ROS_DISTRO }}/setup.bash && cargo publish --locked --package ${{ env.CRATE_NAME_GUI }}
-
-      - name: Restore workspace ownership for host jobs
-        if: ${{ always() }}
-        run: chown -R --reference="${GITHUB_WORKSPACE}/.." "${GITHUB_WORKSPACE}"

@@ -16,7 +16,7 @@ The public suite includes host-runnable `tests/import_test.py` and Isaac Sim-bac
 srb test [options]
 ```
 
-Python runs two `pytest` processes: `unit` (`tests/import_test.py`, self-hosted CI),
+Python runs two `pytest` processes: `unit` (`tests/import_test.py`, run in CI),
 then `workflows` (`tests/cli_*_test.py`, Isaac Sim). A failing tier does not stop
 the next (an interrupt or incomplete process cleanup does), each run tier gets a
 report line, and any failure sets a nonzero exit. `long_training`

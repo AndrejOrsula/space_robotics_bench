@@ -8,11 +8,11 @@ extra-build-variables = { egl-probe = { CMAKE_POLICY_VERSION_MINIMUM = "3.5" } }
 
 [dependency-groups]
 image-runtime = [
-  "anyio==4.13.0",
-  "fastapi==0.141.1",
-  "google-api-core==2.31.0",
-  "proto-plus==1.28.2",
-  "urllib3==2.7.0",
+  "anyio==4.15.1",
+  "fastapi==0.142.2",
+  "google-api-core==2.41.0",
+  "proto-plus==1.29.0",
+  "urllib3==2.8.0",
 ]
 source-robomimic = [
   "robomimic @ git+https://github.com/ARISE-Initiative/robomimic.git@e10526b9a40c78b41f1e37e60041dc0ec0a5f60f",
@@ -221,7 +221,7 @@ algo = [
   "srb[skrl]",
   "srb[robomimic]",
 ]
-dreamer = ["jax~=0.4,<0.5.1"]
+dreamer = ["jax>=0.4,<1.0"]
 rsl_rl = ["rsl-rl-lib==5.5.1"]
 tdmpc2 = [
   "torch==2.12.0",
@@ -267,7 +267,7 @@ hw = ["srb[spacemouse]"]
 spacemouse = ["pyspacemouse~=1.0"]
 ## Logging
 logging = ["srb[wandb]", "srb[tensorboard]"]
-wandb = ["wandb==0.28.1"]
+wandb = ["wandb==0.30.0"]
 tensorboard = ["tensorboard~=2.0"]
 ## Utils
 cli = [
@@ -279,7 +279,7 @@ cli = [
   "omegaconf~=2.0",
 ]
 dev = ["srb[lint]", "srb[test]", "srb[tracing]", "srb[typing]", "srb[plots]"]
-lint = ["ruff==0.15.4"]
+lint = ["ruff==0.16.10"]
 rich = ["rich~=14.0"]
 test = [
   "pytest~=9.0",

@@ -245,7 +245,7 @@ data = [
   "huggingface_hub>=0.23.4,<2.0",
 ]
 ## Event camera
-event-hdf5-blosc = ["hdf5plugin>=4.4,<7.0"]
+event-hdf5-blosc = ["hdf5plugin>=4.4,<8.0"]
 event-v2e = ["h5py>=3.10,<4.0"]
 event-metavision = ["h5py>=3.10,<4.0"]
 event-v2ce = [

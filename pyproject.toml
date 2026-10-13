@@ -4,6 +4,7 @@ build-backend = "hatchling.build"
 
 [tool.uv]
 override-dependencies = ["diffusers>=0.31,<0.32"]
+extra-build-variables = { egl-probe = { CMAKE_POLICY_VERSION_MINIMUM = "3.5" } }
 
 [dependency-groups]
 image-runtime = [

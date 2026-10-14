@@ -790,7 +790,8 @@ RUN source /entrypoint.bash -- && \
     register-python-argcomplete --shell fish "${exe}" > "/root/.config/fish/completions/${exe}.fish" || exit 1 ; \
     done && \
     # Generate and install Hydra override completions (including config keys + values)
-    "${SRB_PATH}/srb/cli/setup_cli.bash" --completions-only
+    # Unset the build-only ISAACSIM_VERSION so the cache path matches the runtime one
+    env -u ISAACSIM_VERSION "${SRB_PATH}/srb/cli/setup_cli.bash" --completions-only
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV HYDRA_FULL_ERROR=1

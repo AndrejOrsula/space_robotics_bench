@@ -131,7 +131,7 @@ srb --help
 srb cache update
 ```
 
-`srb cache update` launches Isaac Sim and builds the offline task catalog.
+`srb cache update` launches Isaac Sim and builds the offline task catalog, which enables tab completion of task names and overrides. The `simulator` profile mounts the repository at `/root/ws`, so the catalog persists in `.cache/` across containers.
 
 ### GUI Forwarding
 

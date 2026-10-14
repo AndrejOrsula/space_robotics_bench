@@ -5,99 +5,136 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.0] - 2026-10-13
+## [0.1.0] - 2026-10-14
 
 ### Added
-- Docs: Add CLI and operational references ([b9acd52](https://github.com/AndrejOrsula/space_robotics_bench/commit/b9acd52e31420fda46ec20e9553bfd7c6375de74))
-- Docker: Add provenance and release workflow ([d16f095](https://github.com/AndrejOrsula/space_robotics_bench/commit/d16f0958bf54499129b8e849e755a62141333f9a))
-- Add sim-to-real validation profiles ([9407cda](https://github.com/AndrejOrsula/space_robotics_bench/commit/9407cda0b6cede46c19043dbd95e6152d83d8c2e))
-- CLI: Add docs, GUI, and maintenance commands ([0db991b](https://github.com/AndrejOrsula/space_robotics_bench/commit/0db991b3ca64bf0933997a62d8a23355b23b3ef0))
-- CLI: Add dataset, model, sensor, and ephemeris commands ([f7e4ba1](https://github.com/AndrejOrsula/space_robotics_bench/commit/f7e4ba1656c41103780a1868bd7c92f4123474bd))
-- CLI: Add asset, cache, and catalog commands ([7402b72](https://github.com/AndrejOrsula/space_robotics_bench/commit/7402b721eefc034dd02ee8559ca94ab05c5bd6ee))
-- CLI: Add lazy command registry and bootstrap ([a126014](https://github.com/AndrejOrsula/space_robotics_bench/commit/a1260142fbc9ca85d0daa8a83248e9167078d86f))
-- Add sim-to-real validation and reporting ([7abc7c6](https://github.com/AndrejOrsula/space_robotics_bench/commit/7abc7c6519280646d52a3fbcf97772963803fe04))
-- Add sim-to-real deployment and hardware interfaces ([03a3ac5](https://github.com/AndrejOrsula/space_robotics_bench/commit/03a3ac581f1afc017c01b381c9747efd5e021eaa))
-- Add Optuna studies and search spaces ([c2fae0b](https://github.com/AndrejOrsula/space_robotics_bench/commit/c2fae0b9b41fe8633a4d3be88018fcab4efdd023))
-- Add experiment policy and artifact workflows ([77dc8d2](https://github.com/AndrejOrsula/space_robotics_bench/commit/77dc8d28e46ad378811eabbebd002f652588067f))
-- Add event camera dataset export and validation ([c4b725b](https://github.com/AndrejOrsula/space_robotics_bench/commit/c4b725b7864a0ed91c3d72a81db11b974d52ffda))
-- Add canonical dataset recording and conversion ([86f5c16](https://github.com/AndrejOrsula/space_robotics_bench/commit/86f5c164904b31b21887e7b0d94e9d31aa233835))
-- Add RL framework adapters and policies ([cd4ab46](https://github.com/AndrejOrsula/space_robotics_bench/commit/cd4ab46863a77028669dd343a1b620d532627014))
-- Add Robomimic offline learning ([6c45d4a](https://github.com/AndrejOrsula/space_robotics_bench/commit/6c45d4af53189aa97ca031c45ecc76d8202d6daa))
-- Add TD-MPC2 training and evaluation ([a83e7ef](https://github.com/AndrejOrsula/space_robotics_bench/commit/a83e7ef038c41f7477b7ede28580108e60405b3e))
-- Add Dreamer training and replay support ([ba5f4ea](https://github.com/AndrejOrsula/space_robotics_bench/commit/ba5f4ea454671d0f938e51fc6dc7df66b193eeb7))
-- Add wrapper composition and application bindings ([49dd05a](https://github.com/AndrejOrsula/space_robotics_bench/commit/49dd05a81c80108d5414f438f4694b3c485d89a8))
-- Add Hydra configuration resolution ([c2bca30](https://github.com/AndrejOrsula/space_robotics_bench/commit/c2bca30b4369733cda0e5ebb51f7b789f8c33d5c))
-- Add spacewalk task ([b118574](https://github.com/AndrejOrsula/space_robotics_bench/commit/b11857495aa9ba027eb35862c777d80f6f8a8808))
-- Add moonfall task and onboard event camera wiring ([f03286d](https://github.com/AndrejOrsula/space_robotics_bench/commit/f03286d4f4eee00130fdc6741f65564f7e51db39))
-- Add terrain landscaping tasks and manifests ([2864d3d](https://github.com/AndrejOrsula/space_robotics_bench/commit/2864d3dc9c91350f850ae4133b7a0ff0df43884c))
-- Add ground and orbital formation following ([704201d](https://github.com/AndrejOrsula/space_robotics_bench/commit/704201d225ab6ea7d84386a61847dff419abdc10))
-- Add beam transport and traversal tasks ([ad931a2](https://github.com/AndrejOrsula/space_robotics_bench/commit/ad931a2f3f23577fd6e20fd2911055f5f27e9743))
-- Add aerial navigation and flight tasks ([014927c](https://github.com/AndrejOrsula/space_robotics_bench/commit/014927ced8b53165533ccecbfd54e5f8d03e820b))
-- Excavation: Add demo task and sensor support ([9040878](https://github.com/AndrejOrsula/space_robotics_bench/commit/9040878d5076a74186b366357a903f77606f4f52))
-- Add lunalab and zerog_lab digital twin tasks ([05ed11e](https://github.com/AndrejOrsula/space_robotics_bench/commit/05ed11ee854efee898213e690c6c74e7a8abfb74))
-- Add terrain landscaping runtime contracts ([61a8eda](https://github.com/AndrejOrsula/space_robotics_bench/commit/61a8eda5a70ef37c5013842d1b6ae8f8d285d6be))
-- Add terrain materials, rocks, lighting, and scenes ([40124ac](https://github.com/AndrejOrsula/space_robotics_bench/commit/40124ac425aef582fe3e7875886a28e9f2a60df2))
-- Add terrain fusion, meshes, and augmentation ([7f3797c](https://github.com/AndrejOrsula/space_robotics_bench/commit/7f3797cfe36477e52763641a7e1afed7c4c32293))
-- Add terrain sources, catalogs, and ingestion ([71c2859](https://github.com/AndrejOrsula/space_robotics_bench/commit/71c2859f650ac25f6276536b44da126660a60bde))
-- Add real terrain scenery assets ([1c91da7](https://github.com/AndrejOrsula/space_robotics_bench/commit/1c91da738f1f919aa739d80c3c90ae783d6e0a9a))
-- Add environment specs and structured spaces ([9e86332](https://github.com/AndrejOrsula/space_robotics_bench/commit/9e863323ad16bd9784d91dbfb09d70bd789a6626))
-- Add reward and randomization runtime ([dfe4c6e](https://github.com/AndrejOrsula/space_robotics_bench/commit/dfe4c6edd1d1cc0c659ed4cfb06cb85b6add2ffe))
-- Add event camera and sensor recording support ([c6cfcbb](https://github.com/AndrejOrsula/space_robotics_bench/commit/c6cfcbb36ccb189c0fd9cb9ff514a460b8e2ee5c))
-- Add ephemeris providers and observation products ([6b1ff62](https://github.com/AndrejOrsula/space_robotics_bench/commit/6b1ff6252127a4b33d13f60fe3f7e89a91287626))
-- Add action groups, filters, and command mappings ([12309b5](https://github.com/AndrejOrsula/space_robotics_bench/commit/12309b57304cd4fcab26df247b3344c6ca954ee9))
-- Add process supervision and validation utilities ([2d9022b](https://github.com/AndrejOrsula/space_robotics_bench/commit/2d9022be20b94acaf719f90c63915e86fee8b0af))
-- Add artifact, dataset, and model publication utilities ([2f0c3ac](https://github.com/AndrejOrsula/space_robotics_bench/commit/2f0c3acd38a5bbbbf16fc8acb5a05ba16c376803))
-- Add shared configuration and simulator utilities ([8e6bcf7](https://github.com/AndrejOrsula/space_robotics_bench/commit/8e6bcf714ee949ef5e3a7b5fe51042ff4d80f9c1))
-- Add typed configuration and observation contracts ([d7e52b3](https://github.com/AndrejOrsula/space_robotics_bench/commit/d7e52b3328ca50e1d4a0ac19c9ae22782fe3c970))
+- Docs: Add CLI and operational references ([b9acd52](https://github.com/AndrejOrsula/space_robotics_bench/commit/b9acd52e31420fda46ec20e9553bfd7c6375de74)) by @AndrejOrsula
+- Docker: Add provenance and release workflow ([d16f095](https://github.com/AndrejOrsula/space_robotics_bench/commit/d16f0958bf54499129b8e849e755a62141333f9a)) by @AndrejOrsula
+- Add sim-to-real validation profiles ([9407cda](https://github.com/AndrejOrsula/space_robotics_bench/commit/9407cda0b6cede46c19043dbd95e6152d83d8c2e)) by @AndrejOrsula
+- CLI: Add docs, GUI, and maintenance commands ([0db991b](https://github.com/AndrejOrsula/space_robotics_bench/commit/0db991b3ca64bf0933997a62d8a23355b23b3ef0)) by @AndrejOrsula
+- CLI: Add dataset, model, sensor, and ephemeris commands ([f7e4ba1](https://github.com/AndrejOrsula/space_robotics_bench/commit/f7e4ba1656c41103780a1868bd7c92f4123474bd)) by @AndrejOrsula
+- CLI: Add asset, cache, and catalog commands ([7402b72](https://github.com/AndrejOrsula/space_robotics_bench/commit/7402b721eefc034dd02ee8559ca94ab05c5bd6ee)) by @AndrejOrsula
+- CLI: Add lazy command registry and bootstrap ([a126014](https://github.com/AndrejOrsula/space_robotics_bench/commit/a1260142fbc9ca85d0daa8a83248e9167078d86f)) by @AndrejOrsula
+- Add sim-to-real validation and reporting ([7abc7c6](https://github.com/AndrejOrsula/space_robotics_bench/commit/7abc7c6519280646d52a3fbcf97772963803fe04)) by @AndrejOrsula
+- Add sim-to-real deployment and hardware interfaces ([03a3ac5](https://github.com/AndrejOrsula/space_robotics_bench/commit/03a3ac581f1afc017c01b381c9747efd5e021eaa)) by @AndrejOrsula
+- Add Optuna studies and search spaces ([c2fae0b](https://github.com/AndrejOrsula/space_robotics_bench/commit/c2fae0b9b41fe8633a4d3be88018fcab4efdd023)) by @AndrejOrsula
+- Add experiment policy and artifact workflows ([77dc8d2](https://github.com/AndrejOrsula/space_robotics_bench/commit/77dc8d28e46ad378811eabbebd002f652588067f)) by @AndrejOrsula
+- Add event camera dataset export and validation ([c4b725b](https://github.com/AndrejOrsula/space_robotics_bench/commit/c4b725b7864a0ed91c3d72a81db11b974d52ffda)) by @AndrejOrsula
+- Add canonical dataset recording and conversion ([86f5c16](https://github.com/AndrejOrsula/space_robotics_bench/commit/86f5c164904b31b21887e7b0d94e9d31aa233835)) by @AndrejOrsula
+- Add RL framework adapters and policies ([cd4ab46](https://github.com/AndrejOrsula/space_robotics_bench/commit/cd4ab46863a77028669dd343a1b620d532627014)) by @AndrejOrsula
+- Add Robomimic offline learning ([6c45d4a](https://github.com/AndrejOrsula/space_robotics_bench/commit/6c45d4af53189aa97ca031c45ecc76d8202d6daa)) by @AndrejOrsula
+- Add TD-MPC2 training and evaluation ([a83e7ef](https://github.com/AndrejOrsula/space_robotics_bench/commit/a83e7ef038c41f7477b7ede28580108e60405b3e)) by @AndrejOrsula
+- Add Dreamer training and replay support ([ba5f4ea](https://github.com/AndrejOrsula/space_robotics_bench/commit/ba5f4ea454671d0f938e51fc6dc7df66b193eeb7)) by @AndrejOrsula
+- Add wrapper composition and application bindings ([49dd05a](https://github.com/AndrejOrsula/space_robotics_bench/commit/49dd05a81c80108d5414f438f4694b3c485d89a8)) by @AndrejOrsula
+- Add Hydra configuration resolution ([c2bca30](https://github.com/AndrejOrsula/space_robotics_bench/commit/c2bca30b4369733cda0e5ebb51f7b789f8c33d5c)) by @AndrejOrsula
+- Add spacewalk task ([b118574](https://github.com/AndrejOrsula/space_robotics_bench/commit/b11857495aa9ba027eb35862c777d80f6f8a8808)) by @AndrejOrsula
+- Add moonfall task and onboard event camera wiring ([f03286d](https://github.com/AndrejOrsula/space_robotics_bench/commit/f03286d4f4eee00130fdc6741f65564f7e51db39)) by @AndrejOrsula
+- Add terrain landscaping tasks and manifests ([2864d3d](https://github.com/AndrejOrsula/space_robotics_bench/commit/2864d3dc9c91350f850ae4133b7a0ff0df43884c)) by @AndrejOrsula
+- Add ground and orbital formation following ([704201d](https://github.com/AndrejOrsula/space_robotics_bench/commit/704201d225ab6ea7d84386a61847dff419abdc10)) by @AndrejOrsula
+- Add beam transport and traversal tasks ([ad931a2](https://github.com/AndrejOrsula/space_robotics_bench/commit/ad931a2f3f23577fd6e20fd2911055f5f27e9743)) by @AndrejOrsula
+- Add aerial navigation and flight tasks ([014927c](https://github.com/AndrejOrsula/space_robotics_bench/commit/014927ced8b53165533ccecbfd54e5f8d03e820b)) by @AndrejOrsula
+- Excavation: Add demo task and sensor support ([9040878](https://github.com/AndrejOrsula/space_robotics_bench/commit/9040878d5076a74186b366357a903f77606f4f52)) by @AndrejOrsula
+- Add lunalab and zerog_lab digital twin tasks ([05ed11e](https://github.com/AndrejOrsula/space_robotics_bench/commit/05ed11ee854efee898213e690c6c74e7a8abfb74)) by @AndrejOrsula
+- Add terrain landscaping runtime contracts ([61a8eda](https://github.com/AndrejOrsula/space_robotics_bench/commit/61a8eda5a70ef37c5013842d1b6ae8f8d285d6be)) by @AndrejOrsula
+- Add terrain materials, rocks, lighting, and scenes ([40124ac](https://github.com/AndrejOrsula/space_robotics_bench/commit/40124ac425aef582fe3e7875886a28e9f2a60df2)) by @AndrejOrsula
+- Add terrain fusion, meshes, and augmentation ([7f3797c](https://github.com/AndrejOrsula/space_robotics_bench/commit/7f3797cfe36477e52763641a7e1afed7c4c32293)) by @AndrejOrsula
+- Add terrain sources, catalogs, and ingestion ([71c2859](https://github.com/AndrejOrsula/space_robotics_bench/commit/71c2859f650ac25f6276536b44da126660a60bde)) by @AndrejOrsula
+- Add real terrain scenery assets ([1c91da7](https://github.com/AndrejOrsula/space_robotics_bench/commit/1c91da738f1f919aa739d80c3c90ae783d6e0a9a)) by @AndrejOrsula
+- Add environment specs and structured spaces ([9e86332](https://github.com/AndrejOrsula/space_robotics_bench/commit/9e863323ad16bd9784d91dbfb09d70bd789a6626)) by @AndrejOrsula
+- Add reward and randomization runtime ([dfe4c6e](https://github.com/AndrejOrsula/space_robotics_bench/commit/dfe4c6edd1d1cc0c659ed4cfb06cb85b6add2ffe)) by @AndrejOrsula
+- Add event camera and sensor recording support ([c6cfcbb](https://github.com/AndrejOrsula/space_robotics_bench/commit/c6cfcbb36ccb189c0fd9cb9ff514a460b8e2ee5c)) by @AndrejOrsula
+- Add ephemeris providers and observation products ([6b1ff62](https://github.com/AndrejOrsula/space_robotics_bench/commit/6b1ff6252127a4b33d13f60fe3f7e89a91287626)) by @AndrejOrsula
+- Add action groups, filters, and command mappings ([12309b5](https://github.com/AndrejOrsula/space_robotics_bench/commit/12309b57304cd4fcab26df247b3344c6ca954ee9)) by @AndrejOrsula
+- Add process supervision and validation utilities ([2d9022b](https://github.com/AndrejOrsula/space_robotics_bench/commit/2d9022be20b94acaf719f90c63915e86fee8b0af)) by @AndrejOrsula
+- Add artifact, dataset, and model publication utilities ([2f0c3ac](https://github.com/AndrejOrsula/space_robotics_bench/commit/2f0c3acd38a5bbbbf16fc8acb5a05ba16c376803)) by @AndrejOrsula
+- Add shared configuration and simulator utilities ([8e6bcf7](https://github.com/AndrejOrsula/space_robotics_bench/commit/8e6bcf714ee949ef5e3a7b5fe51042ff4d80f9c1)) by @AndrejOrsula
+- Add typed configuration and observation contracts ([d7e52b3](https://github.com/AndrejOrsula/space_robotics_bench/commit/d7e52b3328ca50e1d4a0ac19c9ae22782fe3c970)) by @AndrejOrsula
 
 ### Changed
-- CI: Name jobs and group Dependabot updates ([f9651e0](https://github.com/AndrejOrsula/space_robotics_bench/commit/f9651e0c48c28f37aa80b945a3f735d4634bcfff))
-- CI: Build and publish the Docker image with standard actions ([6dab938](https://github.com/AndrejOrsula/space_robotics_bench/commit/6dab938df9ba9ad01a88b424855fdf7edc3f73ac))
-- CI: Simplify workflows and publish via trusted publishing ([721cbb8](https://github.com/AndrejOrsula/space_robotics_bench/commit/721cbb86e6c670ffb9dfd650a90f0dae491bf706))
-- CI: Use GitHub-hosted runners for all but the Docker workflow ([c3d6976](https://github.com/AndrejOrsula/space_robotics_bench/commit/c3d6976221752a1620c8a702aa799a63fac79535))
-- Bump to 0.1.0 ([773ef76](https://github.com/AndrejOrsula/space_robotics_bench/commit/773ef76667d8ff46c2b50c9b134efb3edd33c0c6))
-- Update license year ([1e4901c](https://github.com/AndrejOrsula/space_robotics_bench/commit/1e4901c8fce1027b2c26bbed5917231eb245daf8))
-- Docs: Regenerate asset and task pages ([a147f8e](https://github.com/AndrejOrsula/space_robotics_bench/commit/a147f8e8e65bda9e11cca91ae2754ee093e213e3))
-- Docs: Update sensor and misc pages ([e702d49](https://github.com/AndrejOrsula/space_robotics_bench/commit/e702d4993d29cf2f9aae74bf1325710f6587fe5d))
-- Docs: Expand integration and workflow guides ([802a7ab](https://github.com/AndrejOrsula/space_robotics_bench/commit/802a7ab6e971782cce449c98be6a70b88fe99ac6))
-- Docs: Expand configuration and contributor guides ([a0b420b](https://github.com/AndrejOrsula/space_robotics_bench/commit/a0b420b1abe0a461f53a5d4e04396d7c4b349f1d))
-- Docs: Update installation, usage, and robot pages ([7cb0935](https://github.com/AndrejOrsula/space_robotics_bench/commit/7cb0935a4ea420113bfaa0ca35c564f76d168eff))
-- Update devcontainer, editor settings, and pre-commit hooks ([24fabf4](https://github.com/AndrejOrsula/space_robotics_bench/commit/24fabf42041574c46aaefdda0f7f9fc8590e9234))
-- Update Kit applications and rendering modes ([52d813e](https://github.com/AndrejOrsula/space_robotics_bench/commit/52d813edad4e77420ea598e25056f98ce80f0a5f))
-- Update dependencies and require Python 3.12 ([dd09ac4](https://github.com/AndrejOrsula/space_robotics_bench/commit/dd09ac42d9520979fd199dc39c27ea3d463d0e6d))
-- CI: Update workflows and dependency automation ([e1696d2](https://github.com/AndrejOrsula/space_robotics_bench/commit/e1696d21b1dcda57c935471ddd7411e5e49896c9))
-- Docker: Update for Isaac Sim 6.1 and Isaac Lab 3.0 ([d85e947](https://github.com/AndrejOrsula/space_robotics_bench/commit/d85e947d6cc508e724dd32c40853f6dbdcb84856))
-- Update RL algorithm hyperparameters ([c950b60](https://github.com/AndrejOrsula/space_robotics_bench/commit/c950b60d0d2b64fae05bd688bc638d32b1757161))
-- Update training and task hyperparameters ([9ed355f](https://github.com/AndrejOrsula/space_robotics_bench/commit/9ed355f83b8769fd08d8e4ae660ee994676e808e))
-- GUI: Update application shell and styling ([81185b5](https://github.com/AndrejOrsula/space_robotics_bench/commit/81185b5b3681c6b5ea1bd218a88288b6bddea2fa))
-- GUI: Harden runtime and process supervision ([0b06e69](https://github.com/AndrejOrsula/space_robotics_bench/commit/0b06e6907055eb01c3e8c7254ca4545f89dd0257))
-- GUI: Refactor workflow and task selection ([0521c8c](https://github.com/AndrejOrsula/space_robotics_bench/commit/0521c8c444dce8abb490eac0205f8d27f870c1fd))
-- Update cargo-deny advisory ignores ([4e9a3ac](https://github.com/AndrejOrsula/space_robotics_bench/commit/4e9a3ac689256d0182ff8e3f9c458efcc4a34883))
-- CLI: Split simulated and real agent workflows ([caea3cc](https://github.com/AndrejOrsula/space_robotics_bench/commit/caea3ccdceb83aa9fde76f9c106a46ddc8033ac7))
-- Require explicit registration of generated sim-to-real envs ([b3a91f6](https://github.com/AndrejOrsula/space_robotics_bench/commit/b3a91f68c7a0d87b413c8f6b0fd6cdcff0f676b4))
-- Update teleoperation device backends ([4779004](https://github.com/AndrejOrsula/space_robotics_bench/commit/477900484dc5b62eb09264b6d7eea9d6a52594c3))
-- Extract ROS and GUI environment interfaces ([92a410c](https://github.com/AndrejOrsula/space_robotics_bench/commit/92a410c98c70b40603a4a4f23f7adc41ec491cae))
-- Update shared mobile manipulation templates ([5a3952d](https://github.com/AndrejOrsula/space_robotics_bench/commit/5a3952d63af8d098a3afce677d48e0827401ac50))
-- Update mobile debris capture task ([5d7c75b](https://github.com/AndrejOrsula/space_robotics_bench/commit/5d7c75b76e61714958e1f709e485684a8efa56db))
-- Update shared aerial, ground, and orbital task templates ([c0545d8](https://github.com/AndrejOrsula/space_robotics_bench/commit/c0545d83bb621e9849b14f6c91eb919a9f505804))
-- Update orbital evasion and rendezvous tasks ([d5e7f27](https://github.com/AndrejOrsula/space_robotics_bench/commit/d5e7f27c32c6799690857fd40b68721aeb2f3232))
-- Landing: Update task and event camera behavior ([bca5ef9](https://github.com/AndrejOrsula/space_robotics_bench/commit/bca5ef968c284c2f046f9d6499ce32c5af42e830))
-- Update waypoint and velocity tracking tasks ([5b3d819](https://github.com/AndrejOrsula/space_robotics_bench/commit/5b3d81904227619b6f414f3d080b067a075fb2a8))
-- Update shared manipulation task template ([35532ef](https://github.com/AndrejOrsula/space_robotics_bench/commit/35532ef54124855e74cc70d29bdc586de09b3ce6))
-- Update debris capture, screwdriving, and solar panel tasks ([e785aa2](https://github.com/AndrejOrsula/space_robotics_bench/commit/e785aa244a7c89b338ce3dca2357c369d5151a9f))
-- Rename peg_in_hole_assembly to peg_in_hole and update related tasks ([529d1fd](https://github.com/AndrejOrsula/space_robotics_bench/commit/529d1fdafaef67531ea4b0c343254cc0a72f9126))
-- Make task registration explicit and report import failures ([4010820](https://github.com/AndrejOrsula/space_robotics_bench/commit/401082017fdf0638e5f0576fadb0915e6a183192))
-- Update assets ([3214989](https://github.com/AndrejOrsula/space_robotics_bench/commit/321498964e1cd7a7c835a0bc8c9d80eddcc3fb20))
-- Move asset update script to assets/scripts ([f947b4e](https://github.com/AndrejOrsula/space_robotics_bench/commit/f947b4efa128a6dc0a8abdb1443e0eec04c2f96e))
-- Reorganize robot asset families ([9891a9d](https://github.com/AndrejOrsula/space_robotics_bench/commit/9891a9d80f2cd44ccb60f51aaefdbf00774b2064))
-- Expand and reorganize object and tool assets ([40dab20](https://github.com/AndrejOrsula/space_robotics_bench/commit/40dab200143a6a1f9219631c71fc880a14827519))
-- Update simulation spawners, rendering modes, and particle state ([442efc4](https://github.com/AndrejOrsula/space_robotics_bench/commit/442efc4f4145d586028686cb26c87e8814bee645))
-- Refactor environment runtime and add active sensor selection ([5f300cd](https://github.com/AndrejOrsula/space_robotics_bench/commit/5f300cdf4c3199fbeebfb58f4a409b335e143fe9))
-- Update core asset types and robot models ([ab5e47e](https://github.com/AndrejOrsula/space_robotics_bench/commit/ab5e47ec8eca1011a02b13aee343d446db3c6717))
+- Docs: Explain task completion in Docker ([ed5ad91](https://github.com/AndrejOrsula/space_robotics_bench/commit/ed5ad911deffbb9a3252f26776087746b5623b8f)) by @AndrejOrsula
+- Keep pyspacemouse on 1.x ([b88a412](https://github.com/AndrejOrsula/space_robotics_bench/commit/b88a412c21f69638e6654a4ac88341a260030fe9)) by @AndrejOrsula
+- Merge pull request #148 from AndrejOrsula/dependabot/uv/filelock-4.0.12 ([483068d](https://github.com/AndrejOrsula/space_robotics_bench/commit/483068dc8b5b67d7e86e85a700531373c008aa93)) by @AndrejOrsula in [#148](https://github.com/AndrejOrsula/space_robotics_bench/pull/148)
+- Build(deps): bump filelock from 3.20.3 to 4.0.12 ([f06d86d](https://github.com/AndrejOrsula/space_robotics_bench/commit/f06d86d3fab5287a86e3587c307b0205f2ebe11c)) by @dependabot[bot]
+- Merge pull request #149 from AndrejOrsula/dependabot/uv/pyspacemouse-2.1.0 ([0ebb277](https://github.com/AndrejOrsula/space_robotics_bench/commit/0ebb277ffeef726b4e0d02fef89d2e8a08d22777)) by @AndrejOrsula in [#149](https://github.com/AndrejOrsula/space_robotics_bench/pull/149)
+- Build(deps): bump pyspacemouse from 1.1.5 to 2.1.0 ([4ac841f](https://github.com/AndrejOrsula/space_robotics_bench/commit/4ac841fd28804677dae7091515816368466222c8)) by @dependabot[bot]
+- Align opencv-python with opencv-python-headless 5.0 ([ca7e0ac](https://github.com/AndrejOrsula/space_robotics_bench/commit/ca7e0acb51807e82edacb65bc9ed4e7a228994a7)) by @AndrejOrsula
+- Pin tf/jax and fix Dreamer worker startup ([1029255](https://github.com/AndrejOrsula/space_robotics_bench/commit/1029255634118f17110e0c1d2e4f95be3c638de9)) by @AndrejOrsula
+- Merge pull request #146 from AndrejOrsula/dependabot/uv/rich-15.0.0 ([a89f7f3](https://github.com/AndrejOrsula/space_robotics_bench/commit/a89f7f3f400ec3dba833b7dc5ab91bad807f632b)) by @AndrejOrsula in [#146](https://github.com/AndrejOrsula/space_robotics_bench/pull/146)
+- Build(deps): bump rich from 14.2.0 to 15.0.0 ([6860ddf](https://github.com/AndrejOrsula/space_robotics_bench/commit/6860ddfface590c9c2784d2a362dbd8157908f36)) by @dependabot[bot]
+- Merge pull request #147 from AndrejOrsula/dependabot/uv/logfire-5.1.1 ([1422ba4](https://github.com/AndrejOrsula/space_robotics_bench/commit/1422ba4116f807d56128e1cef90b000119ec7fb1)) by @AndrejOrsula in [#147](https://github.com/AndrejOrsula/space_robotics_bench/pull/147)
+- Build(deps): bump logfire from 4.41.0 to 5.1.1 ([ea1999b](https://github.com/AndrejOrsula/space_robotics_bench/commit/ea1999b9aeebbaff4d97412f9b71dc62905c43cc)) by @dependabot[bot]
+- Merge pull request #145 from AndrejOrsula/dependabot/uv/mypy-2.4.0 ([64ccd68](https://github.com/AndrejOrsula/space_robotics_bench/commit/64ccd68e34960eb7742ab90cecafe327a9bb3bae)) by @AndrejOrsula in [#145](https://github.com/AndrejOrsula/space_robotics_bench/pull/145)
+- Build(deps): bump mypy from 1.19.1 to 2.4.0 ([175615e](https://github.com/AndrejOrsula/space_robotics_bench/commit/175615e6df9bb72a8d9df0c7824f488a6b5bfedd)) by @dependabot[bot]
+- Merge pull request #144 from AndrejOrsula/dependabot/uv/opencv-python-headless-5.0.0.93 ([4c467c2](https://github.com/AndrejOrsula/space_robotics_bench/commit/4c467c2fd0e134466b1755b4931f750dc1b82a1c)) by @AndrejOrsula in [#144](https://github.com/AndrejOrsula/space_robotics_bench/pull/144)
+- Build(deps): bump opencv-python-headless from 4.13.0.92 to 5.0.0.93 ([08e89d2](https://github.com/AndrejOrsula/space_robotics_bench/commit/08e89d248bfea6055d2f7767c568ab2102813ac6)) by @dependabot[bot]
+- Merge pull request #143 from AndrejOrsula/dependabot/uv/trimesh-5.1.1 ([e91c140](https://github.com/AndrejOrsula/space_robotics_bench/commit/e91c1402a01269baceee7c6456723a4d777fb4ed)) by @AndrejOrsula in [#143](https://github.com/AndrejOrsula/space_robotics_bench/pull/143)
+- Build(deps): bump trimesh from 4.12.2 to 5.1.1 ([9ab4809](https://github.com/AndrejOrsula/space_robotics_bench/commit/9ab480900a20e9cd685381a4fdf0e933de50330d)) by @dependabot[bot]
+- Merge pull request #142 from AndrejOrsula/dependabot/uv/pyarrow-25.0.1 ([30cceea](https://github.com/AndrejOrsula/space_robotics_bench/commit/30cceea8c63e6ec52fecc2152403d8248a2c7728)) by @AndrejOrsula in [#142](https://github.com/AndrejOrsula/space_robotics_bench/pull/142)
+- Build(deps): bump pyarrow from 24.0.0 to 25.0.1 ([402a065](https://github.com/AndrejOrsula/space_robotics_bench/commit/402a065acfff67831a87583b0878f7e4c8dab7fb)) by @dependabot[bot]
+- Build(deps): bump types-pyyaml from 6.0.12.20250915 to 6.0.12.20260906 ([b6f019c](https://github.com/AndrejOrsula/space_robotics_bench/commit/b6f019c70d6440738cd01084067d7d5da8214cf8)) by @dependabot[bot] in [#140](https://github.com/AndrejOrsula/space_robotics_bench/pull/140)
+- Build(deps): bump types-requests from 2.33.0.20260408 to 2.33.0.20261006 ([4b03a17](https://github.com/AndrejOrsula/space_robotics_bench/commit/4b03a17e0d29e4eb57741729fcaf71c8e8b3b9e8)) by @dependabot[bot] in [#141](https://github.com/AndrejOrsula/space_robotics_bench/pull/141)
+- Build(deps): bump the minor-and-patch group with 3 updates ([a8b3cd5](https://github.com/AndrejOrsula/space_robotics_bench/commit/a8b3cd51305e74ed545f4e8d35b46a3e8b6882ad)) by @dependabot[bot] in [#139](https://github.com/AndrejOrsula/space_robotics_bench/pull/139)
+- Pin jax, optuna, scipy, and matplotlib to versions that work with Isaac Sim ([67d0b84](https://github.com/AndrejOrsula/space_robotics_bench/commit/67d0b84fe81b9895f9ce096831a362cbdd1de991)) by @AndrejOrsula
+- Merge pull request #138 from AndrejOrsula/dependabot/uv/hdf5plugin-7.1.0 ([20a8dac](https://github.com/AndrejOrsula/space_robotics_bench/commit/20a8dac97e791f2d2fe7e6e43f317c739e80a8df)) by @AndrejOrsula in [#138](https://github.com/AndrejOrsula/space_robotics_bench/pull/138)
+- Build(deps): bump hdf5plugin from 6.0.0 to 7.1.0 ([fd00593](https://github.com/AndrejOrsula/space_robotics_bench/commit/fd00593b695bb205a4c20a4d769b9815e6d1fa1e)) by @dependabot[bot]
+- Merge pull request #135 from AndrejOrsula/dependabot/uv/optuna-5.0.0 ([d9985c8](https://github.com/AndrejOrsula/space_robotics_bench/commit/d9985c82051222a10ba44a355832bf94a38d63b0)) by @AndrejOrsula in [#135](https://github.com/AndrejOrsula/space_robotics_bench/pull/135)
+- Build(deps): bump optuna from 4.6.0 to 5.0.0 ([e292029](https://github.com/AndrejOrsula/space_robotics_bench/commit/e2920293faa35a455136708b53954c99df2c18c4)) by @dependabot[bot]
+- Build(deps): bump the minor-and-patch group across 1 directory with 34 updates ([59919b9](https://github.com/AndrejOrsula/space_robotics_bench/commit/59919b93fe9a23bc930a08948675a359bee85c90)) by @dependabot[bot] in [#134](https://github.com/AndrejOrsula/space_robotics_bench/pull/134)
+- Build(deps): bump the minor-and-patch group across 1 directory with 3 updates ([59a6271](https://github.com/AndrejOrsula/space_robotics_bench/commit/59a6271fa42f28c22f966d3e9b6e9c3cc9ac9ca2)) by @dependabot[bot] in [#133](https://github.com/AndrejOrsula/space_robotics_bench/pull/133)
+- Build(deps): bump hydra-core from 1.4.0.dev1 to 1.4.0.dev10 ([f9c8423](https://github.com/AndrejOrsula/space_robotics_bench/commit/f9c84233a6eed6246ad8473d58c24d0c3eaaf893)) by @dependabot[bot] in [#137](https://github.com/AndrejOrsula/space_robotics_bench/pull/137)
+- Update changelog for version 0.1.0 ([c94e59d](https://github.com/AndrejOrsula/space_robotics_bench/commit/c94e59d175dac011b9cc8aa7ad1ec97d95ff577d)) by @AndrejOrsula
+- CI: Name jobs and group Dependabot updates ([f9651e0](https://github.com/AndrejOrsula/space_robotics_bench/commit/f9651e0c48c28f37aa80b945a3f735d4634bcfff)) by @AndrejOrsula
+- CI: Build and publish the Docker image with standard actions ([6dab938](https://github.com/AndrejOrsula/space_robotics_bench/commit/6dab938df9ba9ad01a88b424855fdf7edc3f73ac)) by @AndrejOrsula
+- CI: Simplify workflows and publish via trusted publishing ([721cbb8](https://github.com/AndrejOrsula/space_robotics_bench/commit/721cbb86e6c670ffb9dfd650a90f0dae491bf706)) by @AndrejOrsula
+- CI: Use GitHub-hosted runners for all but the Docker workflow ([c3d6976](https://github.com/AndrejOrsula/space_robotics_bench/commit/c3d6976221752a1620c8a702aa799a63fac79535)) by @AndrejOrsula
+- Bump to 0.1.0 ([773ef76](https://github.com/AndrejOrsula/space_robotics_bench/commit/773ef76667d8ff46c2b50c9b134efb3edd33c0c6)) by @AndrejOrsula
+- Update license year ([1e4901c](https://github.com/AndrejOrsula/space_robotics_bench/commit/1e4901c8fce1027b2c26bbed5917231eb245daf8)) by @AndrejOrsula
+- Docs: Regenerate asset and task pages ([a147f8e](https://github.com/AndrejOrsula/space_robotics_bench/commit/a147f8e8e65bda9e11cca91ae2754ee093e213e3)) by @AndrejOrsula
+- Docs: Update sensor and misc pages ([e702d49](https://github.com/AndrejOrsula/space_robotics_bench/commit/e702d4993d29cf2f9aae74bf1325710f6587fe5d)) by @AndrejOrsula
+- Docs: Expand integration and workflow guides ([802a7ab](https://github.com/AndrejOrsula/space_robotics_bench/commit/802a7ab6e971782cce449c98be6a70b88fe99ac6)) by @AndrejOrsula
+- Docs: Expand configuration and contributor guides ([a0b420b](https://github.com/AndrejOrsula/space_robotics_bench/commit/a0b420b1abe0a461f53a5d4e04396d7c4b349f1d)) by @AndrejOrsula
+- Docs: Update installation, usage, and robot pages ([7cb0935](https://github.com/AndrejOrsula/space_robotics_bench/commit/7cb0935a4ea420113bfaa0ca35c564f76d168eff)) by @AndrejOrsula
+- Update devcontainer, editor settings, and pre-commit hooks ([24fabf4](https://github.com/AndrejOrsula/space_robotics_bench/commit/24fabf42041574c46aaefdda0f7f9fc8590e9234)) by @AndrejOrsula
+- Update Kit applications and rendering modes ([52d813e](https://github.com/AndrejOrsula/space_robotics_bench/commit/52d813edad4e77420ea598e25056f98ce80f0a5f)) by @AndrejOrsula
+- Update dependencies and require Python 3.12 ([dd09ac4](https://github.com/AndrejOrsula/space_robotics_bench/commit/dd09ac42d9520979fd199dc39c27ea3d463d0e6d)) by @AndrejOrsula
+- CI: Update workflows and dependency automation ([e1696d2](https://github.com/AndrejOrsula/space_robotics_bench/commit/e1696d21b1dcda57c935471ddd7411e5e49896c9)) by @AndrejOrsula
+- Docker: Update for Isaac Sim 6.1 and Isaac Lab 3.0 ([d85e947](https://github.com/AndrejOrsula/space_robotics_bench/commit/d85e947d6cc508e724dd32c40853f6dbdcb84856)) by @AndrejOrsula
+- Update RL algorithm hyperparameters ([c950b60](https://github.com/AndrejOrsula/space_robotics_bench/commit/c950b60d0d2b64fae05bd688bc638d32b1757161)) by @AndrejOrsula
+- Update training and task hyperparameters ([9ed355f](https://github.com/AndrejOrsula/space_robotics_bench/commit/9ed355f83b8769fd08d8e4ae660ee994676e808e)) by @AndrejOrsula
+- GUI: Update application shell and styling ([81185b5](https://github.com/AndrejOrsula/space_robotics_bench/commit/81185b5b3681c6b5ea1bd218a88288b6bddea2fa)) by @AndrejOrsula
+- GUI: Harden runtime and process supervision ([0b06e69](https://github.com/AndrejOrsula/space_robotics_bench/commit/0b06e6907055eb01c3e8c7254ca4545f89dd0257)) by @AndrejOrsula
+- GUI: Refactor workflow and task selection ([0521c8c](https://github.com/AndrejOrsula/space_robotics_bench/commit/0521c8c444dce8abb490eac0205f8d27f870c1fd)) by @AndrejOrsula
+- Update cargo-deny advisory ignores ([4e9a3ac](https://github.com/AndrejOrsula/space_robotics_bench/commit/4e9a3ac689256d0182ff8e3f9c458efcc4a34883)) by @AndrejOrsula
+- CLI: Split simulated and real agent workflows ([caea3cc](https://github.com/AndrejOrsula/space_robotics_bench/commit/caea3ccdceb83aa9fde76f9c106a46ddc8033ac7)) by @AndrejOrsula
+- Require explicit registration of generated sim-to-real envs ([b3a91f6](https://github.com/AndrejOrsula/space_robotics_bench/commit/b3a91f68c7a0d87b413c8f6b0fd6cdcff0f676b4)) by @AndrejOrsula
+- Update teleoperation device backends ([4779004](https://github.com/AndrejOrsula/space_robotics_bench/commit/477900484dc5b62eb09264b6d7eea9d6a52594c3)) by @AndrejOrsula
+- Extract ROS and GUI environment interfaces ([92a410c](https://github.com/AndrejOrsula/space_robotics_bench/commit/92a410c98c70b40603a4a4f23f7adc41ec491cae)) by @AndrejOrsula
+- Update shared mobile manipulation templates ([5a3952d](https://github.com/AndrejOrsula/space_robotics_bench/commit/5a3952d63af8d098a3afce677d48e0827401ac50)) by @AndrejOrsula
+- Update mobile debris capture task ([5d7c75b](https://github.com/AndrejOrsula/space_robotics_bench/commit/5d7c75b76e61714958e1f709e485684a8efa56db)) by @AndrejOrsula
+- Update shared aerial, ground, and orbital task templates ([c0545d8](https://github.com/AndrejOrsula/space_robotics_bench/commit/c0545d83bb621e9849b14f6c91eb919a9f505804)) by @AndrejOrsula
+- Update orbital evasion and rendezvous tasks ([d5e7f27](https://github.com/AndrejOrsula/space_robotics_bench/commit/d5e7f27c32c6799690857fd40b68721aeb2f3232)) by @AndrejOrsula
+- Landing: Update task and event camera behavior ([bca5ef9](https://github.com/AndrejOrsula/space_robotics_bench/commit/bca5ef968c284c2f046f9d6499ce32c5af42e830)) by @AndrejOrsula
+- Update waypoint and velocity tracking tasks ([5b3d819](https://github.com/AndrejOrsula/space_robotics_bench/commit/5b3d81904227619b6f414f3d080b067a075fb2a8)) by @AndrejOrsula
+- Update shared manipulation task template ([35532ef](https://github.com/AndrejOrsula/space_robotics_bench/commit/35532ef54124855e74cc70d29bdc586de09b3ce6)) by @AndrejOrsula
+- Update debris capture, screwdriving, and solar panel tasks ([e785aa2](https://github.com/AndrejOrsula/space_robotics_bench/commit/e785aa244a7c89b338ce3dca2357c369d5151a9f)) by @AndrejOrsula
+- Rename peg_in_hole_assembly to peg_in_hole and update related tasks ([529d1fd](https://github.com/AndrejOrsula/space_robotics_bench/commit/529d1fdafaef67531ea4b0c343254cc0a72f9126)) by @AndrejOrsula
+- Make task registration explicit and report import failures ([4010820](https://github.com/AndrejOrsula/space_robotics_bench/commit/401082017fdf0638e5f0576fadb0915e6a183192)) by @AndrejOrsula
+- Update assets ([3214989](https://github.com/AndrejOrsula/space_robotics_bench/commit/321498964e1cd7a7c835a0bc8c9d80eddcc3fb20)) by @AndrejOrsula
+- Move asset update script to assets/scripts ([f947b4e](https://github.com/AndrejOrsula/space_robotics_bench/commit/f947b4efa128a6dc0a8abdb1443e0eec04c2f96e)) by @AndrejOrsula
+- Reorganize robot asset families ([9891a9d](https://github.com/AndrejOrsula/space_robotics_bench/commit/9891a9d80f2cd44ccb60f51aaefdbf00774b2064)) by @AndrejOrsula
+- Expand and reorganize object and tool assets ([40dab20](https://github.com/AndrejOrsula/space_robotics_bench/commit/40dab200143a6a1f9219631c71fc880a14827519)) by @AndrejOrsula
+- Update simulation spawners, rendering modes, and particle state ([442efc4](https://github.com/AndrejOrsula/space_robotics_bench/commit/442efc4f4145d586028686cb26c87e8814bee645)) by @AndrejOrsula
+- Refactor environment runtime and add active sensor selection ([5f300cd](https://github.com/AndrejOrsula/space_robotics_bench/commit/5f300cdf4c3199fbeebfb58f4a409b335e143fe9)) by @AndrejOrsula
+- Update core asset types and robot models ([ab5e47e](https://github.com/AndrejOrsula/space_robotics_bench/commit/ab5e47ec8eca1011a02b13aee343d446db3c6717)) by @AndrejOrsula
+
+### Fixed
+- Docker: Fix Hydra override completions ([843c406](https://github.com/AndrejOrsula/space_robotics_bench/commit/843c406ff725a79c91e7f96780051101039fc4f6)) by @AndrejOrsula
+- Fix egl-probe build with CMake 4 ([7022ef8](https://github.com/AndrejOrsula/space_robotics_bench/commit/7022ef825194959f17086e295e9b61f207be4083)) by @AndrejOrsula
 
 ### Removed
-- Remove Rust library and Python extension crates ([17bc07b](https://github.com/AndrejOrsula/space_robotics_bench/commit/17bc07b73e342ee959f64abddd73eb048412dd9c))
-- Remove visual environment variants ([8047a2d](https://github.com/AndrejOrsula/space_robotics_bench/commit/8047a2d2bde6a72ea88bf698a5986e89a25107c0))
+- Remove orbital_lunalab task and the modelling envelope intro sentence ([d90bb4a](https://github.com/AndrejOrsula/space_robotics_bench/commit/d90bb4a880eb3780a5b5d590c7a5e81e9bd8f6b7)) by @AndrejOrsula
+- Remove Rust library and Python extension crates ([17bc07b](https://github.com/AndrejOrsula/space_robotics_bench/commit/17bc07b73e342ee959f64abddd73eb048412dd9c)) by @AndrejOrsula
+- Remove visual environment variants ([8047a2d](https://github.com/AndrejOrsula/space_robotics_bench/commit/8047a2d2bde6a72ea88bf698a5986e89a25107c0)) by @AndrejOrsula
 
 ## [0.0.6] - 2025-10-29
 

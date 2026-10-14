@@ -51,6 +51,15 @@ updates:
       - dependency-name: "pyspacemouse"
         update-types:
           - "version-update:semver-major"
+      - dependency-name: "pandas"
+        update-types:
+          - "version-update:semver-major"
+      - dependency-name: "huggingface-hub"
+        update-types:
+          - "version-update:semver-major"
+      - dependency-name: "pillow"
+        update-types:
+          - "version-update:semver-major"
 
   - package-ecosystem: "cargo"
     directory: "/"

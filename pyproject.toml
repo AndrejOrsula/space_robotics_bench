@@ -11,7 +11,7 @@ extra-build-variables = { egl-probe = { CMAKE_POLICY_VERSION_MINIMUM = "3.5" } }
 [dependency-groups]
 image-runtime = [
   "anyio==4.15.1",
-  "fastapi==0.143.0",
+  "fastapi==0.147.0",
   "google-api-core==2.42.0",
   "proto-plus==1.29.0",
   "urllib3==2.8.0",
@@ -270,7 +270,7 @@ hw = ["srb[spacemouse]"]
 spacemouse = ["pyspacemouse~=1.0"]
 ## Logging
 logging = ["srb[wandb]", "srb[tensorboard]"]
-wandb = ["wandb==0.30.0"]
+wandb = ["wandb==0.31.0"]
 tensorboard = ["tensorboard~=2.0"]
 ## Utils
 cli = [
@@ -282,7 +282,7 @@ cli = [
   "omegaconf~=2.0",
 ]
 dev = ["srb[lint]", "srb[test]", "srb[tracing]", "srb[typing]", "srb[plots]"]
-lint = ["ruff==0.17.0"]
+lint = ["ruff==0.17.1"]
 rich = ["rich>=14,<16"]
 test = [
   "pytest~=9.0",

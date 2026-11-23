@@ -11,7 +11,7 @@ extra-build-variables = { egl-probe = { CMAKE_POLICY_VERSION_MINIMUM = "3.5" } }
 [dependency-groups]
 image-runtime = [
   "anyio==4.16.0",
-  "fastapi==0.162.2",
+  "fastapi==0.163.1",
   "google-api-core==2.44.0",
   "proto-plus==1.29.0",
   "urllib3==2.8.0",
@@ -282,7 +282,7 @@ cli = [
   "omegaconf~=2.0",
 ]
 dev = ["srb[lint]", "srb[test]", "srb[tracing]", "srb[typing]", "srb[plots]"]
-lint = ["ruff==0.17.4"]
+lint = ["ruff==0.17.5"]
 rich = ["rich>=14,<16"]
 test = [
   "pytest~=9.0",
